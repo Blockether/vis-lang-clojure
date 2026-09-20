@@ -86,14 +86,14 @@ def clojure_shim(
         f"#!{sys.executable}\n"
         "import json, os, sys\n"
         f"with open({str(record)!r}, 'a') as handle:\n"
-        "    handle.write(json.dumps({'cwd': os.getcwd(), 'argv': sys.argv[1:]}) + chr(10))\n"
+        "    handle.write(json.dumps({'cwd': os.getcwd(), 'argv': sys.argv[1:], 'env': {name: os.environ.get(name) for name in ('CLJ_CONFIG', 'CLJ_CACHE', 'GITLIBS')}}) + chr(10))\n"
         f"sys.stderr.write({says!r})\n"
         f"sys.stdout.write({classpath!r} + chr(10))\n"
         f"sys.exit({code})\n"
     )
     shim.chmod(0o755)
     monkeypatch.setenv("PATH", str(binaries), prepend=os.pathsep)
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("VIS_HOME", str(tmp_path / "vis-home"))
     monkeypatch.delenv("VIS_LANG_CLOJURE_COMMAND", raising=False)
     monkeypatch.setattr(bridge, "_CLASSPATH", None)
     return record
@@ -150,6 +150,24 @@ def test_the_classpath_is_resolved_once(tmp_path, monkeypatch):
     assert len(resolutions(record)) == 1
     assert bridge.library_classpath(refresh=True) == "/jars/library.jar"
     assert len(resolutions(record)) == 2
+
+
+def test_the_resolution_writes_only_where_a_confined_tool_may(tmp_path, monkeypatch):
+    # A confined tool may write to the workspace it was given and to Vis' own
+    # directory, and to nothing else. A boot area under `~/.cache`, a Maven
+    # repository under `~/.m2` or a CLI cache under `~/.clojure` is outside
+    # both, and the resolution that needs one never starts at all.
+    record = clojure_shim(tmp_path, monkeypatch)
+    assert bridge.library_classpath() == "/jars/library.jar"
+
+    boot = os.path.realpath(bridge.boot_directory())
+    assert boot.startswith(os.path.realpath(str(tmp_path / "vis-home")))
+
+    ran = resolutions(record)[-1]
+    assert os.path.realpath(ran["cwd"]) == boot
+    assert f'"{os.path.join(bridge.boot_directory(), "m2")}"' in " ".join(ran["argv"])
+    for name in ("CLJ_CONFIG", "CLJ_CACHE", "GITLIBS"):
+        assert os.path.realpath(ran["env"][name]).startswith(boot)
 
 
 def test_a_failed_resolution_says_what_it_printed(tmp_path, monkeypatch):

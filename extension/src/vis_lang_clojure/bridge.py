@@ -26,7 +26,7 @@ import threading
 
 from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
 
-LIBRARY_VERSION = "1.1.0"
+LIBRARY_VERSION = "1.1.1"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"
@@ -52,18 +52,45 @@ class ClojureError(RuntimeError):
 def boot_directory():
     """Where the library's classpath is resolved — never the project.
 
+    Vis' own state directory holds it. A confined tool may write to the
+    workspace it was given and to that directory, and to nothing else: a boot
+    area under `~/.cache` is outside both, and a resolution run there never
+    starts at all.
+
     Returns:
-        A stable cache directory, created when it is missing. Nothing writes a
+        A stable directory, created when it is missing. Nothing writes a
         `deps.edn` there, so a resolution run in it sees the library coordinate
         and nothing else, and its `.cpcache` makes every later boot a cache read
         instead of a download.
     """
-    base = os.environ.get("XDG_CACHE_HOME", "").strip() or os.path.join(
-        os.path.expanduser("~"), ".cache"
+    base = os.environ.get("VIS_HOME", "").strip() or os.path.join(
+        os.path.expanduser("~"), ".vis"
     )
-    directory = os.path.join(base, "vis-lang-clojure", LIBRARY_VERSION)
+    directory = os.path.join(base, "lang", "vis-lang-clojure", LIBRARY_VERSION)
     os.makedirs(directory, exist_ok=True)
     return directory
+
+
+def boot_environment(boot):
+    """Everything the Clojure CLI writes while it resolves, kept in `boot`.
+
+    The CLI keeps its Maven repository, its git libraries and its own
+    configuration under `$HOME` by default, and a confined tool may not write
+    there. Naming them all inside the boot directory is what lets a cold
+    resolution download the library at all, and it keeps a project's ambient
+    Maven setup from deciding what the tools run on.
+
+    Args:
+        boot: The boot directory.
+
+    Returns:
+        The environment delta for the resolution run.
+    """
+    return {
+        "CLJ_CONFIG": os.path.join(boot, "config"),
+        "CLJ_CACHE": os.path.join(boot, "cpcache"),
+        "GITLIBS": os.path.join(boot, "gitlibs"),
+    }
 
 
 def java_command():
@@ -110,10 +137,15 @@ def library_classpath(refresh=False):
         clojure = tool_path(
             "clojure", "Install it from https://clojure.org/guides/install_clojure."
         )
-        coordinate = f'{{:deps {{com.blockether/vis-lang-clojure {{:mvn/version "{LIBRARY_VERSION}"}}}}}}'
+        boot = boot_directory()
+        coordinate = (
+            f'{{:deps {{com.blockether/vis-lang-clojure {{:mvn/version "{LIBRARY_VERSION}"}}}}'
+            f' :mvn/local-repo "{os.path.join(boot, "m2")}"}}'
+        )
         done = run(
             (clojure, "-Sdeps", coordinate, "-Spath"),
-            cwd=boot_directory(),
+            cwd=boot,
+            env=boot_environment(boot),
             timeout_s=BOOT_TIMEOUT_S,
         )
         lines = [line.strip() for line in done.out.splitlines() if line.strip()]
