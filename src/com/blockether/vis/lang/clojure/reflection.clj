@@ -19,7 +19,7 @@
    `{\"file\" \"row\" \"col\" \"level\" \"warning\" \"type\" \"reflection\"|\"boxed-math\"
      \"message\" \"provider\" \"general\"}`."
   (:require [clojure.string :as str]
-            [com.blockether.vis.core :as vis]))
+            [com.blockether.vis.lang.clojure.host :as host]))
 
 (def provider "The provider tag every finding from this namespace carries." "general")
 
@@ -352,7 +352,7 @@
    renamed or copied file reuses the findings, and the `\"file\"` each finding
    reports is stamped on afterwards."
   [^String code]
-  (.encodeToString (java.util.Base64/getUrlEncoder) (vis/sha256 (vis/utf8 code))))
+  (.encodeToString (java.util.Base64/getUrlEncoder) (host/sha256 (host/utf8 code))))
 
 (defn- cached
   "Findings for `key`, computed by `compute` on a miss.

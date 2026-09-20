@@ -4,24 +4,14 @@
    these stay fast and side-effect-free."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [com.blockether.vis.core :as vis]
-            [com.blockether.vis.lang.clojure.core :as core]
+            [com.blockether.vis.lang.clojure.api :as api]
+            [com.blockether.vis.lang.clojure.host :as host]
             [com.blockether.vis.lang.clojure.nrepl-client :as nrepl-client]
             [com.blockether.vis.lang.clojure.repl-manager :as rm]
             [com.blockether.vis.lang.clojure.shadow-repl :as shadow-repl]
             [lazytest.core :refer [defdescribe expect it]])
   (:import (java.nio.file Files)
            (java.nio.file.attribute FileAttribute)))
-
-(def ^:private manager-test-session-ids
-  ["sess-fail" "sess-fail-2" "sess-race" "sess-slow" "sess-ens" "sess-ens-2" "s"])
-
-(doseq [sid manager-test-session-ids]
-  (vis/register-session-jail! sid
-                              (constantly {:roots-fn (constantly [(System/getProperty
-                                                                    "java.io.tmpdir")])
-                                           :net-enabled? true
-                                           :disabled? true})))
 
 (defn- tmp-dir
   ^String []
@@ -284,22 +274,21 @@
                                         {:id "nrepl:/b" :dir "/b" :port 2}])]
         (expect (= {:id "nrepl:/a" :dir "/a" :port 1} (rm/resolve-target! "sess" nil "/other"))))))
 
-(defdescribe repl-start-tool-gating-test
-             (it "\"status\" always succeeds (start/stop are never flag-gated)"
-                 (expect (:success? (core/repl-start-fn {:workspace/root (tmp-dir) :session-id "s"}
-                                                        "status"))))
-             (it "rejects an unknown op"
-                 (let [t (try (core/repl-start-fn {:workspace/root (tmp-dir) :session-id "s"}
-                                                  "frobnicate")
-                              :no-throw
-                              (catch clojure.lang.ExceptionInfo e (:type (ex-data e))))]
-                   (expect (= :clj/bad-args t)))))
+(defdescribe
+  repl-start-tool-gating-test
+  (it "\"status\" always succeeds (start/stop are never flag-gated)"
+      (expect (:success? (api/repl-start-fn {:workspace/root (tmp-dir) :session-id "s"} "status"))))
+  (it "rejects an unknown op"
+      (let [t (try (api/repl-start-fn {:workspace/root (tmp-dir) :session-id "s"} "frobnicate")
+                   :no-throw
+                   (catch clojure.lang.ExceptionInfo e (:type (ex-data e))))]
+        (expect (= :clj/bad-args t)))))
 
 (defdescribe resolve-repl-dir-test
              ;; resolve-repl-dir returns canonical paths (stable process-map keys), so
              ;; expectations canonicalize too.
              (let [resolve
-                   #'core/resolve-repl-dir
+                   #'api/resolve-repl-dir
 
                    canon
                    (fn [p]
@@ -501,11 +490,11 @@
                    (expect (= ["a" "b"] (rm/tail-log (str f)))))))
 
 ;; Regression: every managed nREPL rooted in the SAME directory got the SAME
-;; `~/.vis/logs/vis-nrepl-<dir>.log`. ProcessBuilder's output redirect TRUNCATES,
-;; so a second session — or simply a restart — in that directory wiped the log the
-;; first REPL was still writing into, and both resources reported one path.
+;; `vis-nrepl-<dir>.log` in one shared directory. ProcessBuilder's output redirect
+;; TRUNCATES, so a second session — or simply a restart — in that directory wiped the
+;; log the first REPL was still writing into, and both resources reported one path.
 (defdescribe log-file-test
-             (it "mints a UNIQUE log file per REPL start, under ~/.vis/logs, keyed by dir"
+             (it "mints a UNIQUE log file per REPL start, under today's log directory"
                  (let [dir
                        "/tmp/vis-rm-log-uniqueness"
 
@@ -518,7 +507,7 @@
                    (expect (not= (.getName a) (.getName b)))
                    (expect (= (.getParentFile a) (.getParentFile b)))
                    (expect (some? (re-matches #"\d{4}-\d{2}-\d{2}" (.getName (.getParentFile a)))))
-                   (expect (= "logs" (.getName (.getParentFile (.getParentFile a)))))
+                   (expect (= "vis-lang-clojure" (.getName (.getParentFile (.getParentFile a)))))
                    (expect (str/starts-with? (.getName a) "vis-nrepl-"))
                    (expect (str/ends-with? (.getName a) ".log"))
                    ;; the project dir stays legible in the name, so a log is greppable
@@ -552,8 +541,8 @@
                                  (fn [_]
                                    {"value" "2"})]
 
-                     (core/clj-eval-fn {:workspace/root root :session-id "s"}
-                                       {"code" "(+ 1 1)" "cwd" "sub"})
+                     (api/clj-eval-fn {:workspace/root root :session-id "s"}
+                                      {"code" "(+ 1 1)" "cwd" "sub"})
                      (expect (= (.getCanonicalPath (io/file root "sub")) @captured)))))
              (it "defaults default-dir to the workspace root when no `cwd` is given"
                  (let [root
@@ -571,7 +560,7 @@
                                  (fn [_]
                                    {"value" "2"})]
 
-                     (core/clj-eval-fn {:workspace/root root :session-id "s"} {"code" "(+ 1 1)"})
+                     (api/clj-eval-fn {:workspace/root root :session-id "s"} {"code" "(+ 1 1)"})
                      (expect (= (.getCanonicalPath (io/file root)) @captured)))))
              (it "an explicit `id` is still forwarded to resolve-target! (dir unchanged)"
                  (let [root
@@ -589,8 +578,8 @@
                                  (fn [_]
                                    {"value" "2"})]
 
-                     (core/clj-eval-fn {:workspace/root root :session-id "s"}
-                                       {"code" "(+ 1 1)" "id" "nrepl:/b"})
+                     (api/clj-eval-fn {:workspace/root root :session-id "s"}
+                                      {"code" "(+ 1 1)" "id" "nrepl:/b"})
                      (expect (= ["nrepl:/b" (.getCanonicalPath (io/file root))] @captured)))))
              (it "a stale explicit `id` does not block explicit-dir autostart"
                  (let [root
@@ -615,8 +604,8 @@
                                  (fn [_]
                                    {"value" "2"})]
 
-                     (core/clj-eval-fn {:workspace/root root :session-id "s"}
-                                       {"code" "(+ 1 1)" "id" "nrepl:/stale" "cwd" "sub"})
+                     (api/clj-eval-fn {:workspace/root root :session-id "s"}
+                                      {"code" "(+ 1 1)" "id" "nrepl:/stale" "cwd" "sub"})
                      (expect (= [nil (.getCanonicalPath (io/file root "sub"))] @captured))))))
 
 (defdescribe
@@ -630,7 +619,7 @@
                                          (throw (ex-info "boom"
                                                          {:type :clj/no-repl :dir default-dir})))]
         (let [root (tmp-dir)
-              res (core/clj-eval-fn {:workspace/root root :session-id "s"} {"code" "(+ 1 1)"})]
+              res (api/clj-eval-fn {:workspace/root root :session-id "s"} {"code" "(+ 1 1)"})]
 
           (expect (false? (:success? res)))
           (expect (not (contains? (:error res) :trace)))
@@ -648,8 +637,7 @@
 
         (with-redefs [rm/resolve-target! (fn [_sid _rid _default-dir]
                                            (throw (ex-info "boom" {:type :clj/no-repl :dir dir})))]
-          (let [res (core/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
-                                      {"code" "(+ 1 1)"})
+          (let [res (api/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"} {"code" "(+ 1 1)"})
                 msg (str (get-in res [:error :message]))]
 
             (expect (false? (:success? res)))
@@ -659,8 +647,8 @@
       (with-redefs [rm/resolve-target!
                     (fn [_sid _rid _default-dir]
                       (throw (ex-info "boom" {:type :clj/unknown-repl-id :id "ghost"})))]
-        (let [res (core/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
-                                    {"code" "(+ 1 1)" "id" "ghost"})]
+        (let [res (api/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
+                                   {"code" "(+ 1 1)" "id" "ghost"})]
           (expect (false? (:success? res)))
           (expect (not (contains? (:error res) :trace)))
           (expect (str/includes? (get-in res [:error :message]) "ghost")))))
@@ -668,8 +656,8 @@
       (with-redefs [rm/resolve-target! (fn [_sid _rid _default-dir]
                                          (throw (ex-info "other" {:type :clj/some-other})))]
         (expect (= :clj/some-other
-                   (try (core/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
-                                          {"code" "(+ 1 1)"})
+                   (try (api/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
+                                         {"code" "(+ 1 1)"})
                         :no-throw
                         (catch clojure.lang.ExceptionInfo e (:type (ex-data e)))))))))
 
@@ -747,8 +735,8 @@
                                                       (reset! captured [host port])
                                                       {"value" "2"})]
 
-                     (core/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
-                                       {"code" "(+ 1 1)"})
+                     (api/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
+                                      {"code" "(+ 1 1)"})
                      (expect (= ["devbox.internal" 4001] @captured))))))
 
 (def ^:private shadow-watching
@@ -1040,8 +1028,8 @@
                   (fn [_]
                     (throw (ex-info "a ClojureScript eval must never dial the JVM directly" {})))]
 
-      (let [res (core/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
-                                  {"code" "(repro.core/greeting)" "id" "nrepl:/p#app"})]
+      (let [res (api/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
+                                 {"code" "(repro.core/greeting)" "id" "nrepl:/p#app"})]
         (expect (:success? res))
         (expect (= "\"Hello, REPL!\"" (get-in res [:result "value"])))
         (expect (= "cljs.user" (get-in res [:result "ns"])))
@@ -1077,7 +1065,7 @@
                {:id "nrepl:sess-env"
                 :process proc
                 :port 65001
-                :env-fingerprint (vis/env-fingerprint (vis/call-env-values {"NODE_ENV" "test"}))})
+                :env-fingerprint (host/env-fingerprint (host/call-env-values {"NODE_ENV" "test"}))})
              (let [same (rm/start! "sess-env" dir {:env {"NODE_ENV" "test"}})]
                (expect (= "already-running" (get same "result")))
                ;; The status carries the SHAPE of that env: names and digests, so a

@@ -1,3 +1,0 @@
-{:pack "clojure"
- :register com.blockether.vis.lang.clojure.core/register!
- :python ["language_surface_clojure.py"]}

@@ -33,7 +33,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [com.blockether.vis.core :as vis]
+            [com.blockether.vis.lang.clojure.host :as host]
             [com.blockether.vis.lang.clojure.nrepl-client :as nrepl-client]
             [com.blockether.vis.lang.clojure.shadow-cljs :as shadow-cljs]
             [com.blockether.vis.lang.clojure.shadow-repl :as shadow-repl])
@@ -115,7 +115,7 @@
         (fn [m]
           (cond-> m
             (contains? m k)
-            (assoc-in [k :last-touch] (vis/now-ms))))]
+            (assoc-in [k :last-touch] (host/now-ms))))]
 
     (swap! processes stamp)
     (swap! attachments stamp)))
@@ -150,7 +150,7 @@
   [info]
   (boolean (and (proc-alive? info)
                 (:started-at info)
-                (< (- (vis/now-ms) (long (:started-at info))) (long start-deadline-ms)))))
+                (< (- (host/now-ms) (long (:started-at info))) (long start-deadline-ms)))))
 
 (defn- health-probe-ms
   "How long to wait for a recorded REPL to answer a describe before judging it
@@ -158,7 +158,7 @@
    slow legit boot is never killed mid-flight); anything else gets a short grace."
   [info]
   (if (booting? info)
-    (max 5000 (- (long start-deadline-ms) (- (vis/now-ms) (long (:started-at info)))))
+    (max 5000 (- (long start-deadline-ms) (- (host/now-ms) (long (:started-at info)))))
     5000))
 
 (def ^:private default-aliases
@@ -171,8 +171,8 @@
    of the noisy machine-absolute `/Users/you/vis`. Paths outside home (and blanks)
    pass through unchanged."
   [^String dir]
-  (let [shown (vis/abbreviate-home dir)]
-    ;; `vis/abbreviate-home` renders the home dir as `~/` for general display;
+  (let [shown (host/abbreviate-home dir)]
+    ;; `host/abbreviate-home` renders the home dir as `~/` for general display;
     ;; REPL resource ids have historically used the compact `~` spelling.
     (if (= shown "~/") "~" shown)))
 
@@ -331,10 +331,10 @@
           :else nil)))
 
 (defn- log-file
-  "Create a unique subprocess log path under `~/.vis/logs/YYYY-MM-DD/` (UTC).
-   Called once per nREPL start; the returned path stays with that process.
-   The project name and random suffix distinguish simultaneous sessions.
-   Housekeeping removes stale logs."
+  "Create a unique subprocess log path under today's log directory (see
+   [[host/ensure-log-date-dir!]]). Called once per nREPL start; the returned path
+   stays with that process.
+   The project name and random suffix distinguish simultaneous sessions."
   ^java.io.File [dir]
   (let [home
         (System/getProperty "user.home")
@@ -352,7 +352,7 @@
             (str/replace #"(^_+|_+$)" ""))
 
         logs-dir
-        (io/file (vis/ensure-log-date-dir!))]
+        (io/file (host/ensure-log-date-dir!))]
 
     (io/file logs-dir (str "vis-nrepl-" safe "-" (java.util.UUID/randomUUID) ".log"))))
 
@@ -409,7 +409,7 @@
 
     (swap! last-failures assoc
       [session-id dir]
-      (cond-> {"at" (vis/now-ms)}
+      (cond-> {"at" (host/now-ms)}
         exit
         (assoc "exit" exit)
 
@@ -458,13 +458,13 @@
    with the process still alive — a slow cold boot). `proc` may be nil (pure
    port probe)."
   [^Process proc port deadline-ms]
-  (let [deadline (+ (vis/now-ms) (long deadline-ms))]
+  (let [deadline (+ (host/now-ms) (long deadline-ms))]
     (loop []
 
       (let [st (:status (nrepl-client/probe! {:host "localhost" :port port :timeout-ms 500}))]
         (cond (= :up st) :up
               (and proc (not (.isAlive proc))) :died
-              (< (vis/now-ms) deadline) (do (Thread/sleep (long wait-poll-ms)) (recur))
+              (< (host/now-ms) deadline) (do (Thread/sleep (long wait-poll-ms)) (recur))
               :else :starting)))))
 
 (defn status
@@ -587,7 +587,7 @@
          ;; is compared against. A refused name (a pre-exec hijack, a source that
          ;; produced nothing) denies the start here, before any JVM exists.
          env-fingerprint
-         (vis/env-fingerprint (vis/call-env-values env))]
+         (host/env-fingerprint (host/call-env-values env))]
 
      ;; SERIALIZE the check-then-spawn per [session-id dir]: without this a
      ;; racing second start! (e.g. a `repl_start` + an eval-autostart)
@@ -602,9 +602,9 @@
          ;; pack: a REPL running with another env is a DIFFERENT REPL, and
          ;; reusing it would report success for a process that never saw the
          ;; variables this call asked for.
-         (let [refusal (vis/env-mismatch-refusal (id-of dir)
-                                                 (:env-fingerprint (get @processes k))
-                                                 env-fingerprint)]
+         (let [refusal (host/env-mismatch-refusal (id-of dir)
+                                                  (:env-fingerprint (get @processes k))
+                                                  env-fingerprint)]
            (when refusal
              (throw (ex-info
                       (:message refusal)
@@ -614,13 +614,9 @@
            (if-let [{:keys [tool cmd]} (launcher-for dir aliases port)]
              (try
                (let [log (log-file dir)
-                     ;; Resolve policy + complete env and spawn through libvisjail.
-                     ;; nREPL alone may bind its selected loopback listener.
-                     proc (vis/session-process-spawn!
-                            session-id
-                            cmd
-                            dir
-                            {:loopback-port port :env env :merge-stderr? true})
+                     ;; One child, with this start's own env delta over the project's
+                     ;; and stderr folded into stdout so the log holds the whole boot.
+                     proc (host/spawn! cmd dir {:env env :merge-stderr? true})
                      _log-pump (future (try (with-open [in (.getInputStream ^Process proc)
                                                         out (io/output-stream log)]
 
@@ -636,8 +632,8 @@
                            :pid pid
                            :dir dir
                            :log (.getAbsolutePath log)
-                           :started-at (vis/now-ms)
-                           :last-touch (vis/now-ms)
+                           :started-at (host/now-ms)
+                           :last-touch (host/now-ms)
                            :env-fingerprint env-fingerprint}]
 
                  (swap! processes assoc k info)
@@ -940,8 +936,8 @@
                              :build build
                              :target (:target shadow)
                              :dialect (if build :cljs :clj)
-                             :started-at (vis/now-ms)
-                             :last-touch (vis/now-ms)}
+                             :started-at (host/now-ms)
+                             :last-touch (host/now-ms)}
                         ;; ONE cheap eval, so the ANSWER to connect already says whether
                         ;; this build can evaluate at all — a `watch` with no runtime
                         ;; joined is a perfectly healthy attachment that evaluates
@@ -967,7 +963,7 @@
   []
   (when (pos? (long @idle-reap-ms))
     (let [now
-          (vis/now-ms)
+          (host/now-ms)
 
           stale
           (for [[[sid dir] info]
@@ -1091,7 +1087,7 @@
    Rules (the ownership contract):
      - explicit `id` → that REPL (throws :clj/unknown-repl-id if no such live REPL);
      - `id` = `default` (any case) → sentinel, treated as no explicit id (below);
-     - 0 REPLs       → throw :clj/no-repl (start one with repl_start(\"clojure\"));
+     - 0 REPLs       → throw :clj/no-repl (start one with clj.repl_start());
      - 1 REPL        → use it (the implicit default);
      - >1 REPLs      → use the DEFAULT: the REPL owning `default-dir` (the
                        workspace root) when present, else the first (dir-sorted).
@@ -1119,12 +1115,12 @@
         (do (touch! session-id (:dir r)) r)
         (throw (ex-info (str "no nREPL registered under id '"
                              id
-                             "' in this session — check repl_status(\"clojure\")")
+                             "' in this session — check clj.repl_status()")
                         {:type :clj/unknown-repl-id :id id})))
       (let [repls (session-repls session-id)]
         (if (zero? (count repls))
           (throw (ex-info (str "no running nREPL in this session — start one with "
-                               "repl_start(\"clojure\"), "
+                               "clj.repl_start(), "
                                "then retry the eval")
                           {:type :clj/no-repl :dir default-dir}))
           ;; 1+ REPLs: the implicit default is the one owning `default-dir`
@@ -1161,6 +1157,6 @@
          "message" (str "Is `"
                         (shadow-watch-command (:dir target) build)
                         "` still running? Reattach with"
-                        " repl_connect(\"clojure\", {\"build\": \""
+                        " clj.repl_connect(build=\""
                         build
-                        "\"}) once it is.")}))))
+                        "\") once it is.")}))))

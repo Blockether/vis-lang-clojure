@@ -6,9 +6,8 @@
    `nrepl-client/close-all!` between tests prevents the cached
    connection from a previous run dialing into a dead socket."
   (:require [clojure.string :as str]
-            [com.blockether.vis.core :as vis]
+            [com.blockether.vis.lang.clojure.host :as host]
             [com.blockether.vis.lang.clojure.nrepl-client :as nc]
-            [com.blockether.vis.lang.interface.presentation :as presentation]
             [lazytest.core :refer [defdescribe expect it]]
             [nrepl.core :as nrepl]
             [nrepl.middleware.session :as mw-session]
@@ -75,8 +74,8 @@
                   {:out "progress"})
                 (send [this message] (swap! sends conj message) this))]
 
-        (with-redefs [vis/now-ms (fn ^long []
-                                   (long @clock))]
+        (with-redefs [host/now-ms (fn ^long []
+                                    (long @clock))]
           (let [client (#'nc/deadline-client conn 2000)]
             (expect (= 2 (count (doall (client {:op "eval"})))))
             (expect (= [1000 400] @waits))
@@ -91,7 +90,7 @@
                 (atom 1000)
 
                 result
-                (with-redefs [vis/now-ms
+                (with-redefs [host/now-ms
                               (fn ^long []
                                 (long @clock))
 
@@ -139,30 +138,6 @@
                         (expect (not= :stuck (deref holder 2000 :stuck)))
                         (future-cancel holder)))
           (expect (= "15" (get (nc/eval! {:port port :code "*1"}) "value"))))))))
-
-(defdescribe
-  repl-activity-test
-  (it "retains real nREPL program, streams and pretty result through Activity events"
-      (with-server
-        (fn [port]
-          (let
-            [code
-             "(do (println \"hello\") (binding [*out* *err*] (println \"warning\")) {:answer 42})"
-
-             result
-             (assoc (nc/eval! {:port port :code code :pretty? true})
-               "language" "clojure"
-               "code" code)
-
-             blocks
-             (get (presentation/result-presentation {:operation :repl_eval} result) "content")]
-
-            (expect (= ["Program" "Stdout" "Stderr" "Result"]
-                       (mapv #(get % "text") (filter #(= "heading" (get % "type")) blocks))))
-            (expect (= code (get-in blocks [1 "text"])))
-            (expect (= "hello\n" (get-in blocks [3 "text"])))
-            (expect (= "warning\n" (get-in blocks [5 "text"])))
-            (expect (str/includes? (get-in blocks [7 "text"]) ":answer 42")))))))
 
 (defdescribe eval-test
              (it "evaluates a single form and reports the value"

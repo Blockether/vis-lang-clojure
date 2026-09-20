@@ -1,9 +1,9 @@
 (ns com.blockether.vis.lang.clojure.format
-  "Config-driven Clojure source formatter used by `clj/edit` for format-on-write
-   and by the `format_code` language-surface verb.
+  "Config-driven Clojure source formatter behind the `format` verb
+   (`clj.format_code`).
 
-   TWO backends live here, and the choice is TRANSPARENT to the language
-   surface — callers just format; this namespace picks the formatter from the
+   TWO backends live here, and the choice is TRANSPARENT to callers — they
+   just format; this namespace picks the formatter from the
    config files present around the target path:
 
      * zprint  — when a `.zprint.edn`/`.zprintrc` is found walking UP from the
@@ -24,7 +24,7 @@
    We never silently corrupt a file because the formatter choked."
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [com.blockether.vis.core :as vis]
+            [com.blockether.vis.lang.clojure.host :as host]
             [rewrite-clj.node :as node]
             [rewrite-clj.parser :as parser]))
 
@@ -224,7 +224,7 @@
   "SHA-256 of `s` as a URL-safe base64 string — the content half of the cache
    key. Hashing avoids pinning whole file bodies in the key."
   ^String [^String s]
-  (.encodeToString (java.util.Base64/getUrlEncoder) (vis/sha256 (vis/utf8 s))))
+  (.encodeToString (java.util.Base64/getUrlEncoder) (host/sha256 (host/utf8 s))))
 
 (defn- result-key
   "Cache key for formatting `source` under `backend` governed by config file

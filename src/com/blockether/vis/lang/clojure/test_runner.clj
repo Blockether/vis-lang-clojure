@@ -19,12 +19,36 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [com.blockether.vis.contract.surface :as surface]
-            [com.blockether.vis.contract.test-runner :as contract]
-            [com.blockether.vis.core :as vis]
+            [com.blockether.vis.lang.clojure.host :as host]
             [com.blockether.vis.lang.clojure.nrepl-client :as nrepl-client]
             [com.blockether.vis.lang.clojure.repl-manager :as repl-manager]
             [com.blockether.vis.lang.clojure.shadow-cljs :as shadow]))
+
+(defn- ->str-vec
+  "Coerce a scalar or a sequence to trimmed, non-blank strings."
+  [x]
+  (let [xs (cond (nil? x) []
+                 (sequential? x) x
+                 :else [x])]
+    (->> xs
+         (map str)
+         (map str/trim)
+         (remove str/blank?)
+         vec)))
+
+(defn- split-node-id
+  "Split `<path>::<test-name>` into `{:path :var}`. Blank parts become nil."
+  [entry]
+  (let [[p v] (str/split (str entry) #"::" 2)]
+    {:path (not-empty (str/trim (str p))) :var (not-empty (str/trim (str v)))}))
+
+(defn- normalize-selectors
+  "Normalize raw selectors and split every path node id."
+  [m]
+  (let [m (or m {})]
+    {:paths (mapv split-node-id (->str-vec (:paths m)))
+     :include (->str-vec (:include m))
+     :exclude (->str-vec (:exclude m))}))
 
 (def ^{:private true} run-form
   "Code evaled on the target nREPL. Loads each REQUESTED namespace FROM SOURCE
@@ -722,7 +746,7 @@
    from (nil when the index does not know it), which is what says whether that
    namespace runs on the JVM or in shadow-cljs.
    `path-entries` are the node-id maps from `:paths` (`{:path :var}`, from
-   `contract/split-node-id`); `ns-entries` are the namespace/var spellings
+   `split-node-id`); `ns-entries` are the namespace/var spellings
    (`{:ns :var}`, from `split-selector-entry`).
    Each entry is resolved ON ITS OWN, so `a_test.clj::x` and `b_test.clj::y`
    pair each name with its OWN file instead of cross-producting into both. An
@@ -766,7 +790,7 @@
                   (let [entries (when path
                                   (vec (path->nses (under-root root path) test-index test-file?)))]
                     (when (and path (.exists (under-root root path)) (empty? entries))
-                      (throw (ex-info (str "run_tests(clojure) found no test namespaces under "
+                      (throw (ex-info (str "run_tests found no test namespaces under "
                                            (pr-str path))
                                       {:type :clj/bad-args})))
                     (add acc entries var)))
@@ -811,7 +835,7 @@
    path it obviously is."
   [bare entry]
   (let [{:keys [path var]}
-        (contract/split-node-id entry)
+        (split-node-id entry)
 
         [head v]
         (if (and path (nil? var) (not (clj-file-name? path)) (str/includes? path "/"))
@@ -829,14 +853,14 @@
                      namespace-selector-keys
 
                      e
-                     (contract/->str-vec (get arg k))]
+                     (->str-vec (get arg k))]
 
                  (split-selector-entry :ns e))
                (for [k
                      var-selector-keys
 
                      e
-                     (contract/->str-vec (get arg k))]
+                     (->str-vec (get arg k))]
 
                  (split-selector-entry :var e)))))
 
@@ -847,7 +871,7 @@
    a name, spliced into `clojure -M:test:<name>` exactly like `repl_start`'s own
    `aliases`, and `:test` itself is never replaced."
   [arg]
-  (->> (contract/->str-vec (get arg "aliases"))
+  (->> (->str-vec (get arg "aliases"))
        (mapv (fn [a]
                (str/replace a #"^:+" "")))
        (filterv (complement str/blank?))))
@@ -859,7 +883,7 @@
    The model arg is STRING-keyed (strings-only boundary); this is the
    external->internal seam that translates its keys into the keyword vocabulary
    the resolvers read, splitting each path entry on its `::` (see
-   `contract/split-node-id`).
+   `split-node-id`).
 
    PATHS are the primary spelling — one entry says WHERE and WHICH, and
    `clj-test-fn` resolves each path half to the test namespaces declared under
@@ -871,29 +895,24 @@
    including for .cljc tests. `aliases` adds classpath or selects an executable
    deps.edn runner for the clean-JVM command; its focus adapter follows that runner."
   [arg]
-  (cond
-    (or (string? arg) (symbol? arg)) (contract/normalize-selectors {:paths [(str arg)]})
-    (map? arg) (assoc (contract/normalize-selectors {:paths (into
-                                                              (contract/->str-vec (get arg "paths"))
-                                                              (contract/->str-vec (get arg "path")))
-                                                     :include (get arg "include")
-                                                     :exclude (get arg "exclude")})
-                 :ns-selectors (selector-entries arg)
-                 :build (not-empty (str/trim (str (get arg "build"))))
-                 :aliases (extra-aliases arg))
-    :else
-    (throw
-      (ex-info
-        "run_tests(clojure) expects a path string, or a dict with a \"paths\" key"
-        {:type :clj/bad-args
-         :got arg
-         :examples
-         ["run_tests(\"clojure\", \"test/com/example/thing_test.clj\")"
-          "run_tests(\"clojure\", {\"paths\": [\"src/com/example/thing.clj\"]})"
-          "run_tests(\"clojure\", {\"paths\": [\"test/com/example/thing_test.clj::adds-test\"]})"
-          "run_tests(\"clojure\", {\"paths\": [\"::adds-test\"]})"
-          "run_tests(\"clojure\", {\"ns\": \"com.example.thing-test\"})"
-          "run_tests(\"clojure\", {\"paths\": [\"test\"], \"exclude\": [\"slow\"]})"]}))))
+  (cond (or (string? arg) (symbol? arg)) (normalize-selectors {:paths [(str arg)]})
+        (map? arg) (assoc (normalize-selectors {:paths (into (->str-vec (get arg "paths"))
+                                                             (->str-vec (get arg "path")))
+                                                :include (get arg "include")
+                                                :exclude (get arg "exclude")})
+                     :ns-selectors (selector-entries arg)
+                     :build (not-empty (str/trim (str (get arg "build"))))
+                     :aliases (extra-aliases arg))
+        :else (throw (ex-info "run_tests expects a path string, or a dict with a \"paths\" key"
+                              {:type :clj/bad-args
+                               :got arg
+                               :examples
+                               ["clj.run_tests([\"test/com/example/thing_test.clj\"])"
+                                "clj.run_tests([\"src/com/example/thing.clj\"])"
+                                "clj.run_tests([\"test/com/example/thing_test.clj::adds-test\"])"
+                                "clj.run_tests([\"::adds-test\"])"
+                                "clj.run_tests(namespaces=[\"com.example.thing-test\"])"
+                                "clj.run_tests([\"test\"], exclude=[\"slow\"])"]}))))
 
 (defn- ns->source-relpath
   "The relative source path a namespace maps to, WITHOUT the extension
@@ -964,7 +983,7 @@
                 ;; watchdog above it. A slow / wedged nREPL therefore surfaces as a real
                 ;; timeout ERROR (with nREPL err/tail), never an opaque harness kill.
                 (nrepl-client/eval!
-                  {:host "localhost" :port port :code code :timeout-ms vis/RUN_TESTS_TIMEOUT_MS})
+                  {:host "localhost" :port port :code code :timeout-ms host/RUN_TESTS_TIMEOUT_MS})
                 parsed (try (let [x (edn/read-string (get r "value"))]
                               (if (string? x) (edn/read-string x) x))
                             (catch Throwable _ nil))]
@@ -978,7 +997,7 @@
                "ns" ns-disp
                "port" port
                "timed_out" true
-               "error" (str "test run timed out after " vis/RUN_TESTS_TIMEOUT_MS
+               "error" (str "test run timed out after " host/RUN_TESTS_TIMEOUT_MS
                             "ms — the nREPL never returned. The eval is likely wedged "
                             "(infinite loop, blocked I/O, or a deadlock in the code under "
                             "test); the connection was evicted so a retry reconnects fresh."
@@ -1367,9 +1386,9 @@
           (present? "bb.edn") {:tool :bb :cmd ["bb" "test"] :selectors? false}
           :else nil)))
 
-(defn- test-deadline [] (+ (System/nanoTime) (* (long vis/RUN_TESTS_TIMEOUT_MS) 1000000)))
+(defn- test-deadline [] (+ (System/nanoTime) (* (long host/RUN_TESTS_TIMEOUT_MS) 1000000)))
 
-(defn- timeout-error [] (str "test run timed out after " vis/RUN_TESTS_TIMEOUT_MS "ms"))
+(defn- timeout-error [] (str "test run timed out after " host/RUN_TESTS_TIMEOUT_MS "ms"))
 
 (def ^:private drain-grace-ms
   "How long a finished child's pipe may still be drained before its output is
@@ -1394,17 +1413,14 @@
   (.toString sink "UTF-8"))
 
 (defn- run-command
-  "Run one owned subprocess within an absolute monotonic deadline, through the
-   managed-language spawn boundary (#264). The clean-JVM test command crosses the
-   same jail and environment contract as this session's managed nREPL, so the JDK
-   the project or the call selected is the one the launcher AND every tools.deps
-   prep process it spawns run. Timeout and interruption tear down the tree before
-   this call returns."
-  [session-id root argv deadline]
+  "Run one owned subprocess within an absolute monotonic deadline. Timeout and
+   interruption tear down the whole process tree before this call returns, so a
+   `clojure -M:test` that spawned its own prep JVMs leaves nothing behind."
+  [root argv deadline]
   (try (if (<= (long deadline) (System/nanoTime))
          {:exit -1 :out "" :err "" :timed-out true}
          (let [^Process p
-               (vis/session-process-spawn! session-id (vec argv) root nil)
+               (host/spawn! (vec argv) root nil)
 
                out
                (drain-stream (.getInputStream p))
@@ -1417,7 +1433,7 @@
                     (.waitFor p
                               (max 0 (- (long deadline) (System/nanoTime)))
                               java.util.concurrent.TimeUnit/NANOSECONDS)
-                    (finally (when (.isAlive p) (vis/kill-process-tree! p))))
+                    (finally (when (.isAlive p) (host/kill-process-tree! p))))
 
                stdout
                (drained out)
@@ -1438,7 +1454,7 @@
   "Run the discovered command in a clean JVM. Exit zero is insufficient: require
    a nonempty test summary, preserve effective namespace focus, and report the
    executed test count as selected (the common numeric result contract)."
-  [session-id root norm]
+  [root norm]
   (let [sel
         (cond-> (select-keys norm [:nses :vars :include :exclude :focused?])
           (and (false? (:namespace-focus? norm)) (empty? (:vars norm)))
@@ -1479,7 +1495,7 @@
       (assoc base "error" "this runner has no supported focus adapter; no tests started")
       :else
       (let [res
-            (run-command session-id root cmd (test-deadline))
+            (run-command root cmd (test-deadline))
 
             out
             (command-output res)
@@ -1596,7 +1612,7 @@
   "Use the project's own shadow launcher and build. Never silently broaden
    unsupported var/tag selectors or classpath aliases. A pass requires actual
    tests reported by the final execution step, including Karma's own reporter."
-  [session-id root nses norm output-root]
+  [root nses norm output-root]
   (let
     [nses
      (if (focused? (assoc norm :nses nses)) nses [])
@@ -1631,7 +1647,7 @@
            (fn [acc {:keys [argv compile?]}]
              (let
                [res
-                (run-command session-id root argv deadline)
+                (run-command root argv deadline)
 
                 out
                 (command-output res)
@@ -1734,12 +1750,12 @@
   "Own one run's output directory through compilation and Node execution.
    Keep it under the project so Node still resolves project dependencies. Never
    traverse symlinks during cleanup or delete the user's watch output."
-  [session-id root nses norm]
+  [root nses norm]
   (let [dir (java.nio.file.Files/createTempDirectory
               (.toPath (io/file root))
               ".vis-shadow-run-"
               (make-array java.nio.file.attribute.FileAttribute 0))]
-    (try (run-via-shadow* session-id root nses norm (str dir))
+    (try (run-via-shadow* root nses norm (str dir))
          (finally (with-open [paths (java.nio.file.Files/walk
                                       dir
                                       (make-array java.nio.file.FileVisitOption 0))]
@@ -1755,10 +1771,10 @@
    run would only re-hang on. Nothing here starts or relaunches a REPL — reviving one
    is the caller's own `repl_start` call. The outcome is announced on :note so the result
    explains itself."
-  [session-id root norm result]
+  [root norm result]
   (cond (get result "repl_unusable")
         (let [cli
-              (run-via-cli session-id root norm)
+              (run-via-cli root norm)
 
               why
               (get result "error")
@@ -1777,8 +1793,7 @@
         (update result
                 "error"
                 (fn [e]
-                  (str e
-                       " Stop it (repl_stop(\"clojure\")) — the next run then uses a clean JVM.")))
+                  (str e " Stop it (clj.repl_stop()) — the next run then uses a clean JVM.")))
         :else result))
 
 (defn- has-build-file?
@@ -1853,7 +1868,7 @@
           (case (str (get result "mode"))
             "repl"
             (str "the run REUSED this session's nREPL, which carries only the aliases"
-                 " `repl_start` booted it with — repl_stop(\"clojure\") first for a clean"
+                 " `repl_start` booted it with — clj.repl_stop() first for a clean"
                  " JVM, or restart that REPL with these aliases")
 
             "this run did not invoke the deps.edn CLI")
@@ -1900,7 +1915,7 @@
 
          root
          (let [wsroot (or (:workspace/root env)
-                          (throw (ex-info "run_tests(clojure) fired without :workspace/root in env"
+                          (throw (ex-info "run_tests fired without :workspace/root in env"
                                           {:type :clj/no-workspace})))]
            (if (str/blank? (str req-dir))
              wsroot
@@ -2016,7 +2031,7 @@
      ;; file instead of the wrong segment. Name the deepest part that DOES
      ;; exist and the next segment is the typo.
      (when-let [missing (seq (missing-locations root paths ns-selectors))]
-       (throw (ex-info (str "run_tests(clojure) no such path: "
+       (throw (ex-info (str "run_tests no such path: "
                             (str/join "; "
                                       (map (fn [{:keys [path exists]}]
                                              (str (pr-str path)
@@ -2038,34 +2053,32 @@
            (ex-info
              (if (seq named)
                (str
-                 "run_tests(clojure) found no test namespaces (*_test.clj / *_test.cljc / *_test.cljs) under "
+                 "run_tests found no test namespaces (*_test.clj / *_test.cljc / *_test.cljs) under "
                  (pr-str named))
-               (str
-                 "run_tests(clojure) found no test namespaces (*_test.clj / *_test.cljc / *_test.cljs) "
-                 "anywhere under the workspace root"))
+               (str "run_tests found no test namespaces (*_test.clj / *_test.cljc / *_test.cljs) "
+                    "anywhere under the workspace root"))
              {:type :clj/bad-args :got arg}))))
      (let [result
            (cond
              ;; ClojureScript: the project's shadow-cljs build, shelled. There is no
              ;; JVM path to fall back to.
-             cljs? (run-via-shadow session-id eff-root nses norm)
+             cljs? (run-via-shadow eff-root nses norm)
              ;; A REPL this session already keeps up for the project — the fast inner
              ;; loop. It reloads only the namespaces it RUNS, so production Vars the
              ;; caller edited stay as that REPL holds them (`repl_eval` `:reload`, or
              ;; stop the REPL and let the clean JVM run it).
              port (run-via-repl eff-root nses sel port)
              ;; The default: the build tool's own test command, in a clean JVM.
-             :else (run-via-cli session-id eff-root norm))
+             :else (run-via-cli eff-root norm))
 
            result
-           (recover-if-unusable session-id eff-root norm result)
+           (recover-if-unusable eff-root norm result)
 
            result'
            (if (and (get result "error")
                     (str/includes? (get result "error") "Could not locate lazytest/core"))
-             (run-via-cli session-id eff-root norm)
+             (run-via-cli eff-root norm)
              result)]
 
-       (vis/success {:result (surface/check :test-fn
-                                            (assoc (note-unapplied-aliases (:aliases norm) result')
-                                              "language" "clojure"))})))))
+       (host/success {:result (assoc (note-unapplied-aliases (:aliases norm) result')
+                                "language" "clojure")})))))

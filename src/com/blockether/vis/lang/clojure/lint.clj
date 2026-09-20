@@ -1,5 +1,5 @@
 (ns com.blockether.vis.lang.clojure.lint
-  "clj-kondo linting for the Vis language surface.
+  "clj-kondo linting for the `lint` verb.
 
    Runs clj-kondo's programmatic API (`clj-kondo.core/run!`) — never shells out —
    over a code string (fed on stdin as `-`), explicit path(s), or the workspace's
@@ -9,8 +9,8 @@
    where each finding is `{\"file\" \"row\" \"col\" \"level\" \"type\" \"message\" \"provider\"}`
    (every finding names clj-kondo as its provider).
 
-   Resolve the analyzer on the first lint request, not when a language pack is
-   registered: non-Clojure sessions do not need its compiler and analysis tables.")
+   Resolve the analyzer on the first lint request, not at namespace load: a
+   session that never lints does not pay for its compiler and analysis tables.")
 
 (defn- finding->map
   [f]

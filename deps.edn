@@ -1,28 +1,21 @@
-{:paths ["src" "resources"]
- ;; tools.deps reads :mvn/repos ONLY from the project it is invoked on, never from a
- ;; dependency. JitPack hosts sherpa-onnx, which the engine pulls in under the :test alias.
- :mvn/repos {"jitpack" {:url "https://jitpack.io"}}
- :deps {com.blockether/vis-contract {:mvn/version "RELEASE"}
-        com.blockether/vis-lang-interface {:git/url "https://github.com/Blockether/vis-lang-interface.git"
-                                           :git/sha "d30dbd71428d0dad72b1894c1a545c190f80a0ef"}
-        ;; clj-kondo's programmatic API (clj-kondo.core/run!) backs `lint_code`.
-        clj-kondo/clj-kondo {:mvn/version "2026.07.24"}
-        com.taoensso/telemere {:mvn/version "1.2.1"}
+{:paths ["src"]
+ :deps {clj-kondo/clj-kondo {:mvn/version "2026.07.24"}
+        ;; The add-only delimiter repair behind `format`: parinfer proposes, `balance`
+        ;; accepts only a candidate that parses and only ADDS.
+        com.blockether/parinferish {:mvn/version "0.1.2"}
+        ;; One JSON object per line is the whole protocol between the Python glue and
+        ;; this process.
+        com.cnuernber/charred {:mvn/version "1.041"}
         ;; The conservative fallback formatter; zprint is canonical when a
         ;; `.zprint.edn` is present.
         dev.weavejester/cljfmt {:mvn/version "0.16.5"}
         nrepl/nrepl {:mvn/version "1.7.0"}
+        org.clojure/clojure {:mvn/version "1.12.5"}
+        rewrite-clj/rewrite-clj {:mvn/version "1.2.50"}
         zprint/zprint {:mvn/version "1.2.9"}}
- ;; The engine is a DEVELOPMENT dependency only: a pack is compiled INTO vis, so
- ;; depending on it at runtime would make the dependency circular. Aliases are not
- ;; transitive, which is what keeps that true for anyone who pins this library.
  :aliases {:test {:extra-paths ["test"]
-                  :extra-deps {com.blockether/vis {:git/url "https://github.com/Blockether/vis.git"
-                                                   :git/sha "f90cb0c70839701dbcbf87089b9515d82ec97820"}
-                               ;; The engine compiles against packages/vis-contract, whose published
-                               ;; RELEASE jar can lag it. Pin the same source tree for the test run.
-                               com.blockether/vis-contract {:git/url "https://github.com/Blockether/vis.git"
-                                                            :git/sha "f90cb0c70839701dbcbf87089b9515d82ec97820"
-                                                            :deps/root "packages/vis-contract"}
-                               io.github.noahtheduke/lazytest {:mvn/version "2.1.0"}}
-                  :main-opts ["-m" "lazytest.main" "--dir" "test"]}}}
+                  :extra-deps {io.github.noahtheduke/lazytest {:mvn/version "2.1.0"}}
+                  :main-opts ["-m" "lazytest.main" "--dir" "test"]}
+           :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.9"}
+                          slipset/deps-deploy {:mvn/version "0.2.5"}}
+                   :ns-default build}}}

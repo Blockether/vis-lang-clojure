@@ -1,0 +1,18 @@
+[project]
+name = "vis-lang-clojure"
+version = "1.0.0"
+description = "Clojure tools for Vis: zprint and cljfmt formatting, clj-kondo lint, test runs and an nREPL."
+requires-python = ">=3.11"
+dependencies = [
+  "vis-agent>=0.2.10",
+  "vis-lang-interface @ git+https://github.com/Blockether/vis-lang-interface@v1.0.0",
+]
+
+[tool.vis]
+category = "tools"
+source_paths = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+# TestResult from the contract is data, not a test case: collect functions only.
+python_classes = []

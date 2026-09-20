@@ -1,42 +1,21 @@
-(ns com.blockether.vis.lang.clojure.core
-  "Clojure language handlers for Vis.
+(ns com.blockether.vis.lang.clojure.api
+  "The Clojure tools as plain functions: format, lint, REPL lifecycle and REPL eval.
 
-   Format/test/REPL are exposed through the generic language facade
-   (`format`, `test`, `repl_eval`, `repl_start`, `repl_stop`) —
-   `format` here runs the delimiter repair the `language-surface-clojure` pack
-   publishes as its `:balance-fn` — the same hook the foundation's editors spend on a
-   splice that would not parse — and then cljfmt. That repair is ADD-ONLY: a delimiter
-   you omitted is added back, one you WROTE is never deleted — a lost opening `(` and
-   one `)` too many are the same string, so deleting is a guess that rewrites code."
+   Each one takes the call context `env` — `{:workspace/root <dir> :session-id <id>}` —
+   plus the call's own argument, and answers the `{:result :success? :error}` envelope
+   `cli` serializes. `format` runs the ADD-ONLY delimiter repair (`repair/repair-source`)
+   before the formatter: a delimiter you omitted is added back, one you WROTE is never
+   deleted — a lost opening `(` and one `)` too many are the same string, so deleting is
+   a guess that rewrites code."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [com.blockether.vis.contract.surface :as contract]
-            [com.blockether.vis.core :as vis]
             [com.blockether.vis.lang.clojure.format :as fmt]
+            [com.blockether.vis.lang.clojure.host :as host]
             [com.blockether.vis.lang.clojure.lint :as lint]
-            [com.blockether.vis.lang.clojure.nrepl-ctx :as nrepl-ctx]
             [com.blockether.vis.lang.clojure.reflection :as reflection]
-            [com.blockether.vis.lang.clojure.repl-manager :as repl-manager]
-            [com.blockether.vis.lang.interface.core :as lang]))
-
-;; Activation
-
-(defn- workspace-has-clojure?
-  "Activate from workspace files: probe root manifests first, then run a bounded
-   language scan for projects with Clojure sources but no root manifest."
-  [env]
-  (let [root (some-> (:workspace/root env)
-                     io/file)]
-    (when (and root (.isDirectory root))
-      (or (some (fn [name]
-                  (.exists (io/file root name)))
-                ["deps.edn" "project.clj" "shadow-cljs.edn" "bb.edn"])
-          (try (let [scan (vis/scan-languages root {:max-files 2000 :deadline-ms 250})]
-                 (boolean (some #(= "clojure" (:language %)) (:languages scan))))
-               (catch Throwable _ false))))))
-
-(defn- activation-fn [env] (boolean (workspace-has-clojure? env)))
+            [com.blockether.vis.lang.clojure.repair :as repair]
+            [com.blockether.vis.lang.clojure.repl-manager :as repl-manager]))
 
 ;; Tool fns
 
@@ -83,128 +62,10 @@
         (sequential? a) (mapv name a)
         :else [(name a)]))
 
-(defn- repl-resource-id
-  "Stable session-resource id for the REPL rooted at `cwd` — the SAME id
-   `repl-manager/id-of` stamps, so ctx, eval targeting, and the footer all agree
-   on one name per dir. Addressing a REPL is always by this id."
-  [dir]
-  (repl-manager/id-of dir))
-
-(defn register-repl-resource!
-  "Mirror a session's managed nREPL into the session-scoped resource registry so
-   it shows in ctx (resources) + the footer, and can be stopped by id from the
-   agent or the UI. No-op without a session or a live spawn. The stop-fn IS the
-   canonical teardown — the footer and resource_stop both drive repl-manager
-   through it, scoped to `session-id`. There is deliberately NO restart thunk:
-   a REPL is stopped, then started, never silently swapped underneath a caller."
-  [session-id dir aliases result]
-  ;; `result` is repl-manager/start!'s STRING-keyed lifecycle map. The resource
-  ;; map handed to `vis/register-resource!` is the CENTRAL resources.clj DATA
-  ;; shape (keyword keys/values) — that projection is what crosses to the model,
-  ;; and its strings-only migration lives in resources.clj (flagged hand-off).
-  (when (and session-id
-             (#{"started" "starting" "already-running" "connected" "reconnected"}
-              (get result "result"))
-             (or (get result "pid") (get result "port")))
-    (let [;; Prefer the aliases start! actually booted with (STRING names) so the
-          ;; label/detail reflect the real [:dev :test] classpath even when the
-          ;; caller passed none.
-          aliases
-          (or (seq (get result "aliases")) (map name (or aliases [])))
-
-          ;; An ATTACHMENT carries its OWN id (`nrepl:~/proj#app`) so it can sit in
-          ;; the registry BESIDE the managed REPL for the same dir.
-          id
-          (or (get result "id") (repl-resource-id dir))
-
-          log-path
-          (get result "log")
-
-          status
-          (or (get result "status") :up)
-
-          external?
-          (boolean (get result "external"))
-
-          ext-host
-          (get result "host")
-
-          build
-          (get result "build")]
-
-      (vis/register-resource!
-        session-id
-        {:id id
-         :kind :nrepl
-         :label (str "nREPL "
-                     (.getName (io/file dir))
-                     (cond build (str " (shadow-cljs " build ")")
-                           external? " (external)")
-                     (when (seq aliases) (apply str (map #(str " :" %) aliases))))
-         :status status
-         ;; `:detail` is passed THROUGH verbatim by resources.clj/->data (it only
-         ;; stringifies its own keys + the kind/status/owner/language enums), so it
-         ;; must already be STRING-keyed to survive the strings-only boundary.
-         :detail (cond-> {"cwd" dir}
-                   (get result "port")
-                   (assoc "port" (get result "port"))
-
-                   external?
-                   (assoc "host"
-                     (or ext-host "localhost") "external"
-                     true)
-
-                   build
-                   (assoc "build"
-                     build "dialect"
-                     (get result "dialect"))
-
-                   (seq aliases)
-                   (assoc "aliases" (vec aliases))
-
-                   log-path
-                   (assoc "log" log-path))
-         :pid (get result "pid")
-         :owner :ext/language-clojure
-         :language :clojure}
-        (cond-> {:stop-fn (fn []
-                            ;; vis kills only what it spawned: an attachment is dropped,
-                            ;; never destroyed.
-                            (if external?
-                              (repl-manager/detach! session-id dir)
-                              (repl-manager/stop! session-id dir)))
-                 ;; Keep a FAILED REPL visible (alive while a failure is on
-                 ;; record) instead of letting the registry prune it the moment
-                 ;; the pid dies — the failure + its log tail stay inspectable
-                 ;; in F4 until an explicit stop.
-                 :alive-fn (fn []
-                             (boolean (or (repl-manager/repl-by-id session-id id)
-                                          (repl-manager/last-failure session-id dir))))
-                 ;; "alive, but is it WORKING?" — the registry probes this on
-                 ;; every list/render and flips `status` to reality.
-                 :health-fn (fn []
-                              (if external?
-                                (repl-manager/attachment-health session-id dir)
-                                (repl-manager/health session-id dir)))}
-          log-path
-          (assoc :logs-fn
-            (fn []
-              (repl-manager/tail-log log-path)))))
-      ;; Surface the registration in the TUI (header toast) so a spawned REPL is
-      ;; visible the moment it lands, not just as a silent ● bump in the footer.
-      (vis/notify! (str "● nREPL "
-                        (if (= "starting" status) "starting" "up")
-                        " — "
-                        (.getName (io/file dir))
-                        (when-let [p (get result "port")]
-                          (str " :" p)))
-                   :level (if (= "starting" status) :info :success)
-                   :ttl-ms 4000))))
-
 (defn repl-start-fn
-  "Manage THIS session's workspace nREPL(s). The facade verbs `repl_start` /
-   `repl_status` / `repl_stop` / `repl_connect` reach this pack as a positional op
-   STRING (default \"status\") +
+  "Manage THIS session's workspace nREPL(s). The `clj` extension tools
+   `repl_start` / `repl_status` / `repl_stop` / `repl_connect` reach this
+   library through the `repl` verb as an op STRING (default \"status\") +
    optional opts dict `{\"cwd\": <path>, \"aliases\": [\"dev\", \"test\"]}`:
 
      \"status\"  — managed-process view for this session (always allowed)
@@ -257,7 +118,7 @@
 
      (case op
        "status"
-       (vis/success {:result (repl-manager/status sid dir)})
+       (host/success {:result (repl-manager/status sid dir)})
 
        "connect"
        (let [port
@@ -274,8 +135,7 @@
                                 " — or {\"build\": \"app\"} to attach to the shadow-cljs watch"
                                 " running under \"cwd\" (it publishes its own port)."
                                 " Optional \"host\", \"cwd\" — e.g."
-                                " repl_connect(\"clojure\", {\"port\": 7888}) /"
-                                " repl_connect(\"clojure\", {\"build\": \"app\"})")
+                                " clj.repl_connect(port=7888) /" " clj.repl_connect(build=\"app\")")
                            {:type :clj/bad-args :got opts})))
          (let [r (repl-manager/connect!
                    sid
@@ -284,16 +144,13 @@
                     :port (when port
                             (if (string? port) (Long/parseLong (str/trim port)) (long port)))
                     :build build})]
-           (register-repl-resource! sid dir aliases r)
-           (vis/success {:result r})))
+           (host/success {:result r})))
 
        "stop"
+       ;; The result names WHICH repl went — a dir can hold both a managed REPL
+       ;; and an attachment of its own.
        (let [r (if (get opts "build") (repl-manager/detach! sid dir) (repl-manager/stop! sid dir))]
-         ;; Drop the session's resource mirror (best-effort; the thunk
-         ;; already ran the real teardown above). The result names WHICH repl
-         ;; went — a dir can hold both a managed REPL and an attachment.
-         (vis/unregister-resource! sid (or (get r "id") (repl-resource-id dir)))
-         (vis/success {:result r}))
+         (host/success {:result r}))
 
        "start"
        (do (when-not (.isDirectory (io/file dir))
@@ -304,35 +161,31 @@
            ;; a REPL you actually want replaced is stopped explicitly first, so a
            ;; hung relaunch can never leave the caller with nothing.
            (let [result (repl-manager/start! sid dir {:aliases aliases :env repl-env})]
-             ;; Mirror the live REPL into the session resource registry → ctx +
-             ;; footer + stoppable by id.
-             (register-repl-resource! sid dir aliases result)
-             (vis/success {:result result})))
+             (host/success {:result result})))
 
-       (throw
-         (ex-info
-           (str "clojure REPL lifecycle: unknown op " (pr-str op))
-           {:type :clj/bad-args
-            :got op
-            :examples
-            ["repl_start(\"clojure\")" "repl_status(\"clojure\")"
-             "repl_start(\"clojure\", {\"cwd\": \"apps/vis-tui\", \"aliases\": [\"dev\", \"test\"]})"
-             "repl_stop(\"clojure\")"]}))))))
+       (throw (ex-info (str "clojure REPL lifecycle: unknown op " (pr-str op))
+                       {:type :clj/bad-args
+                        :got op
+                        :examples
+                        ["clj.repl_start()" "clj.repl_status()"
+                         "clj.repl_start(cwd=\"apps/vis-tui\", aliases=[\"dev\", \"test\"])"
+                         "clj.repl_stop()"]}))))))
 
 (defn- coerce-eval-arg
-  "Accept the call shapes the model is most likely to type:
-     clj_eval(\"(+ 1 1)\")
-     clj_eval({\"code\": \"(+ 1 1)\"})
-     clj_eval({\"code\": \"...\", \"port\": 7888, \"ns\": \"user\", \"timeout_ms\": 5000})
-     clj_eval({\"code\": \"...\", \"id\": \"<repl-id>\"})   ; target a registered REPL"
+  "Accept the call shapes a caller is most likely to send:
+     \"(+ 1 1)\"
+     {\"code\": \"(+ 1 1)\"}
+     {\"code\": \"...\", \"port\": 7888, \"ns\": \"user\", \"timeout_ms\": 5000}
+     {\"code\": \"...\", \"id\": \"<repl-id>\"}   ; target a registered REPL"
   [arg]
   (cond (string? arg) {"code" arg}
         (map? arg) arg
-        :else (throw (ex-info "clj_eval expects a code string or opts map"
+        :else (throw (ex-info "repl-eval expects a code string or opts map"
                               {:type :clj/bad-args
                                :got arg
-                               :examples ["clj_eval(\"(+ 1 1)\")"
-                                          "clj_eval({\"code\": \"...\", \"port\": 7888})"]}))))
+                               :examples
+                               ["clj.repl_eval(\"(+ 1 1)\")"
+                                "clj.repl_eval(\"...\", ns=\"user\", timeout_ms=5000)"]}))))
 
 (defn- strip-blank-repl-fields
   "Prune result fields the model gains nothing from seeing: nil, blank strings,
@@ -427,66 +280,46 @@
 
      (if port
        ;; Explicit port: the escape hatch — dial exactly what was asked.
-       (vis/success {:result (run {:host host :port port} (str host ":" port))})
+       (host/success {:result (run {:host host :port port} (str host ":" port))})
        ;; Resolve a RUNNING REPL. A missing/unknown REPL is an EXPECTED,
        ;; actionable condition — catch it and return a TIGHT failure envelope
        ;; so the model sees just the one-line message + hint, NOT the raw
        ;; `clojure.lang.ExceptionInfo` class + `{:type … :dir …}` ex-data and
        ;; the internal nREPL/Compiler stack trace `ex->op-error` would attach.
-       (try (let [target (repl-manager/resolve-target! sid rid default-dir)]
-              ;; An EXTERNAL attachment may live on a non-localhost host — dial ITS
-              ;; host, not the caller's default.
-              (vis/success {:result (run target (:id target))}))
-            (catch clojure.lang.ExceptionInfo e
-              (case (:type (ex-data e))
-                :clj/no-repl
-                (vis/failure {:error {:message (str "no REPL running in "
-                                                    ;; Home-homogenized: the message reads
-                                                    ;; `~/vis`, matching the REPL ids in
-                                                    ;; session["resources"] — never a raw
-                                                    ;; `/Users/you/vis`.
-                                                    (repl-manager/home-relativize
-                                                      (str (:dir (ex-data e))))
-                                                    " — start one: repl_start(\"clojure\")")
-                                      :hint "then retry the eval"}})
+       (try
+         (let [target (repl-manager/resolve-target! sid rid default-dir)]
+           ;; An EXTERNAL attachment may live on a non-localhost host — dial ITS
+           ;; host, not the caller's default.
+           (host/success {:result (run target (:id target))}))
+         (catch clojure.lang.ExceptionInfo e
+           (case (:type (ex-data e))
+             :clj/no-repl
+             (host/failure {:error {:message (str "no REPL running in "
+                                                  ;; Home-homogenized: the message reads
+                                                  ;; `~/vis`, matching the REPL ids in
+                                                  ;; session["resources"] — never a raw
+                                                  ;; `/Users/you/vis`.
+                                                  (repl-manager/home-relativize (str (:dir (ex-data
+                                                                                             e))))
+                                                  " — start one: clj.repl_start()")
+                                    :hint "then retry the eval"}})
 
-                :clj/unknown-repl-id
-                (vis/failure {:error {:message (str "no REPL under id '"
-                                                    (:id (ex-data e))
-                                                    "' — check repl_status(\"clojure\")")
-                                      :hint "pass a live id, or omit it to use the default REPL"}})
+             :clj/unknown-repl-id
+             (host/failure {:error {:message (str "no REPL under id '"
+                                                  (:id (ex-data e))
+                                                  "' — check clj.repl_status()")
+                                    :hint "pass a live id, or omit it to use the default REPL"}})
 
-                (throw e))))))))
-
-(defn clj-repair-source
-  "The delimiter repair `format` is allowed to WRITE, and what it must SAY about it.
-
-   The repair itself is not here: `vis/parse-repair` asks the language pack that claims
-   Clojure, over the whole file — the only span a formatter has. A file whose
-   delimiters balance, and a language with no pack, answer nothing and are formatted
-   exactly as they were written.
-
-   Answers `{:code <what to format> :repaired? bool :repairs [note] :why msg?}`. On a
-   refusal the ORIGINAL code goes to the formatter untouched and `:why` names the
-   mistake to look for, because a formatter that guesses which of the two happened is
-   the corruption it was meant to prevent."
-  [^String code]
-  (let [verdict (vis/parse-repair {:language "clojure"
-                                   :source code
-                                   :spans [[1 (max 1 (count (str/split-lines code)))]]
-                                   :subject "this file has"})]
-    (cond (:ok? verdict) {:code (:content verdict) :repaired? true :repairs (:notes verdict)}
-          (:why verdict) {:code code :repaired? false :why (:why verdict)}
-          :else {:code code :repaired? false})))
+             (throw e))))))))
 
 (defn clj-repair+format
   "The combined Clojure tidy behind `format`: the ADD-ONLY delimiter repair
-   (`clj-repair-source`) FIRST, THEN indentation via the config-driven formatter
+   (`repair/repair-source`) FIRST, THEN indentation via the config-driven formatter
    (`fmt/format-source` picks zprint when a `.zprint.edn`/`.zprintrc` is near `path`,
    else cljfmt). Total — returns `code` unchanged on any failure of either step, and
    leaves source whose repair was refused exactly as it was written."
   ([code] (clj-repair+format code nil))
-  ([code path] (fmt/format-source (:code (clj-repair-source code)) path)))
+  ([code path] (fmt/format-source (:code (repair/repair-source code)) path)))
 
 (defn- relativize-path
   "Rewrite an absolute path to one relative to workspace `root` so tool output
@@ -656,7 +489,7 @@
         (or path (:workspace/root env))
 
         {:keys [repaired? repairs why] fixed :code}
-        (clj-repair-source code)
+        (repair/repair-source code)
 
         out
         (fmt/format-source fixed for-path)]
@@ -674,8 +507,8 @@
       (assoc "unbalanced" why))))
 
 (defn clj-format-fn
-  "Format Clojure source via the language facade (`format_code`). Accepts:
-     - a raw code string / {\"code\": ...}   -> report changed? + char delta (NO text)
+  "Format Clojure source for the `format` verb (`clj.format_code`). Accepts:
+     - a raw code string / {\"code\": ...}   -> the formatted \"text\" + changed? + char delta
      - {\"path\": \"src/foo.clj\"}              -> format that file IN PLACE
      - {\"paths\": [\"src\" \"test\" ...]}        -> format those paths IN PLACE; a
          DIRECTORY is walked RECURSIVELY (every .clj/.cljs/.cljc/.cljx/.bb under it)
@@ -714,13 +547,11 @@
 
      (if batch
        (let [files (mapv #(clj-format-one-file! env %) batch)]
-         (vis/success {:result (contract/check :format-fn
-                                               {"op" "clj-format"
-                                                "files" files
-                                                "changed" (count (filter #(get % "changed") files))
-                                                "formatters" (vec (sort (distinct
-                                                                          (keep #(get % "formatter")
-                                                                                files))))})}))
+         (host/success {:result {"op" "clj-format"
+                                 "files" files
+                                 "changed" (count (filter #(get % "changed") files))
+                                 "formatters" (vec (sort (distinct (keep #(get % "formatter")
+                                                                         files))))}}))
        (let
          [code
           (cond
@@ -733,40 +564,39 @@
                 "format expects a code string, {\"code\": ...}, {\"path\": ...}, {\"paths\": [...]}, or {} for the whole project"
                 {:type :clj/bad-args
                  :got arg
-                 :examples ["format(\"clojure\", \"(defn f [x]\\n(* x 2))\")"
-                            "format(\"clojure\", {\"code\": \"...\"})"
-                            "format(\"clojure\", {\"path\": \"src/foo.clj\"})"
-                            "format(\"clojure\", {\"paths\": [\"src\" \"test\"]})"
-                            "format(\"clojure\", {})"]})))
+                 :examples ["clj.format_code(source=\"(defn f [x]\\n(* x 2))\")"
+                            "clj.format_code(source=\"...\")" "clj.format_code([\"src/foo.clj\"])"
+                            "clj.format_code([\"src\", \"test\"])" "clj.format_code()"]})))
 
           for-path
           (or path (:workspace/root env))
 
           {:keys [repaired? repairs why] fixed :code}
-          (clj-repair-source code)
+          (repair/repair-source code)
 
           out
           (fmt/format-source fixed for-path)]
 
          (when (and path (not= out code)) (spit (str path) out))
-         (vis/success {:result (contract/check
-                                 :format-fn
-                                 (cond-> {"op" "clj-format"
-                                          "changed" (not= out code)
-                                          "chars" (- (count out) (count code))
-                                          "repaired" repaired?
-                                          "formatter" (name (fmt/formatter-for for-path))}
-                                   (seq repairs)
-                                   (assoc "repairs" repairs)
+         (host/success {:result (cond-> {"op" "clj-format"
+                                         "changed" (not= out code)
+                                         "chars" (- (count out) (count code))
+                                         "repaired" repaired?
+                                         "formatter" (name (fmt/formatter-for for-path))}
+                                  (not path)
+                                  (assoc "text" out)
 
-                                   why
-                                   (assoc "unbalanced" why)
+                                  (seq repairs)
+                                  (assoc "repairs" repairs)
 
-                                   path
-                                   (assoc "path"
-                                     (relativize-path (io/file (or (:workspace/root env) ".")) path)
-                                     "wrote"
-                                     (not= out code))))}))))))
+                                  why
+                                  (assoc "unbalanced" why)
+
+                                  path
+                                  (assoc "path"
+                                    (relativize-path (io/file (or (:workspace/root env) ".")) path)
+                                    "wrote"
+                                    (not= out code)))}))))))
 
 (defn- nearest-kondo-dir
   "The nearest `.clj-kondo` config directory walking UP from `file`, or nil when
@@ -796,7 +626,7 @@
          (lint/merge-results))))
 
 (defn clj-lint-fn
-  "clj-kondo lint via the language facade (`lint_code`). Accepts:
+  "clj-kondo lint for the `lint` verb (`clj.lint_code`). Accepts:
      - a raw code string / {\"code\": ...}  -> lint it on stdin
      - {\"path\": \"src/foo.clj\"}           -> lint that file
      - {\"paths\": [\"src\", \"test\"]}        -> lint those paths
@@ -852,7 +682,7 @@
         (into [] (remove #(.exists (io/file (under %))) requested))]
 
     (if (seq missing)
-      (vis/failure
+      (host/failure
         {:error {:message (str "lint target does not exist: "
                                (str/join ", " missing)
                                " — relative paths resolve against the workspace root")
@@ -889,44 +719,12 @@
             findings
             (mapv #(update % "file" (partial relativize-path root)) (get base "findings"))]
 
-        (vis/success {:result (contract/check :lint-fn
-                                              (cond-> (assoc base
-                                                        "findings" findings
-                                                        "language" "clojure"
-                                                        "providers" providers)
-                                                code
-                                                (assoc "snippet" code)
+        (host/success {:result (cond-> (assoc base
+                                         "findings" findings
+                                         "language" "clojure"
+                                         "providers" providers)
+                                 code
+                                 (assoc "snippet" code)
 
-                                                (seq targets)
-                                                (assoc "targets" (vec targets))))})))))
-
-;; Extension manifest
-
-;; No :ext/prompt-fn — the foundation advertises this pack's verbs through the
-;; AUTO capability matrix (language_surface/capability-matrix). :ext/ctx-fn syncs
-;; nREPLs into the canonical session resources view.
-(def vis-extension
-  (vis/extension
-    {:ext/name "language-clojure"
-     :ext/description
-     "Clojure pack: managed nREPL; generic format/lint/test/repl handlers; formatting and add-only delimiter repair. Active only in Clojure workspaces."
-     :ext/version "0.1.0"
-     :ext/author "Blockether"
-     :ext/owner "vis"
-     :ext/license "Apache-2.0"
-     :ext/activation-fn activation-fn
-     :ext/ctx-fn nrepl-ctx/contribute
-     :ext/language-tools
-     [{:language "clojure"
-       :format-fn (fn [env arg]
-                    (clj-format-fn env arg))
-       :lint-fn clj-lint-fn
-       :test-fn
-       (fn [env arg]
-         ((requiring-resolve 'com.blockether.vis.lang.clojure.test-runner/clj-test-fn) env arg))
-       :repl-eval-fn clj-eval-fn
-       :start-repl-fn (fn [env op opts]
-                        (repl-start-fn env op opts))}]
-     :ext/kind "language"}))
-
-(defn register! [] (lang/register-pack! vis-extension))
+                                 (seq targets)
+                                 (assoc "targets" (vec targets)))})))))

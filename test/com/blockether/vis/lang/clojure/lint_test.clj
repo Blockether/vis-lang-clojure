@@ -1,9 +1,9 @@
 (ns com.blockether.vis.lang.clojure.lint-test
   "Tests for clj-kondo linting behind the `lint_code` language-surface verb:
-   the low-level `lint/*` helpers and the `core/clj-lint-fn` facade adapter
+   the low-level `lint/*` helpers and the `api/clj-lint-fn` facade adapter
    (code string / {:code} / {:path} / {:paths} / default src+test)."
   (:require [clojure.java.io :as io]
-            [com.blockether.vis.lang.clojure.core :as core]
+            [com.blockether.vis.lang.clojure.api :as api]
             [com.blockether.vis.lang.clojure.lint :as lint]
             [lazytest.core :refer [defdescribe expect it]])
   (:import (java.nio.file Files)
@@ -66,11 +66,11 @@
                           (expect (some #(= "unused-binding" (get % "type")) (get r "findings"))))
                         (finally (cleanup dir))))))
 
-;; ── facade adapter: core/clj-lint-fn ────────────────────────────────────────
+;; ── facade adapter: api/clj-lint-fn ────────────────────────────────────────
 
 (defn- lint-result
   [env arg]
-  (let [r (core/clj-lint-fn env arg)]
+  (let [r (api/clj-lint-fn env arg)]
     (expect (:success? r))
     (get-in r [:result])))
 
