@@ -71,7 +71,7 @@ vis.register_extension(
     vis.Extension(
         name="vis-lang-clojure",
         description="Clojure tools: zprint and cljfmt formatting, clj-kondo lint, test runs and an nREPL.",
-        version="1.0.2",
+        version="1.1.0",
         alias="clj",
         symbols=[vis.Symbol(ClojureTools(), name="clj")],
     )

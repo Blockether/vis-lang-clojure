@@ -19,19 +19,14 @@ test runs the library starts inside that project.
 from __future__ import annotations
 
 import atexit
-import collections
 import itertools
-import json
 import os
-import queue
 import shlex
-import subprocess
 import threading
-import time
 
-from vis_lang_interface import ToolMissing, ToolTimeout, tool_path
+from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
 
-LIBRARY_VERSION = "1.0.2"
+LIBRARY_VERSION = "1.1.0"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"
@@ -116,22 +111,14 @@ def library_classpath(refresh=False):
             "clojure", "Install it from https://clojure.org/guides/install_clojure."
         )
         coordinate = f'{{:deps {{com.blockether/vis-lang-clojure {{:mvn/version "{LIBRARY_VERSION}"}}}}}}'
-        try:
-            done = subprocess.run(
-                (clojure, "-Sdeps", coordinate, "-Spath"),
-                cwd=boot_directory(),
-                capture_output=True,
-                text=True,
-                timeout=BOOT_TIMEOUT_S,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise ToolTimeout(
-                f"resolving com.blockether/vis-lang-clojure {LIBRARY_VERSION}"
-                f" took longer than {BOOT_TIMEOUT_S:g}s"
-            ) from exc
-        lines = [line.strip() for line in done.stdout.splitlines() if line.strip()]
-        if done.returncode != 0 or not lines:
-            said = (done.stderr or done.stdout).strip()
+        done = run(
+            (clojure, "-Sdeps", coordinate, "-Spath"),
+            cwd=boot_directory(),
+            timeout_s=BOOT_TIMEOUT_S,
+        )
+        lines = [line.strip() for line in done.out.splitlines() if line.strip()]
+        if not done.is_ok or not lines:
+            said = (done.err or done.out).strip()
             message = (
                 f"could not resolve com.blockether/vis-lang-clojure {LIBRARY_VERSION}"
             )
@@ -180,33 +167,18 @@ class Process:
     def __init__(self, root, command):
         self.root = str(root)
         self.command = tuple(command)
-        self.answers = queue.Queue()
-        self.errors = collections.deque(maxlen=STDERR_TAIL_LINES)
         self.ids = itertools.count(1)
         self.lock = threading.Lock()
-        try:
-            self.process = subprocess.Popen(
-                self.command,
-                cwd=self.root,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-            )
-        except FileNotFoundError as exc:
-            raise ToolMissing(f"{self.command[0]} is not on PATH") from exc
-        threading.Thread(target=self._read_answers, daemon=True).start()
-        threading.Thread(target=self._read_errors, daemon=True).start()
+        self.live = runtime.start(self.command, cwd=self.root, name="clojure")
 
     @property
     def is_running(self):
         """Whether the process is still alive."""
-        return self.process.poll() is None
+        return self.live.is_running
 
     def tail(self):
-        """The last lines the process wrote to stderr."""
-        return "\n".join(self.errors)
+        """The last lines the process wrote for itself."""
+        return "\n".join(self.live.log_tail(STDERR_TAIL_LINES))
 
     def call(self, request, timeout_s=DEFAULT_TIMEOUT_S):
         """Send one request and wait for the answer to that request.
@@ -224,69 +196,26 @@ class Process:
         """
         with self.lock:
             wanted = str(next(self.ids))
-            self._write(dict(request, id=wanted, root=self.root, session=SESSION))
-            deadline = time.monotonic() + timeout_s
-            while True:
-                left = deadline - time.monotonic()
-                if left <= 0:
-                    raise ToolTimeout(f"{MAIN} did not answer within {timeout_s:g}s")
-                try:
-                    answer = self.answers.get(timeout=left)
-                except queue.Empty:
-                    raise ToolTimeout(
-                        f"{MAIN} did not answer within {timeout_s:g}s"
-                    ) from None
-                if answer is None:
-                    raise ClojureError(self._stopped())
-                # An answer to a call that timed out earlier is no longer wanted.
-                if str(answer.get("id")) == wanted:
-                    return answer
+            payload = dict(request, id=wanted, root=self.root, session=SESSION)
+            try:
+                # An answer to a call that timed out earlier is no longer
+                # wanted, so this waits for the id it just sent.
+                return self.live.request(payload, timeout_s, wants=wanted)
+            except RuntimeGone as exc:
+                raise ClojureError(self._stopped()) from exc
+            except TimeoutError as exc:
+                raise ToolTimeout(
+                    f"{MAIN} did not answer within {timeout_s:g}s"
+                ) from exc
 
     def stop(self):
         """End the process, and with it every REPL it owns."""
-        if self.process.stdin and not self.process.stdin.closed:
-            try:
-                self.process.stdin.close()
-            except OSError:
-                pass
-        try:
-            self.process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            self.process.terminate()
-            try:
-                self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-
-    def _write(self, payload):
-        if not self.is_running:
-            raise ClojureError(self._stopped())
-        try:
-            self.process.stdin.write(json.dumps(payload) + "\n")
-            self.process.stdin.flush()
-        except (BrokenPipeError, ValueError, OSError) as exc:
-            raise ClojureError(self._stopped()) from exc
+        self.live.stop()
 
     def _stopped(self):
         tail = self.tail()
         said = f"\n{tail}" if tail else ""
         return f"the Clojure process for {self.root} stopped before answering{said}"
-
-    def _read_answers(self):
-        for line in self.process.stdout:
-            text = line.strip()
-            if not text:
-                continue
-            try:
-                self.answers.put(json.loads(text))
-            except ValueError:
-                # Not an answer: the JVM printed something of its own.
-                self.errors.append(text)
-        self.answers.put(None)
-
-    def _read_errors(self):
-        for line in self.process.stderr:
-            self.errors.append(line.rstrip())
 
 
 _PROCESSES = {}
