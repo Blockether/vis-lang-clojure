@@ -12,7 +12,7 @@ the `clojure` CLI and speaks to it over stdio.
 ## Install
 
 ```bash
-vis-agent extension install Blockether/vis-lang-clojure --global --trust
+vis-agent extension install Blockether/vis-lang-clojure --subdirectory extension --global --trust
 ```
 
 You need the [Clojure CLI](https://clojure.org/guides/install_clojure) and a JDK on `PATH`. The
