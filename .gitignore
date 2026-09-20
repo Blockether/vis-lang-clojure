@@ -1,0 +1,6 @@
+.cpcache/
+target/
+.clj-kondo/.cache/
+.lsp/
+*.log
+__pycache__/
