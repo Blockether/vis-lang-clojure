@@ -1,12 +1,28 @@
 {:paths ["src" "resources"]
+ ;; tools.deps reads :mvn/repos ONLY from the project it is invoked on, never from a
+ ;; dependency. JitPack hosts sherpa-onnx, which the engine pulls in under the :test alias.
+ :mvn/repos {"jitpack" {:url "https://jitpack.io"}}
  :deps {com.blockether/vis-contract {:mvn/version "RELEASE"}
-              com.blockether/vis-lang-interface {:git/url "https://github.com/Blockether/vis-lang-interface.git"
-                                                :git/sha "REPLACE_ME"}}
+        com.blockether/vis-lang-interface {:git/url "https://github.com/Blockether/vis-lang-interface.git"
+                                           :git/sha "d30dbd71428d0dad72b1894c1a545c190f80a0ef"}
+        ;; clj-kondo's programmatic API (clj-kondo.core/run!) backs `lint_code`.
+        clj-kondo/clj-kondo {:mvn/version "2026.07.24"}
+        com.taoensso/telemere {:mvn/version "1.2.1"}
+        ;; The conservative fallback formatter; zprint is canonical when a
+        ;; `.zprint.edn` is present.
+        dev.weavejester/cljfmt {:mvn/version "0.16.5"}
+        nrepl/nrepl {:mvn/version "1.7.0"}
+        zprint/zprint {:mvn/version "1.2.9"}}
  ;; The engine is a DEVELOPMENT dependency only: a pack is compiled INTO vis, so
  ;; depending on it at runtime would make the dependency circular. Aliases are not
  ;; transitive, which is what keeps that true for anyone who pins this library.
  :aliases {:test {:extra-paths ["test"]
-                 :extra-deps {com.blockether/vis {:git/url "https://github.com/Blockether/vis.git"
-                                                  :git/sha "c65bc2b44"}
-                              io.github.noahtheduke/lazytest {:mvn/version "1.7.0"}}
-                 :main-opts ["-m" "lazytest.main" "--dir" "test"]}}}
+                  :extra-deps {com.blockether/vis {:git/url "https://github.com/Blockether/vis.git"
+                                                   :git/sha "754e85fe4d0f1dec4d4f630127869aefe3c1e331"}
+                               ;; The engine compiles against packages/vis-contract, whose published
+                               ;; RELEASE jar can lag it. Pin the same source tree for the test run.
+                               com.blockether/vis-contract {:git/url "https://github.com/Blockether/vis.git"
+                                                            :git/sha "754e85fe4d0f1dec4d4f630127869aefe3c1e331"
+                                                            :deps/root "packages/vis-contract"}
+                               io.github.noahtheduke/lazytest {:mvn/version "2.1.0"}}
+                  :main-opts ["-m" "lazytest.main" "--dir" "test"]}}}

@@ -1,0 +1,10 @@
+;; Project-level clj-kondo config.
+{:lint-as {lazytest.core/defdescribe clojure.test/deftest
+           lazytest.core/around-each clojure.core/fn
+           ;; `vis/validator-fn` is authoring sugar over `(fn arglist body)`. Same
+           ;; arglist semantics, so destructured bindings in the body resolve.
+           com.blockether.vis.core/validator-fn clojure.core/fn}
+ :linters {;; kondo infers primitive types THROUGH map literals and `:keyword` lookups;
+           ;; the Clojure COMPILER does not, so dropping a coercion it calls redundant
+           ;; turns the info into a real reflection / boxed-math warning.
+           :redundant-primitive-coercion {:level :off}}}

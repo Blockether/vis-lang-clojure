@@ -1,0 +1,10 @@
+;; Namespaces the native image must retain for this pack: its registrar, the test
+;; runner it resolves on demand and the formatter/analyzer backends its tools load
+;; lazily. The engine reads every jar's copy of this file while it builds the image.
+[com.blockether.vis.lang.clojure.core
+ com.blockether.vis.lang.clojure.test-runner
+ cljfmt.config
+ cljfmt.core
+ clj-kondo.core
+ zprint.config
+ zprint.core]
