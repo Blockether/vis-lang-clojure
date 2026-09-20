@@ -28,7 +28,7 @@ from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
 
 from vis_lang_clojure import jail
 
-LIBRARY_VERSION = "1.2.1"
+LIBRARY_VERSION = "1.3.0"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"
@@ -84,14 +84,53 @@ def boot_directory():
     return directory
 
 
-def boot_environment(boot):
-    """Everything the Clojure CLI writes while it resolves, kept in `boot`.
+def maven_repository():
+    """The Maven repository a confined run shares with the person's own tools.
 
-    The CLI keeps its Maven repository, its git libraries and its own
-    configuration under `$HOME` by default, and a confined tool may not write
-    there. Naming them all inside the boot directory is what lets a cold
-    resolution download the library at all, and it keeps a project's ambient
-    Maven setup from deciding what the tools run on.
+    `MAVEN_LOCAL_REPO` names it when the machine keeps one elsewhere; otherwise
+    it is the ordinary `~/.m2/repository`. Sharing it is what makes a confined
+    run cheap: the library, its linter and a project's own dependencies are
+    already there, and whatever one run downloads the next one finds.
+
+    Returns:
+        The repository directory.
+    """
+    override = os.environ.get("MAVEN_LOCAL_REPO", "").strip()
+    return override or os.path.join(os.path.expanduser("~"), ".m2", "repository")
+
+
+def git_libraries():
+    """Where dependencies fetched from git are cached, shared for that reason.
+
+    Returns:
+        The cache directory `GITLIBS` names, else the ordinary `~/.gitlibs`.
+    """
+    override = os.environ.get("GITLIBS", "").strip()
+    return override or os.path.join(os.path.expanduser("~"), ".gitlibs")
+
+
+def granted_paths():
+    """Paths outside the session that every Clojure run is handed.
+
+    A confined child may write to the workspace it was given and to Vis' own
+    state directory, and to nothing else. Both shared caches are outside that,
+    so the extension grants exactly those two directories on the call that
+    starts the run; the jail refuses everything else, unchanged.
+
+    Returns:
+        The directories to grant, as a tuple.
+    """
+    return (maven_repository(), git_libraries())
+
+
+def boot_environment(boot):
+    """Everything the Clojure CLI writes while it resolves.
+
+    Its own configuration and classpath cache live in the boot directory: a
+    project's ambient Clojure setup then decides nothing about the tools, and a
+    confined run may write there, which `$HOME` it may not. Downloaded artifacts
+    are different — a coordinate names exactly one file — so they go to the
+    shared caches the run is granted.
 
     Args:
         boot: The boot directory.
@@ -102,7 +141,8 @@ def boot_environment(boot):
     return {
         "CLJ_CONFIG": os.path.join(boot, "config"),
         "CLJ_CACHE": os.path.join(boot, "cpcache"),
-        "GITLIBS": os.path.join(boot, "gitlibs"),
+        "GITLIBS": git_libraries(),
+        jail.REPOSITORY_VARIABLE: maven_repository(),
     }
 
 
@@ -153,13 +193,14 @@ def library_classpath(refresh=False):
         boot = boot_directory()
         coordinate = (
             f'{{:deps {{com.blockether/vis-lang-clojure {{:mvn/version "{LIBRARY_VERSION}"}}}}'
-            f' :mvn/local-repo "{os.path.join(boot, "m2")}"}}'
+            f' :mvn/local-repo "{maven_repository()}"}}'
         )
         done = run(
             jail.prepared((clojure, "-Sdeps", coordinate, "-Spath"), boot),
             cwd=boot,
             env=boot_environment(boot),
             timeout_s=BOOT_TIMEOUT_S,
+            read_write=granted_paths(),
         )
         lines = [line.strip() for line in done.out.splitlines() if line.strip()]
         if not done.is_ok or not lines:
@@ -218,7 +259,16 @@ class Process:
         self.command = tuple(command)
         self.ids = itertools.count(1)
         self.lock = threading.Lock()
-        self.live = runtime.start(self.command, cwd=self.root, name="clojure")
+        # The process serves ONE project, and it resolves that project's own
+        # dependencies for the test runs and REPLs it starts: it needs the same
+        # shared caches the boot resolution used, and the grants that reach them.
+        self.live = runtime.start(
+            self.command,
+            cwd=self.root,
+            env=boot_environment(boot_directory()),
+            read_write=granted_paths(),
+            name="clojure",
+        )
 
     @property
     def is_running(self):

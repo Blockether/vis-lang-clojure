@@ -39,6 +39,9 @@ TRUST_NAME = "VisTrust.java"
 TRUST_PASSWORD = "changeit"
 """Password of the generated trust store, which holds public certificates only."""
 
+REPOSITORY_VARIABLE = "VIS_LANG_CLOJURE_MAVEN_REPO"
+"""Variable naming the shared Maven repository a confined run was granted."""
+
 PREAMBLE = """#!/bin/sh
 # Prepare a confined JVM for Vis' sandbox proxy, then run the real command.
 #
@@ -101,9 +104,23 @@ if [ -n "$bundle" ] && [ -r "$bundle" ]; then
 fi
 
 mkdir -p "$home/.m2"
+
+# Downloaded artifacts are shared with the person's own tools: the extension
+# grants that directory to this run and names it here, and the JVM reaches it
+# through the Maven home this preamble owns.
+repository=${__REPOSITORY__:-}
+if [ -n "$repository" ]; then
+  mkdir -p "$repository"
+  if [ ! -e "$home/.m2/repository" ]; then
+    ln -s "$repository" "$home/.m2/repository" 2>/dev/null || true
+  fi
+fi
 umask 077
 {
   echo '<settings>'
+  if [ -n "$repository" ]; then
+    echo "  <localRepository>$repository</localRepository>"
+  fi
   echo '  <proxies>'
   echo '    <proxy>'
   echo '      <id>vis-sandbox</id>'
@@ -213,9 +230,9 @@ def preamble(boot):
     )
     script = _written(
         os.path.join(home, PREAMBLE_NAME),
-        PREAMBLE.replace("__TRUST__", TRUST_NAME).replace(
-            "__PASSWORD__", TRUST_PASSWORD
-        ),
+        PREAMBLE.replace("__TRUST__", TRUST_NAME)
+        .replace("__PASSWORD__", TRUST_PASSWORD)
+        .replace("__REPOSITORY__", REPOSITORY_VARIABLE),
     )
     os.chmod(script, 0o700)
     return script

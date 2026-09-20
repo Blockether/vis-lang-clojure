@@ -55,3 +55,23 @@ jobs:
         run: uv run --with ruff ruff check .
       - name: Run the tests
         run: uv run --with pytest pytest tests -q
+
+  versions:
+    name: One version everywhere
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check that every version source agrees
+        run: |
+          set -euo pipefail
+          declared=$(tr -d '[:space:]' < VERSION)
+          package=$(python3 -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('extension/pyproject.toml').read_text())['project']['version'])")
+          library=$(python3 -c "import re,pathlib;print(re.search('LIBRARY_VERSION = \"([^\"]+)\"', pathlib.Path('extension/src/vis_lang_clojure/bridge.py').read_text()).group(1))")
+          registered=$(python3 -c "import re,pathlib;print(re.search('version=\"([^\"]+)\"', pathlib.Path('extension/extension.py').read_text()).group(1))")
+          for found in "$package" "$library" "$registered"; do
+            if [ "$found" != "$declared" ]; then
+              echo "VERSION $declared disagrees with package $package, bridge $library, extension $registered." >&2
+              exit 1
+            fi
+          done
+          echo "Every version source says $declared."

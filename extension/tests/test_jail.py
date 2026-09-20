@@ -143,3 +143,33 @@ def test_the_preamble_is_rewritten_when_it_is_stale(tmp_path):
         .read_text()
         .startswith("#!/bin/sh\n# Prepare")
     )
+
+
+def test_the_shared_repository_is_reachable_from_the_maven_home(tmp_path):
+    # The extension grants the person's own Maven repository to the run and
+    # names it here; the JVM keeps writing to the Maven home the preamble owns,
+    # and that home points at the shared repository.
+    shared = tmp_path / "person" / ".m2" / "repository"
+    script = jail.preamble(str(tmp_path))
+    done = preamble_run(
+        script,
+        ["/bin/sh", "-c", "true"],
+        https_proxy=PROXY,
+        **{jail.REPOSITORY_VARIABLE: str(shared)},
+    )
+    assert done.returncode == 0, done.stderr
+    home = Path(tmp_path) / jail.HOME
+    assert (home / ".m2" / "repository").is_symlink()
+    assert os.path.realpath(home / ".m2" / "repository") == os.path.realpath(shared)
+    assert shared.is_dir()
+    settings = (home / ".m2" / "settings.xml").read_text()
+    assert f"<localRepository>{shared}</localRepository>" in settings
+
+
+def test_without_a_shared_repository_the_maven_home_keeps_its_own(tmp_path):
+    script = jail.preamble(str(tmp_path))
+    done = preamble_run(script, ["/bin/sh", "-c", "true"], https_proxy=PROXY)
+    assert done.returncode == 0, done.stderr
+    home = Path(tmp_path) / jail.HOME
+    assert not (home / ".m2" / "repository").exists()
+    assert "<localRepository>" not in (home / ".m2" / "settings.xml").read_text()

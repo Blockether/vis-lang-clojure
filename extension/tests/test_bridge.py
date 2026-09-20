@@ -5,7 +5,7 @@ import os
 import sys
 
 import pytest
-from vis_lang_interface import ToolTimeout
+from vis_lang_interface import ToolRun, ToolTimeout
 
 from vis_lang_clojure import bridge, jail
 
@@ -86,10 +86,10 @@ def clojure_shim(
         f"#!{sys.executable}\n"
         "import json, os, sys\n"
         f"with open({str(record)!r}, 'a') as handle:\n"
-        "    handle.write(json.dumps({'cwd': os.getcwd(), 'argv': sys.argv[1:], 'env': {name: os.environ.get(name) for name in ('CLJ_CONFIG', 'CLJ_CACHE', 'GITLIBS')}}) + chr(10))\n"
+        "    handle.write(json.dumps({'cwd': os.getcwd(), 'argv': sys.argv[1:], 'env': {name: os.environ.get(name) for name in ('CLJ_CONFIG', 'CLJ_CACHE', 'GITLIBS', 'VIS_LANG_CLOJURE_MAVEN_REPO')}}) + chr(10))\n"
         f"sys.stderr.write({says!r})\n"
         f"sys.stdout.write({classpath!r} + chr(10))\n"
-        f"sys.exit({code})\n"
+        f"sys.exit({code})\n",
     )
     shim.chmod(0o755)
     monkeypatch.setenv("PATH", str(binaries), prepend=os.pathsep)
@@ -160,10 +160,14 @@ def test_the_classpath_is_resolved_once(tmp_path, monkeypatch):
 
 
 def test_the_resolution_writes_only_where_a_confined_tool_may(tmp_path, monkeypatch):
-    # A confined tool may write to the workspace it was given and to Vis' own
-    # directory, and to nothing else. A boot area under `~/.cache`, a Maven
-    # repository under `~/.m2` or a CLI cache under `~/.clojure` is outside
-    # both, and the resolution that needs one never starts at all.
+    # A confined tool may write to the workspace it was given, to Vis' own
+    # directory, and to the paths the call that starts it grants. The CLI's own
+    # configuration and classpath cache stay in the boot area; downloaded
+    # artifacts go to the shared caches the run is granted, and nothing else of
+    # `$HOME` is reachable.
+    monkeypatch.setenv("HOME", str(tmp_path / "person"))
+    monkeypatch.delenv("MAVEN_LOCAL_REPO", raising=False)
+    monkeypatch.delenv("GITLIBS", raising=False)
     record = clojure_shim(tmp_path, monkeypatch)
     assert bridge.library_classpath() == "/jars/library.jar"
 
@@ -172,9 +176,45 @@ def test_the_resolution_writes_only_where_a_confined_tool_may(tmp_path, monkeypa
 
     ran = resolutions(record)[-1]
     assert os.path.realpath(ran["cwd"]) == boot
-    assert f'"{os.path.join(bridge.boot_directory(), "m2")}"' in " ".join(ran["argv"])
-    for name in ("CLJ_CONFIG", "CLJ_CACHE", "GITLIBS"):
+    assert f'"{bridge.maven_repository()}"' in " ".join(ran["argv"])
+    for name in ("CLJ_CONFIG", "CLJ_CACHE"):
         assert os.path.realpath(ran["env"][name]).startswith(boot)
+    assert ran["env"]["GITLIBS"] == bridge.git_libraries()
+    assert ran["env"][jail.REPOSITORY_VARIABLE] == bridge.maven_repository()
+
+
+def test_the_shared_caches_are_the_ones_a_person_already_has(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "person"))
+    monkeypatch.delenv("MAVEN_LOCAL_REPO", raising=False)
+    monkeypatch.delenv("GITLIBS", raising=False)
+    assert bridge.maven_repository() == str(tmp_path / "person" / ".m2" / "repository")
+    assert bridge.git_libraries() == str(tmp_path / "person" / ".gitlibs")
+    monkeypatch.setenv("MAVEN_LOCAL_REPO", "/srv/artifacts")
+    monkeypatch.setenv("GITLIBS", "/srv/gitlibs")
+    assert bridge.granted_paths() == ("/srv/artifacts", "/srv/gitlibs")
+
+
+def test_a_resolution_asks_for_the_caches_it_uses(tmp_path, monkeypatch):
+    # The shared caches sit outside the session's roots: a confined run reaches
+    # them only because this call hands them over, and it hands over nothing else.
+    asked = {}
+
+    def recorded(command, **options):
+        asked.update(options)
+        return ToolRun(
+            command=tuple(command),
+            exit_code=0,
+            out="/jars/library.jar",
+            err="",
+            duration_ms=1,
+        )
+
+    monkeypatch.setenv("VIS_HOME", str(tmp_path / "vis-home"))
+    monkeypatch.setattr(bridge, "tool_path", lambda *arguments: "/bin/clojure")
+    monkeypatch.setattr(bridge, "run", recorded)
+    monkeypatch.setattr(bridge, "_CLASSPATH", None)
+    assert bridge.library_classpath(refresh=True) == "/jars/library.jar"
+    assert asked["read_write"] == bridge.granted_paths()
 
 
 def test_a_failed_resolution_says_what_it_printed(tmp_path, monkeypatch):

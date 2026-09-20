@@ -26,9 +26,10 @@ jobs:
           declared=$(tr -d '[:space:]' < VERSION)
           package=$(python3 -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('extension/pyproject.toml').read_text())['project']['version'])")
           library=$(python3 -c "import re,pathlib;print(re.search('LIBRARY_VERSION = \"([^\"]+)\"', pathlib.Path('extension/src/vis_lang_clojure/bridge.py').read_text()).group(1))")
-          for found in "$declared" "$package" "$library"; do
+          registered=$(python3 -c "import re,pathlib;print(re.search('version=\"([^\"]+)\"', pathlib.Path('extension/extension.py').read_text()).group(1))")
+          for found in "$declared" "$package" "$library" "$registered"; do
             if [ "v$found" != "$GITHUB_REF_NAME" ]; then
-              echo "Tag $GITHUB_REF_NAME disagrees with VERSION $declared, package $package, bridge $library." >&2
+              echo "Tag $GITHUB_REF_NAME disagrees with VERSION $declared, package $package, bridge $library, extension $registered." >&2
               exit 1
             fi
           done
