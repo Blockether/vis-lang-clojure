@@ -2178,3 +2178,64 @@
                        (expect (= 1234 @seen))
                        (expect (true? (get r "timed_out")))
                        (expect (zero? @kills)))))))
+
+(defn- repl-answer
+  "The nREPL answer a REPL test run produces: the result map, pr-str'd twice."
+  [result]
+  {"value" (pr-str (pr-str result))})
+
+(defdescribe repl-run-verdict-test
+             (it "reports a green REPL run as passed, like the clean-JVM path"
+                 (with-redefs [nc/probe!
+                               (constantly {:status :up})
+
+                               nc/eval!
+                               (fn [_]
+                                 (repl-answer {"total" 2
+                                               "selected" 2
+                                               "pass" 2
+                                               "fail" 0
+                                               "errored" 0
+                                               "skipped" 0
+                                               "failures" []
+                                               "output" "0 failures."}))]
+
+                   (let [r (run-via-repl "." ["some.ns-test"] {} 54749)]
+                     (expect (= "repl" (get r "mode")))
+                     (expect (true? (get r "is_pass"))))))
+             (it "reports a REPL run with a failure as failed"
+                 (with-redefs [nc/probe!
+                               (constantly {:status :up})
+
+                               nc/eval!
+                               (fn [_]
+                                 (repl-answer {"total" 2
+                                               "selected" 2
+                                               "pass" 1
+                                               "fail" 1
+                                               "errored" 0
+                                               "skipped" 0
+                                               "failures" [{"ns" "some.ns-test"
+                                                            "test" "adds"
+                                                            "message" "expected 2"}]
+                                               "output" "1 failure."}))]
+
+                   (let [r (run-via-repl "." ["some.ns-test"] {} 54749)]
+                     (expect (false? (get r "is_pass"))))))
+             (it "never calls a REPL run that verified nothing a pass"
+                 (with-redefs [nc/probe!
+                               (constantly {:status :up})
+
+                               nc/eval!
+                               (fn [_]
+                                 (repl-answer {"total" 0
+                                               "selected" 0
+                                               "pass" 0
+                                               "fail" 0
+                                               "errored" 0
+                                               "skipped" 0
+                                               "failures" []
+                                               "output" ""}))]
+
+                   (let [r (run-via-repl "." ["some.ns-test"] {} 54749)]
+                     (expect (false? (get r "is_pass")))))))

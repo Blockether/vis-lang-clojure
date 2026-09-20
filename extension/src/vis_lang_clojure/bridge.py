@@ -31,7 +31,7 @@ import time
 
 from vis_lang_interface import ToolMissing, ToolTimeout, tool_path
 
-LIBRARY_VERSION = "1.0.1"
+LIBRARY_VERSION = "1.0.2"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"

@@ -1003,12 +1003,24 @@
                             "test); the connection was evicted so a retry reconnects fresh."
                             (when (seq (str (get r "err"))) (str " nREPL err: " (get r "err"))))
                "repl_wedged" true}
-              (map? parsed) (-> parsed
-                                (->> (normalize-faults root))
-                                (compose-repl-output)
-                                (assoc "mode" "repl"
-                                       "ns" ns-disp
-                                       "port" port))
+              ;; The in-REPL runner answers with COUNTS, not a verdict. Derive the SAME
+              ;; verdict the clean-JVM path reports, so a green REPL run never reaches a
+              ;; caller without one — a missing verdict reads as a failure downstream.
+              (map? parsed) (let [ran (-> parsed
+                                          (->> (normalize-faults root))
+                                          (compose-repl-output)
+                                          (assoc "mode" "repl"
+                                                 "ns" ns-disp
+                                                 "port" port))
+                                  counted (fn [k]
+                                            (long (or (get ran k) 0)))]
+
+                              (assoc ran
+                                "is_pass" (boolean (and (zero? (counted "fail"))
+                                                        (zero? (counted "errored"))
+                                                        (empty? (get ran "failures"))
+                                                        (pos? (max (counted "total")
+                                                                   (counted "selected")))))))
               :else {"mode" "repl"
                      "ns" ns-disp
                      "port" port
