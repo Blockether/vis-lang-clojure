@@ -28,7 +28,7 @@ from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
 
 from vis_lang_clojure import jail
 
-LIBRARY_VERSION = "1.2.0"
+LIBRARY_VERSION = "1.2.1"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"
@@ -46,9 +46,20 @@ STDERR_TAIL_LINES = 40
 SESSION = "vis-lang-clojure"
 """Owner the library files its REPLs under."""
 
+RESTARTABLE = frozenset({"ping", "format", "lint"})
+"""Verbs a fresh process may be asked again when one died before answering.
+
+Each of them reads or rewrites files and runs none of the project's own code,
+so a repeat costs a boot and nothing else. `test` and the REPL verbs run that
+code, and asking twice could run it twice."""
+
 
 class ClojureError(RuntimeError):
     """The Clojure side refused a call, with the reason it gave."""
+
+
+class ClojureStopped(ClojureError):
+    """The process died before it answered, so there is no answer to report."""
 
 
 def boot_directory():
@@ -240,7 +251,7 @@ class Process:
                 # wanted, so this waits for the id it just sent.
                 return self.live.request(payload, timeout_s, wants=wanted)
             except RuntimeGone as exc:
-                raise ClojureError(self._stopped()) from exc
+                raise ClojureStopped(self._stopped()) from exc
             except TimeoutError as exc:
                 raise ToolTimeout(
                     f"{MAIN} did not answer within {timeout_s:g}s"
@@ -281,7 +292,16 @@ def call(verb, arg=None, *, root, op="", timeout_s=DEFAULT_TIMEOUT_S):
     request = {"verb": verb, "arg": {} if arg is None else arg}
     if op:
         request["op"] = op
-    answer = process_for(root).call(request, timeout_s)
+    try:
+        answer = process_for(root).call(request, timeout_s)
+    except ClojureStopped:
+        if verb not in RESTARTABLE:
+            raise
+        # A process can be killed while it works: a sandbox reclaiming the
+        # process tree of the call that spawned it, or a machine short of
+        # memory picking the JVM. For these verbs a fresh process is asked the
+        # same thing once more instead of handing back a failure nobody caused.
+        answer = process_for(root).call(request, timeout_s)
     if answer.get("ok"):
         return answer.get("result")
     failure = answer.get("error") or {}

@@ -205,3 +205,34 @@ def test_an_override_is_run_as_written(tmp_path, monkeypatch):
     command = bridge.boot_command()
     assert command[1] == jail.preamble(bridge.boot_directory())
     assert command[2:] == ("clojure", "-M:dev", "-m", "other.main")
+
+
+class Stopping:
+    """A process that dies before it answers the first thing it is asked."""
+
+    def __init__(self, result):
+        self.result = result
+        self.asked = []
+
+    def call(self, request, timeout_s):
+        self.asked.append(request)
+        if len(self.asked) == 1:
+            raise bridge.ClojureStopped("the Clojure process stopped before answering")
+        return {"ok": True, "result": self.result}
+
+
+def test_a_process_that_died_before_answering_is_asked_again(monkeypatch):
+    # A sandbox reclaiming the process tree of the call that spawned the JVM,
+    # or a crowded machine picking it, must not lose a lint nobody ran.
+    live = Stopping({"files": 1})
+    monkeypatch.setattr(bridge, "process_for", lambda root: live)
+    assert bridge.call("lint", root="/app") == {"files": 1}
+    assert len(live.asked) == 2
+
+
+def test_a_verb_that_runs_the_project_is_never_repeated(monkeypatch):
+    live = Stopping({"tests": 1})
+    monkeypatch.setattr(bridge, "process_for", lambda root: live)
+    with pytest.raises(bridge.ClojureStopped):
+        bridge.call("test", root="/app")
+    assert len(live.asked) == 1

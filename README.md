@@ -40,7 +40,7 @@ Tests reuse a running REPL when there is one, and otherwise run in a clean JVM.
 of its own —
 
 ```
-clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.2.0"}}}' -Spath
+clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.2.1"}}}' -Spath
 ```
 
 — and then runs
