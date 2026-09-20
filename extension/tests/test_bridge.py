@@ -1,7 +1,8 @@
 """One process per project, and a failure that says what happened."""
 
+import json
 import os
-import shutil
+import sys
 
 import pytest
 from vis_lang_interface import ToolTimeout
@@ -68,12 +69,111 @@ def test_a_late_answer_is_not_mistaken_for_the_next_one(fake):
     assert bridge.call("lint", {}, root=fake.cwd) == {"files": 1, "findings": []}
 
 
-@pytest.mark.skipif(
-    not shutil.which("clojure"), reason="the Clojure CLI is not installed"
-)
-def test_the_default_command_boots_the_released_library(fake, monkeypatch):
-    monkeypatch.delenv("VIS_LANG_CLOJURE_COMMAND")
-    command = bridge.boot_command()
-    assert os.path.basename(command[0]) == "clojure"
-    assert f'{{:mvn/version "{bridge.LIBRARY_VERSION}"}}' in command[2]
-    assert command[-3:] == ("-M", "-m", bridge.MAIN)
+def clojure_shim(
+    tmp_path, monkeypatch, *, classpath="/jars/library.jar", code=0, says=""
+):
+    """Put a `clojure` on PATH that records where it ran, and answer its record.
+
+    The shim prints `classpath` the way `-Spath` does, writes `says` to stderr
+    and exits with `code`, so a test can drive both halves of a resolution
+    without a JVM.
+    """
+    record = tmp_path / "resolutions.jsonl"
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    shim = binaries / "clojure"
+    shim.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        f"with open({str(record)!r}, 'a') as handle:\n"
+        "    handle.write(json.dumps({'cwd': os.getcwd(), 'argv': sys.argv[1:]}) + chr(10))\n"
+        f"sys.stderr.write({says!r})\n"
+        f"sys.stdout.write({classpath!r} + chr(10))\n"
+        f"sys.exit({code})\n"
+    )
+    shim.chmod(0o755)
+    monkeypatch.setenv("PATH", str(binaries), prepend=os.pathsep)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.delenv("VIS_LANG_CLOJURE_COMMAND", raising=False)
+    monkeypatch.setattr(bridge, "_CLASSPATH", None)
+    return record
+
+
+def resolutions(record):
+    """Every resolution the shim recorded, newest last."""
+    if not record.exists():
+        return []
+    return [json.loads(line) for line in record.read_text().splitlines()]
+
+
+def test_the_default_command_runs_the_library_on_its_own_classpath(monkeypatch):
+    monkeypatch.delenv("VIS_LANG_CLOJURE_COMMAND", raising=False)
+    monkeypatch.setattr(bridge, "java_command", lambda: "/jdk/bin/java")
+    monkeypatch.setattr(bridge, "library_classpath", lambda: "/jars/library.jar")
+    assert bridge.boot_command() == (
+        "/jdk/bin/java",
+        "-cp",
+        "/jars/library.jar",
+        "-Dclojure.main.report=stderr",
+        "clojure.main",
+        "-m",
+        bridge.MAIN,
+    )
+
+
+def test_the_classpath_is_resolved_outside_the_project(tmp_path, monkeypatch):
+    # A project's deps.edn must not reach the library's classpath: the Clojure
+    # CLI merges the deps.edn of the directory it runs in, so a project on an
+    # older Clojure — or with a dependency only its own repository serves —
+    # used to break every Clojure tool before the first call.
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "deps.edn").write_text(
+        '{:deps {org.clojure/clojure {:mvn/version "1.10.3"}}}'
+    )
+    record = clojure_shim(tmp_path, monkeypatch)
+    monkeypatch.chdir(project)
+
+    assert bridge.library_classpath() == "/jars/library.jar"
+
+    ran = resolutions(record)[-1]
+    assert os.path.realpath(ran["cwd"]) == os.path.realpath(bridge.boot_directory())
+    assert os.path.realpath(ran["cwd"]) != os.path.realpath(project)
+    assert "-Spath" in ran["argv"]
+    assert f'{{:mvn/version "{bridge.LIBRARY_VERSION}"}}' in " ".join(ran["argv"])
+    assert not (project / ".cpcache").exists()
+
+
+def test_the_classpath_is_resolved_once(tmp_path, monkeypatch):
+    record = clojure_shim(tmp_path, monkeypatch)
+    assert bridge.library_classpath() == bridge.library_classpath()
+    assert len(resolutions(record)) == 1
+    assert bridge.library_classpath(refresh=True) == "/jars/library.jar"
+    assert len(resolutions(record)) == 2
+
+
+def test_a_failed_resolution_says_what_it_printed(tmp_path, monkeypatch):
+    clojure_shim(
+        tmp_path,
+        monkeypatch,
+        classpath="",
+        code=1,
+        says="Error building classpath. Could not find artifact com.example:nope",
+    )
+    with pytest.raises(bridge.ClojureError, match="Could not find artifact"):
+        bridge.library_classpath()
+
+
+def test_the_jdk_comes_from_java_home_when_it_has_one(tmp_path, monkeypatch):
+    home = tmp_path / "jdk"
+    (home / "bin").mkdir(parents=True)
+    java = home / "bin" / "java"
+    java.write_text("#!/bin/sh\nexit 0\n")
+    java.chmod(0o755)
+    monkeypatch.setenv("JAVA_HOME", str(home))
+    assert bridge.java_command() == str(java)
+
+
+def test_an_override_is_run_as_written(monkeypatch):
+    monkeypatch.setenv("VIS_LANG_CLOJURE_COMMAND", "clojure -M:dev -m other.main")
+    assert bridge.boot_command() == ("clojure", "-M:dev", "-m", "other.main")

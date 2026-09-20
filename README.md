@@ -36,14 +36,24 @@ Tests reuse a running REPL when there is one, and otherwise run in a clean JVM.
 
 ## How it works
 
-`extension/` is the Python side: it starts
+`extension/` is the Python side. It resolves the library's classpath once, in a cache directory
+of its own —
 
 ```
-clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.0.0"}}}' \
-        -M -m com.blockether.vis.lang.clojure.cli
+clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.0.1"}}}' -Spath
 ```
 
-once per project root and exchanges one JSON object per line with it. The Clojure side
+— and then runs
+
+```
+java -cp "$classpath" clojure.main -m com.blockether.vis.lang.clojure.cli
+```
+
+once per project root, inside that project. Resolving away from the project is deliberate: your
+`deps.edn` decides what your REPL and your test runs see, never what these tools themselves run
+on, so a project pinning an older Clojure — or one whose dependencies come from a repository the
+tools cannot reach — still formats, lints and tests. The two sides exchange one JSON object per
+line with each other. The Clojure side
 (`src/com/blockether/vis/lang/clojure/`) does the real work and returns plain data, which the
 Python side turns into the result types from
 [vis-lang-interface](https://github.com/Blockether/vis-lang-interface).
@@ -60,3 +70,6 @@ To run the extension against this checkout instead of the released jar:
 ```bash
 export VIS_LANG_CLOJURE_COMMAND="clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:local/root \"$PWD\"}}}' -M -m com.blockether.vis.lang.clojure.cli"
 ```
+
+That override is run exactly as written, in the project directory, so — unlike the default
+command — it takes its classpath from that project's `deps.edn` too.

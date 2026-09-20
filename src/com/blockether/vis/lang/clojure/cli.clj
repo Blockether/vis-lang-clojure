@@ -3,7 +3,7 @@
 
    A project gets these tools by running this namespace with the Clojure CLI —
 
-       clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version \"1.0.0\"}}}' \\
+       clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version \"1.0.1\"}}}' \\
                -M -m com.blockether.vis.lang.clojure.cli
 
    — and keeping the process alive: managed nREPLs are ITS children, so a REPL
