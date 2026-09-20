@@ -4,8 +4,9 @@ import os
 import shutil
 
 import pytest
-from vis_lang_clojure import bridge
 from vis_lang_interface import ToolTimeout
+
+from vis_lang_clojure import bridge
 
 
 def test_a_call_names_the_project_and_its_owner(fake):

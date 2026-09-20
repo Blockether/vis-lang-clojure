@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+
 from vis_lang_clojure import bridge
 
 FAKE = Path(__file__).parent / "fake_clojure.py"

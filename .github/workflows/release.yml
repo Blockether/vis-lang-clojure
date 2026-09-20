@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: clj-kondo + Lazytest + pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: DeLaGuardo/setup-clojure@13.6.1
+        with:
+          cli: latest
+      - name: Check that the tag, VERSION and both halves agree
+        run: |
+          set -euo pipefail
+          declared=$(tr -d '[:space:]' < VERSION)
+          package=$(python3 -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('extension/pyproject.toml').read_text())['project']['version'])")
+          library=$(python3 -c "import re,pathlib;print(re.search('LIBRARY_VERSION = \"([^\"]+)\"', pathlib.Path('extension/src/vis_lang_clojure/bridge.py').read_text()).group(1))")
+          for found in "$declared" "$package" "$library"; do
+            if [ "v$found" != "$GITHUB_REF_NAME" ]; then
+              echo "Tag $GITHUB_REF_NAME disagrees with VERSION $declared, package $package, bridge $library." >&2
+              exit 1
+            fi
+          done
+      - name: Lint
+        run: clojure -M -m clj-kondo.main --lint src test
+      - name: Run the Clojure tests
+        run: clojure -M:test
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Run the extension tests
+        working-directory: extension
+        run: |
+          uv sync
+          uv run --with ruff ruff format --check .
+          uv run --with ruff ruff check .
+          uv run --with pytest pytest tests -q
+
+  clojars:
+    name: Deploy the library jar to Clojars
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: DeLaGuardo/setup-clojure@13.6.1
+        with:
+          cli: latest
+      - name: Check whether this version is already on Clojars
+        id: clojars
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          status=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://repo.clojars.org/com/blockether/vis-lang-clojure/$version/vis-lang-clojure-$version.jar")
+          if [ "$status" = "200" ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Deploy
+        if: steps.clojars.outputs.exists != 'true'
+        env:
+          VIS_LANG_CLOJURE_VERSION: ${{ github.ref_name }}
+          CLOJARS_USERNAME: blockether-deployer
+          CLOJARS_PASSWORD: ${{ secrets.CLOJARS_DEPLOY_TOKEN }}
+        run: clojure -Sthreads 1 -T:build deploy
+
+  release:
+    name: Publish the GitHub release
+    needs: clojars
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # The extension center publishes this release automatically: Blockether/vis runs
+      # "Publish reviewed extension" daily for first-party extensions, and that workflow
+      # can also be dispatched by hand for an immediate publication.
+      - uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true

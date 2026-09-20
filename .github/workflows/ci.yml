@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  clojure:
+    name: clj-kondo + Lazytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: DeLaGuardo/setup-clojure@13.6.1
+        with:
+          cli: latest
+      - name: Cache the dependency downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+          key: clojure-${{ hashFiles('deps.edn') }}
+          restore-keys: clojure-
+      - name: Lint
+        run: clojure -M -m clj-kondo.main --lint src test
+      - name: Run the tests
+        run: clojure -M:test
+
+  extension:
+    name: ruff + pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Install the declared dependencies
+        run: uv sync
+      - name: Check formatting
+        run: uv run --with ruff ruff format --check .
+      - name: Lint
+        run: uv run --with ruff ruff check .
+      - name: Run the tests
+        run: uv run --with pytest pytest tests -q

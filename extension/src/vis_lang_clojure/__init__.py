@@ -7,7 +7,7 @@ is the glue that starts it, asks it for something and returns the answer in the
 shapes from `vis-lang-interface`.
 """
 
-from vis_lang_clojure.bridge import ClojureError, LIBRARY_VERSION
+from vis_lang_clojure.bridge import LIBRARY_VERSION, ClojureError
 from vis_lang_clojure.tools import ClojureTools
 
 __all__ = ["ClojureError", "ClojureTools", "LIBRARY_VERSION"]

@@ -1,6 +1,7 @@
 """Every tool answers the contract shape, from what the library reported."""
 
 import pytest
+
 from vis_lang_clojure import bridge
 
 

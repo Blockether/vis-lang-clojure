@@ -22,6 +22,7 @@ from vis_lang_interface import (
     TestResult,
     project_root,
 )
+
 from vis_lang_clojure import bridge
 
 LANGUAGE = "clojure"
@@ -143,7 +144,9 @@ class ClojureTools:
         paths: Annotated[list[str], "Test files, directories or namespaces."] = (),
         *,
         cwd: Annotated[str, "Project directory; inferred from paths when empty."] = "",
-        include: Annotated[list[str], "Run only tests carrying these metadata keys."] = (),
+        include: Annotated[
+            list[str], "Run only tests carrying these metadata keys."
+        ] = (),
         exclude: Annotated[list[str], "Skip tests carrying these metadata keys."] = (),
         namespaces: Annotated[list[str], "Test namespaces to run."] = (),
         vars: Annotated[list[str], "Individual test names to run."] = (),
