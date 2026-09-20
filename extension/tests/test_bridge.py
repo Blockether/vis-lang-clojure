@@ -7,7 +7,7 @@ import sys
 import pytest
 from vis_lang_interface import ToolTimeout
 
-from vis_lang_clojure import bridge
+from vis_lang_clojure import bridge, jail
 
 
 def test_a_call_names_the_project_and_its_owner(fake):
@@ -106,11 +106,18 @@ def resolutions(record):
     return [json.loads(line) for line in record.read_text().splitlines()]
 
 
-def test_the_default_command_runs_the_library_on_its_own_classpath(monkeypatch):
+def test_the_default_command_runs_the_library_on_its_own_classpath(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("VIS_HOME", str(tmp_path / "vis-home"))
     monkeypatch.delenv("VIS_LANG_CLOJURE_COMMAND", raising=False)
     monkeypatch.setattr(bridge, "java_command", lambda: "/jdk/bin/java")
     monkeypatch.setattr(bridge, "library_classpath", lambda: "/jars/library.jar")
-    assert bridge.boot_command() == (
+    command = bridge.boot_command()
+    # Confined or not, the JVM starts behind the preamble: only the sandbox
+    # knows whether its proxy needs preparing, and only from inside it.
+    assert command[1] == jail.preamble(bridge.boot_directory())
+    assert command[2:] == (
         "/jdk/bin/java",
         "-cp",
         "/jars/library.jar",
@@ -192,6 +199,9 @@ def test_the_jdk_comes_from_java_home_when_it_has_one(tmp_path, monkeypatch):
     assert bridge.java_command() == str(java)
 
 
-def test_an_override_is_run_as_written(monkeypatch):
+def test_an_override_is_run_as_written(tmp_path, monkeypatch):
+    monkeypatch.setenv("VIS_HOME", str(tmp_path / "vis-home"))
     monkeypatch.setenv("VIS_LANG_CLOJURE_COMMAND", "clojure -M:dev -m other.main")
-    assert bridge.boot_command() == ("clojure", "-M:dev", "-m", "other.main")
+    command = bridge.boot_command()
+    assert command[1] == jail.preamble(bridge.boot_directory())
+    assert command[2:] == ("clojure", "-M:dev", "-m", "other.main")

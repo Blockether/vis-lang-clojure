@@ -26,7 +26,9 @@ import threading
 
 from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
 
-LIBRARY_VERSION = "1.1.1"
+from vis_lang_clojure import jail
+
+LIBRARY_VERSION = "1.2.0"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"
@@ -143,7 +145,7 @@ def library_classpath(refresh=False):
             f' :mvn/local-repo "{os.path.join(boot, "m2")}"}}'
         )
         done = run(
-            (clojure, "-Sdeps", coordinate, "-Spath"),
+            jail.prepared((clojure, "-Sdeps", coordinate, "-Spath"), boot),
             cwd=boot,
             env=boot_environment(boot),
             timeout_s=BOOT_TIMEOUT_S,
@@ -179,17 +181,21 @@ def boot_command():
         ToolMissing: The Clojure CLI or a JDK is not installed.
         ToolTimeout: Resolution outlasted `BOOT_TIMEOUT_S`.
     """
+    boot = boot_directory()
     override = os.environ.get("VIS_LANG_CLOJURE_COMMAND", "").strip()
     if override:
-        return tuple(shlex.split(override))
-    return (
-        java_command(),
-        "-cp",
-        library_classpath(),
-        "-Dclojure.main.report=stderr",
-        "clojure.main",
-        "-m",
-        MAIN,
+        return jail.prepared(tuple(shlex.split(override)), boot)
+    return jail.prepared(
+        (
+            java_command(),
+            "-cp",
+            library_classpath(),
+            "-Dclojure.main.report=stderr",
+            "clojure.main",
+            "-m",
+            MAIN,
+        ),
+        boot,
     )
 
 

@@ -40,7 +40,7 @@ Tests reuse a running REPL when there is one, and otherwise run in a clean JVM.
 of its own —
 
 ```
-clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.0.2"}}}' -Spath
+clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.2.0"}}}' -Spath
 ```
 
 — and then runs
@@ -58,6 +58,24 @@ line with each other. The Clojure side
 Python side turns into the result types from
 [vis-lang-interface](https://github.com/Blockether/vis-lang-interface).
 
+## Inside a Vis sandbox
+
+When Vis confines a session, a tool may write to the workspace and to Vis' own state directory,
+and everything it sends leaves through a local proxy that asks for a credential and terminates
+TLS with its own certificate authority. Programs that read `https_proxy` need nothing more, but a
+JVM takes its proxy from system properties and Maven takes its from `settings.xml`, so a confined
+Clojure run would fail to reach Clojars or Maven Central at all.
+
+This extension prepares both before the JVM starts. You do not configure anything: it points the
+JVM at the proxy, builds a trust store from the sandbox's certificate bundle, and writes a
+`settings.xml` with the proxy and its credential. That `settings.xml` and the Maven repository a
+confined run downloads into live under `~/.vis/lang/vis-lang-clojure/<version>/jail`, never in
+your own `~/.m2`, so a sandboxed run neither reads your Maven setup nor writes to it — and the
+first confined build of a project downloads its dependencies again, into that directory.
+
+Outside a sandbox there is no proxy in the environment, nothing is prepared, and your `~/.m2` is
+used exactly as before.
+
 ## Development
 
 ```bash
@@ -71,5 +89,5 @@ To run the extension against this checkout instead of the released jar:
 export VIS_LANG_CLOJURE_COMMAND="clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:local/root \"$PWD\"}}}' -M -m com.blockether.vis.lang.clojure.cli"
 ```
 
-That override is run exactly as written, in the project directory, so — unlike the default
-command — it takes its classpath from that project's `deps.edn` too.
+That override brings its own classpath and is run as written, in the project directory, so —
+unlike the default command — it takes its classpath from that project's `deps.edn` too.
