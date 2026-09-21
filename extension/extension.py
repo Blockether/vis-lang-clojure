@@ -1,7 +1,7 @@
 """Vis entrypoint. The tools themselves live in vis_lang_clojure."""
 
 import blockether.vis.extension as vis
-from vis_lang_interface import presentation
+from vis_lang_interface import presentation, prompt
 
 from vis_lang_clojure.tools import ClojureTools
 
@@ -67,12 +67,38 @@ _bind(
     tag="mutation",
 )
 
+PROMPT = prompt.routing(
+    "Clojure",
+    "clj",
+    (
+        "format_code",
+        "lint_code",
+        "run_tests",
+        "repl_start",
+        "repl_status",
+        "repl_connect",
+        "repl_eval",
+        "repl_stop",
+    ),
+    notes=(
+        "`clj.repl_eval` needs a REPL `clj.repl_start` already started, or `clj.repl_connect`"
+        " attached to an nREPL that is running elsewhere.",
+        "`clj.run_tests` starts a clean JVM unless this session's REPL is live, in which case it"
+        " serves the code that REPL has loaded: reload the namespaces you changed with"
+        " `(require ... :reload)` or stop the REPL first.",
+        "`clj.lint_code` is clj-kondo and also reports the compiler's reflection warnings,"
+        " which this toolchain treats as failures.",
+    ),
+)
+
+
 vis.register_extension(
     vis.Extension(
         name="vis-lang-clojure",
         description="Clojure tools: zprint and cljfmt formatting, clj-kondo lint, test runs and an nREPL.",
-        version="1.3.0",
+        version="1.4.0",
         alias="clj",
         symbols=[vis.Symbol(ClojureTools(), name="clj")],
+        prompt=PROMPT,
     )
 )
