@@ -194,6 +194,37 @@ def test_the_shared_caches_are_the_ones_a_person_already_has(tmp_path, monkeypat
     assert bridge.granted_paths() == ("/srv/artifacts", "/srv/gitlibs")
 
 
+def test_the_configuration_is_the_one_the_clojure_command_reads(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "person"))
+    monkeypatch.delenv("CLJ_CONFIG", raising=False)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    assert bridge.user_configuration() == str(tmp_path / "person" / ".clojure")
+    # Where XDG_CONFIG_HOME is set, the usual Linux arrangement, the CLI reads
+    # its configuration from there instead.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "person" / ".config"))
+    assert bridge.user_configuration() == str(
+        tmp_path / "person" / ".config" / "clojure"
+    )
+    monkeypatch.setenv("CLJ_CONFIG", "/srv/clojure")
+    assert bridge.user_configuration() == "/srv/clojure"
+
+
+def test_a_configuration_is_granted_only_when_the_machine_has_one(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("MAVEN_LOCAL_REPO", "/srv/artifacts")
+    monkeypatch.setenv("GITLIBS", "/srv/gitlibs")
+    configuration = tmp_path / "person" / ".clojure"
+    monkeypatch.setenv("CLJ_CONFIG", str(configuration))
+    assert bridge.granted_paths() == ("/srv/artifacts", "/srv/gitlibs")
+    configuration.mkdir(parents=True)
+    assert bridge.granted_paths() == (
+        "/srv/artifacts",
+        "/srv/gitlibs",
+        str(configuration),
+    )
+
+
 def test_a_resolution_asks_for_the_caches_it_uses(tmp_path, monkeypatch):
     # The shared caches sit outside the session's roots: a confined run reaches
     # them only because this call hands them over, and it hands over nothing else.
@@ -215,6 +246,33 @@ def test_a_resolution_asks_for_the_caches_it_uses(tmp_path, monkeypatch):
     monkeypatch.setattr(bridge, "_CLASSPATH", None)
     assert bridge.library_classpath(refresh=True) == "/jars/library.jar"
     assert asked["read_write"] == bridge.granted_paths()
+
+
+def test_a_project_process_is_handed_the_caches_and_the_configuration(
+    tmp_path, monkeypatch
+):
+    # The boot resolution keeps the tools clear of a project's ambient setup.
+    # The process serving the project must not: a REPL asked for an alias a
+    # cross-project `deps.edn` defines has to find it, the way a terminal does.
+    started = {}
+
+    class Live:
+        is_running = True
+
+    def recorded(command, **options):
+        started.update(options)
+        return Live()
+
+    monkeypatch.setenv("VIS_HOME", str(tmp_path / "vis-home"))
+    monkeypatch.setenv("CLJ_CONFIG", "/srv/clojure")
+    monkeypatch.setattr(bridge.runtime, "start", recorded)
+    bridge.Process(tmp_path / "project", ("java", "-cp", "library.jar"))
+    assert started["read_write"] == bridge.granted_paths()
+    assert started["env"]["CLJ_CONFIG"] == "/srv/clojure"
+    assert started["env"]["GITLIBS"] == bridge.git_libraries()
+    assert started["env"][jail.REPOSITORY_VARIABLE] == bridge.maven_repository()
+    boot = os.path.realpath(bridge.boot_directory())
+    assert os.path.realpath(started["env"]["CLJ_CACHE"]).startswith(boot)
 
 
 def test_a_failed_resolution_says_what_it_printed(tmp_path, monkeypatch):

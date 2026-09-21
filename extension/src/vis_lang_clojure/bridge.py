@@ -28,7 +28,7 @@ from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
 
 from vis_lang_clojure import jail
 
-LIBRARY_VERSION = "1.4.0"
+LIBRARY_VERSION = "1.5.0"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"
@@ -109,17 +109,44 @@ def git_libraries():
     return override or os.path.join(os.path.expanduser("~"), ".gitlibs")
 
 
+def user_configuration():
+    """The person's own tools.deps configuration, found the way the CLI finds it.
+
+    `CLJ_CONFIG` names it when a machine keeps it elsewhere; otherwise it is
+    `$XDG_CONFIG_HOME/clojure` where that variable is set, which is the usual
+    Linux arrangement, and `~/.clojure` everywhere else. That is the order the
+    `clojure` command itself uses, so a run started here reads the configuration
+    the person's own terminal reads.
+
+    Returns:
+        The configuration directory, whether or not it exists.
+    """
+    override = os.environ.get("CLJ_CONFIG", "").strip()
+    if override:
+        return override
+    xdg = os.environ.get("XDG_CONFIG_HOME", "").strip()
+    if xdg:
+        return os.path.join(xdg, "clojure")
+    return os.path.join(os.path.expanduser("~"), ".clojure")
+
+
 def granted_paths():
     """Paths outside the session that every Clojure run is handed.
 
     A confined child may write to the workspace it was given and to Vis' own
-    state directory, and to nothing else. Both shared caches are outside that,
-    so the extension grants exactly those two directories on the call that
-    starts the run; the jail refuses everything else, unchanged.
+    state directory, and to nothing else. The shared caches and the person's
+    Clojure configuration are outside both, so the extension grants exactly
+    those directories on the call that starts the run; the jail refuses
+    everything else, unchanged. A configuration directory that is not there is
+    left out: a machine that has none needs no grant, and the run reads the
+    project's own `deps.edn` as before.
 
     Returns:
         The directories to grant, as a tuple.
     """
+    configuration = user_configuration()
+    if os.path.isdir(configuration):
+        return (maven_repository(), git_libraries(), configuration)
     return (maven_repository(), git_libraries())
 
 
@@ -144,6 +171,24 @@ def boot_environment(boot):
         "GITLIBS": git_libraries(),
         jail.REPOSITORY_VARIABLE: maven_repository(),
     }
+
+
+def project_environment(boot):
+    """The environment of the process that serves ONE project.
+
+    Its classpath cache stays where the boot run keeps one, so a confined run
+    always has somewhere to write it, but its CONFIGURATION is the person's own:
+    the REPLs and test runs this process starts resolve the aliases the person's
+    terminal resolves, including those a cross-project `deps.edn` defines. That
+    directory is granted to the run, so a confined one reaches it too.
+
+    Args:
+        boot: The boot directory.
+
+    Returns:
+        The environment delta for the project's process.
+    """
+    return {**boot_environment(boot), "CLJ_CONFIG": user_configuration()}
 
 
 def java_command():
@@ -261,11 +306,12 @@ class Process:
         self.lock = threading.Lock()
         # The process serves ONE project, and it resolves that project's own
         # dependencies for the test runs and REPLs it starts: it needs the same
-        # shared caches the boot resolution used, and the grants that reach them.
+        # shared caches the boot resolution used, the person's own Clojure
+        # configuration, and the grants that reach both.
         self.live = runtime.start(
             self.command,
             cwd=self.root,
-            env=boot_environment(boot_directory()),
+            env=project_environment(boot_directory()),
             read_write=granted_paths(),
             name="clojure",
         )

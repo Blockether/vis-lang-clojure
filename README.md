@@ -68,13 +68,22 @@ Clojure run would fail to reach Clojars or Maven Central at all.
 
 This extension prepares both before the JVM starts. You do not configure anything: it points the
 JVM at the proxy, builds a trust store from the sandbox's certificate bundle, and writes a
-`settings.xml` with the proxy and its credential. That `settings.xml` and the Maven repository a
-confined run downloads into live under `~/.vis/lang/vis-lang-clojure/<version>/jail`, never in
-your own `~/.m2`, so a sandboxed run neither reads your Maven setup nor writes to it — and the
-first confined build of a project downloads its dependencies again, into that directory.
+`settings.xml` with the proxy and its credential. That generated `settings.xml` lives under
+`~/.vis/lang/vis-lang-clojure/<version>/jail`, never in your own `~/.m2`: a file of Vis' making does
+not belong in a directory you keep yours in.
 
-Outside a sandbox there is no proxy in the environment, nothing is prepared, and your `~/.m2` is
-used exactly as before.
+The caches are shared on purpose. Together with the workspace and Vis' own state directory, a
+confined run is granted your Maven repository (`~/.m2/repository`, or `MAVEN_LOCAL_REPO` when you
+keep it elsewhere), your git-dependency cache (`~/.gitlibs`, or `GITLIBS`) and, when it exists, your
+tools.deps configuration directory (`CLJ_CONFIG`, else `$XDG_CONFIG_HOME/clojure`, else
+`~/.clojure`); everything else is refused. So a confined build downloads only what you do not have
+yet, and a REPL or test run started for your project resolves the aliases your own terminal
+resolves, including those a global `deps.edn` defines. The tools' own resolution stays out of that:
+their configuration and classpath cache live in the jail directory, so nothing a project or your
+global setup declares decides what the formatter, the linter or the test runner run on.
+
+Outside a sandbox there is no proxy in the environment, nothing is prepared, and your caches and
+configuration are used exactly as before.
 
 ## Development
 
