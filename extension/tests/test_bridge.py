@@ -191,6 +191,9 @@ def test_the_shared_caches_are_the_ones_a_person_already_has(tmp_path, monkeypat
     assert bridge.git_libraries() == str(tmp_path / "person" / ".gitlibs")
     monkeypatch.setenv("MAVEN_LOCAL_REPO", "/srv/artifacts")
     monkeypatch.setenv("GITLIBS", "/srv/gitlibs")
+    # A configuration directory the host happens to keep must not leak into the
+    # grants this test is about, so name one that is not there.
+    monkeypatch.setenv("CLJ_CONFIG", str(tmp_path / "person" / ".clojure"))
     assert bridge.granted_paths() == ("/srv/artifacts", "/srv/gitlibs")
 
 
