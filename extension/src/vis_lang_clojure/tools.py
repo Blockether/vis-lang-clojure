@@ -39,10 +39,11 @@ MARKERS = (
 LEVELS = ("error", "warning", "info")
 
 
-def _root(cwd, paths=()):
-    """The project directory a call runs in."""
-    start = cwd or (paths[0] if paths else Path.cwd())
-    return str(project_root(start, MARKERS))
+def _root(cwd, paths=(), workspace_root=Path.cwd):
+    """Find the nearest Clojure project in the current session working copy."""
+    start = Path(cwd or (paths[0] if paths else ".")).expanduser()
+    named = start if start.is_absolute() else Path(workspace_root()) / start
+    return str(project_root(named, MARKERS))
 
 
 def _diagnostic(finding):
@@ -89,6 +90,13 @@ def _session(result, directory):
 class ClojureTools:
     """Format, lint and test Clojure, and evaluate in a project nREPL."""
 
+    def __init__(self, *, workspace_root=Path.cwd):
+        """Keep a live root provider; hosted tools receive the SDK function."""
+        self._workspace_root = workspace_root
+
+    def _root(self, cwd, paths=()):
+        return _root(cwd, paths, self._workspace_root)
+
     def format_code(
         self,
         paths: Annotated[list[str], "Files or directories to format in place."] = (),
@@ -103,7 +111,7 @@ class ClojureTools:
         written. With paths, those files are rewritten where they differ, and a
         directory is walked; with neither, the whole project is formatted.
         """
-        root = _root(cwd, tuple(paths))
+        root = self._root(cwd, tuple(paths))
         if source:
             result = bridge.call("format", {"code": source}, root=root)
             return FormatResult(LANGUAGE, (), (), str(result.get("text") or ""), False)
@@ -133,7 +141,7 @@ class ClojureTools:
         compiled in a namespace that is thrown away afterwards. With no paths
         and no source, the project's own source roots are linted.
         """
-        root = _root(cwd, tuple(paths))
+        root = self._root(cwd, tuple(paths))
         arg = {"code": source} if source else ({"paths": list(paths)} if paths else {})
         result = bridge.call("lint", arg, root=root)
         findings = tuple(_diagnostic(one) for one in result.get("findings") or ())
@@ -161,7 +169,7 @@ class ClojureTools:
         file runs its test namespace. A selection that spans both runtimes is
         refused rather than silently trimmed.
         """
-        root = _root(cwd, tuple(paths))
+        root = self._root(cwd, tuple(paths))
         arg = {}
         if paths:
             arg["paths"] = list(paths)
@@ -214,7 +222,7 @@ class ClojureTools:
         because its state is the work; stop it first when you want a new
         classpath.
         """
-        root = _root(cwd)
+        root = self._root(cwd)
         arg = {"aliases": list(aliases)} if aliases else {}
         return _session(bridge.call("repl", arg, root=root, op="start"), root)
 
@@ -223,7 +231,7 @@ class ClojureTools:
         cwd: Annotated[str, "Project directory the REPL runs in."] = "",
     ) -> ReplSession:
         """Whether this project has a live REPL, and what launched it."""
-        root = _root(cwd)
+        root = self._root(cwd)
         return _session(bridge.call("repl", {}, root=root, op="status"), root)
 
     def repl_stop(
@@ -236,7 +244,7 @@ class ClojureTools:
 
         Safe when none is running. An external REPL is let go, never killed.
         """
-        root = _root(cwd)
+        root = self._root(cwd)
         arg = {"build": build} if build else {}
         return _session(bridge.call("repl", arg, root=root, op="stop"), root)
 
@@ -254,7 +262,7 @@ class ClojureTools:
         An attachment lives beside the managed REPL for the same project, so
         attaching to a ClojureScript build never costs you the JVM REPL.
         """
-        root = _root(cwd)
+        root = self._root(cwd)
         arg = {}
         if port:
             arg["port"] = int(port)
@@ -278,7 +286,7 @@ class ClojureTools:
         project that has none. Reload a changed namespace yourself — a REPL
         serves the code it has loaded.
         """
-        root = _root(cwd)
+        root = self._root(cwd)
         arg = {"code": code, "timeout_ms": int(timeout_ms)}
         if ns:
             arg["ns"] = ns

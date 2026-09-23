@@ -28,7 +28,7 @@ from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
 
 from vis_lang_clojure import jail
 
-LIBRARY_VERSION = "1.5.1"
+LIBRARY_VERSION = "1.5.2"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"

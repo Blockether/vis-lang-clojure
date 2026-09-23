@@ -1,5 +1,9 @@
 """Every tool answers the contract shape, from what the library reported."""
 
+import runpy
+from pathlib import Path
+
+import blockether.vis.extension as vis
 import pytest
 
 from vis_lang_clojure import bridge
@@ -340,3 +344,61 @@ def test_evaluating_without_a_repl_says_which_project_has_none(tools):
     )
     with pytest.raises(bridge.ClojureError, match="no REPL running in ~/project"):
         clj.repl_eval("(+ 1 1)", cwd=fake.cwd)
+
+
+def test_draft_switch_targets_live_clojure_project_for_every_tool(
+    fake, tmp_path, monkeypatch
+):
+    # Blockether/vis#280: relative paths follow the active draft, not the process cwd.
+    from vis_lang_clojure.tools import ClojureTools
+
+    roots = (fake.directory, tmp_path / "draft")
+    roots[1].mkdir()
+    (roots[1] / "deps.edn").write_text("{}\n")
+    for root in roots:
+        (root / "src").mkdir()
+        (root / "src" / "a.clj").write_text("(ns a)\n")
+    install = tmp_path / "install"
+    install.mkdir()
+    monkeypatch.chdir(install)
+    current = {"root": roots[0]}
+    language = ClojureTools(workspace_root=lambda: current["root"])
+    fake.script(
+        {
+            "format": {"ok": True, "result": {"files": []}},
+            "test": {"ok": True, "result": {"total": 0, "is_pass": True}},
+            "repl:status": {"ok": True, "result": {"status": "down"}},
+        }
+    )
+
+    for root in roots:
+        current["root"] = root
+        language.format_code(["src/a.clj"], cwd=".")
+        assert fake.sent("format")["root"] == str(root.resolve())
+        assert fake.sent("format")["arg"]["paths"] == ["src/a.clj"]
+        language.run_tests(["src/a.clj"])
+        assert fake.sent("test")["root"] == str(root.resolve())
+        assert language.repl_status(cwd=".").directory == str(root.resolve())
+        assert fake.sent("repl")["root"] == str(root.resolve())
+
+    language.repl_status(cwd=str(roots[0]))
+    assert fake.sent("repl")["root"] == str(roots[0].resolve())
+
+
+def test_entrypoint_binds_the_live_sdk_workspace_root(tmp_path, monkeypatch):
+    # Blockether/vis#280: registration must use the shared, live SDK door.
+    roots = (tmp_path / "source", tmp_path / "draft")
+    for root in roots:
+        root.mkdir()
+        (root / "deps.edn").write_text("{}\n")
+    current = {"root": roots[0]}
+    registered = []
+    monkeypatch.setattr(vis, "workspace_root", lambda: current["root"])
+    monkeypatch.setattr(vis, "register_extension", registered.append)
+
+    runpy.run_path(str(Path(__file__).resolve().parents[1] / "extension.py"))
+    assert len(registered) == 1
+    language = registered[0].symbols[0].fn
+    for root in roots:
+        current["root"] = root
+        assert language._root(".") == str(root.resolve())
