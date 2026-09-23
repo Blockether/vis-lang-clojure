@@ -290,6 +290,68 @@ def test_a_failed_resolution_says_what_it_printed(tmp_path, monkeypatch):
         bridge.library_classpath()
 
 
+def test_a_transient_403_logs_both_attempts_without_credentials(tmp_path, monkeypatch):
+    events = []
+    outcomes = iter(
+        [
+            ToolRun(
+                command=("clojure",),
+                exit_code=1,
+                out="",
+                err="Could not transfer artifact: 403 https://repo.clojars.org/?token=secret",
+                duration_ms=25,
+            ),
+            ToolRun(
+                command=("clojure",),
+                exit_code=0,
+                out="/jars/library.jar",
+                err="",
+                duration_ms=30,
+            ),
+        ]
+    )
+    monkeypatch.setenv("VIS_HOME", str(tmp_path / "vis-home"))
+    monkeypatch.setattr(bridge, "tool_path", lambda *arguments: "/bin/clojure")
+    monkeypatch.setattr(bridge, "run", lambda *args, **kwargs: next(outcomes))
+    monkeypatch.setattr(bridge, "_CLASSPATH", None)
+    monkeypatch.setattr(
+        bridge.vis, "log", lambda level, message: events.append((level, message))
+    )
+
+    with pytest.raises(bridge.ClojureError, match="403"):
+        bridge.library_classpath()
+    assert bridge.library_classpath() == "/jars/library.jar"
+    assert [level for level, _ in events] == ["info", "warn", "info", "info"]
+    assert "status=failed" in events[1][1]
+    assert "output_mentions_403=true" in events[1][1]
+    assert "exit_code=1" in events[1][1]
+    assert "status=ok" in events[3][1]
+    assert "duration_ms=30" in events[3][1]
+    assert all("secret" not in message and "?" not in message for _, message in events)
+
+
+def test_resolution_timeout_logs_the_deadline_without_the_error(tmp_path, monkeypatch):
+    events = []
+
+    def timed_out(*args, **kwargs):
+        raise ToolTimeout("request timed out with secret token")
+
+    monkeypatch.setenv("VIS_HOME", str(tmp_path / "vis-home"))
+    monkeypatch.setattr(bridge, "tool_path", lambda *arguments: "/bin/clojure")
+    monkeypatch.setattr(bridge, "run", timed_out)
+    monkeypatch.setattr(bridge, "_CLASSPATH", None)
+    monkeypatch.setattr(
+        bridge.vis, "log", lambda level, message: events.append((level, message))
+    )
+
+    with pytest.raises(ToolTimeout, match="secret token"):
+        bridge.library_classpath()
+    assert [level for level, _ in events] == ["info", "warn"]
+    assert "status=timeout" in events[1][1]
+    assert f"timeout_s={bridge.BOOT_TIMEOUT_S:g}" in events[1][1]
+    assert all("secret" not in message for _, message in events)
+
+
 def test_the_jdk_comes_from_java_home_when_it_has_one(tmp_path, monkeypatch):
     home = tmp_path / "jdk"
     (home / "bin").mkdir(parents=True)

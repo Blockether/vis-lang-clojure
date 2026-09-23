@@ -21,9 +21,11 @@ from __future__ import annotations
 import atexit
 import itertools
 import os
+import re
 import shlex
 import threading
 
+import blockether.vis.extension as vis
 from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
 
 from vis_lang_clojure import jail
@@ -240,21 +242,42 @@ def library_classpath(refresh=False):
             f'{{:deps {{com.blockether/vis-lang-clojure {{:mvn/version "{LIBRARY_VERSION}"}}}}'
             f' :mvn/local-repo "{maven_repository()}"}}'
         )
-        done = run(
-            jail.prepared((clojure, "-Sdeps", coordinate, "-Spath"), boot),
-            cwd=boot,
-            env=boot_environment(boot),
-            timeout_s=BOOT_TIMEOUT_S,
-            read_write=granted_paths(),
+        vis.log(
+            "info",
+            f"vis-lang-clojure: library classpath resolution started version={LIBRARY_VERSION}",
         )
+        try:
+            done = run(
+                jail.prepared((clojure, "-Sdeps", coordinate, "-Spath"), boot),
+                cwd=boot,
+                env=boot_environment(boot),
+                timeout_s=BOOT_TIMEOUT_S,
+                read_write=granted_paths(),
+            )
+        except ToolTimeout:
+            vis.log(
+                "warn",
+                f"vis-lang-clojure: library classpath resolution status=timeout timeout_s={BOOT_TIMEOUT_S:g}",
+            )
+            raise
         lines = [line.strip() for line in done.out.splitlines() if line.strip()]
         if not done.is_ok or not lines:
             said = (done.err or done.out).strip()
+            mentions_403 = "true" if re.search(r"(?<!\d)403(?!\d)", said) else "false"
+            vis.log(
+                "warn",
+                "vis-lang-clojure: library classpath resolution "
+                f"status=failed exit_code={done.exit_code} duration_ms={done.duration_ms} output_mentions_403={mentions_403}",
+            )
             message = (
                 f"could not resolve com.blockether/vis-lang-clojure {LIBRARY_VERSION}"
             )
             raise ClojureError(f"{message}\n{said}" if said else message)
         _CLASSPATH = lines[-1]
+        vis.log(
+            "info",
+            f"vis-lang-clojure: library classpath resolution status=ok duration_ms={done.duration_ms}",
+        )
         return _CLASSPATH
 
 
