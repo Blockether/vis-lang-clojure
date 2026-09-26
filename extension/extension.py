@@ -18,6 +18,19 @@ def _bind(name, label, build, *, tag="observation", show_start=True):
     )
 
 
+def _knows(tag):
+    """Whether this Vis host accepts `tag`; hosts before `verification` refuse it."""
+    try:
+        vis.method(tag=tag)
+    except ValueError:
+        return False
+    return True
+
+
+# Lint and test runs check work; a host that lacks the tag records them as reads.
+_CHECK = "verification" if _knows("verification") else "observation"
+
+
 _bind(
     "format_code",
     "Format Clojure code",
@@ -29,11 +42,13 @@ _bind(
     "lint_code",
     "Lint Clojure code",
     lambda result: presentation.lint_presentation("Lint Clojure code", result),
+    tag=_CHECK,
 )
 _bind(
     "run_tests",
     "Run Clojure tests",
     lambda result: presentation.test_presentation("Run Clojure tests", result),
+    tag=_CHECK,
 )
 _bind(
     "repl_start",

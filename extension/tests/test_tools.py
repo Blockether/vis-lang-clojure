@@ -402,3 +402,49 @@ def test_entrypoint_binds_the_live_sdk_workspace_root(tmp_path, monkeypatch):
     for root in roots:
         current["root"] = root
         assert language._root(".") == str(root.resolve())
+
+
+def _entrypoint_tags(monkeypatch):
+    registered = []
+    monkeypatch.setattr(vis, "register_extension", registered.append)
+    runpy.run_path(str(Path(__file__).resolve().parents[1] / "extension.py"))
+    members = registered[0].symbols[0].contract["members"]
+    return {member["name"].rsplit(".", 1)[-1]: member["tag"] for member in members}
+
+
+def _older_host(monkeypatch):
+    """Stand in for a Vis host that knows only observation and mutation tags."""
+    method = vis.method
+
+    def older(fn=None, *, tag="observation", **options):
+        if tag not in ("observation", "mutation"):
+            raise ValueError(
+                f"vis.method tag must be observation or mutation, got {tag!r}"
+            )
+        return method(fn, tag=tag, **options)
+
+    monkeypatch.setattr(vis, "method", older)
+
+
+def _knows_verification():
+    try:
+        vis.method(tag="verification")
+    except ValueError:
+        return False
+    return True
+
+
+@pytest.mark.skipif(
+    not _knows_verification(), reason="this Vis SDK predates check tags"
+)
+def test_lint_and_test_runs_report_as_checks(monkeypatch):
+    tags = _entrypoint_tags(monkeypatch)
+    assert (tags["lint_code"], tags["run_tests"]) == ("verification", "verification")
+    assert tags["format_code"] == "mutation"
+
+
+def test_an_older_host_records_lint_and_test_runs_as_reads(monkeypatch):
+    _older_host(monkeypatch)
+    tags = _entrypoint_tags(monkeypatch)
+    assert (tags["lint_code"], tags["run_tests"]) == ("observation", "observation")
+    assert tags["repl_eval"] == "mutation"
