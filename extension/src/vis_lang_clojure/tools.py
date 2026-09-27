@@ -71,8 +71,12 @@ def _failure(fault):
 
 
 def _session(result, directory):
-    """A REPL lifecycle result as a contract `ReplSession`."""
-    detail = [str(result.get("result") or "")]
+    """A REPL lifecycle result as a contract `ReplSession`, its detail in plain words."""
+    is_running = result.get("status") == "up"
+    happened = str(result.get("result") or "")
+    if happened == "status":
+        happened = "running" if is_running else "not running"
+    detail = [happened.replace("-", " ")]
     if result.get("port"):
         detail.append(f"port {result['port']}")
     if result.get("pid"):
@@ -82,7 +86,7 @@ def _session(result, directory):
         str(result.get("id") or directory),
         str(result.get("cwd") or directory),
         tuple(str(part) for part in result.get("cmd") or ()),
-        result.get("status") == "up",
+        is_running,
         " · ".join(part for part in detail if part),
     )
 

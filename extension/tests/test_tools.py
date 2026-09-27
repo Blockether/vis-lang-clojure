@@ -238,7 +238,7 @@ def test_a_project_without_a_repl_reports_it_is_down(tools):
     )
     session = clj.repl_status(cwd=fake.cwd)
     assert session.is_running is False
-    assert session.detail == "status"
+    assert session.detail == "not running"
 
 
 def test_stopping_a_repl_says_it_stopped(tools):
@@ -255,6 +255,33 @@ def test_stopping_a_repl_says_it_stopped(tools):
     assert session.is_running is False
     assert session.detail == "stopped"
     assert fake.sent("repl")["op"] == "stop"
+
+
+def test_session_details_read_as_plain_words(tools):
+    clj, fake = tools
+    fake.script(
+        {
+            "repl:status": {
+                "ok": True,
+                "result": {
+                    "result": "status",
+                    "cwd": fake.cwd,
+                    "status": "up",
+                    "port": 7888,
+                },
+            },
+            "repl:start": {
+                "ok": True,
+                "result": {
+                    "result": "already-running",
+                    "cwd": fake.cwd,
+                    "status": "up",
+                },
+            },
+        }
+    )
+    assert clj.repl_status(cwd=fake.cwd).detail == "running · port 7888"
+    assert clj.repl_start(cwd=fake.cwd).detail == "already running"
 
 
 def test_attaching_passes_the_port_and_the_build(tools):
@@ -274,6 +301,7 @@ def test_attaching_passes_the_port_and_the_build(tools):
     )
     session = clj.repl_connect(cwd=fake.cwd, port=9630, build="app")
     assert session.is_running is True
+    assert session.detail == "attached · port 9630"
     assert fake.sent("repl")["arg"] == {"port": 9630, "build": "app"}
 
 
