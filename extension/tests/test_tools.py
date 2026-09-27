@@ -395,7 +395,9 @@ def test_draft_switch_targets_live_clojure_project_for_every_tool(
         {
             "format": {"ok": True, "result": {"files": []}},
             "test": {"ok": True, "result": {"total": 0, "is_pass": True}},
+            "repl:start": {"ok": True, "result": {"status": "up"}},
             "repl:status": {"ok": True, "result": {"status": "down"}},
+            "repl:stop": {"ok": True, "result": {"status": "down"}},
         }
     )
 
@@ -406,6 +408,13 @@ def test_draft_switch_targets_live_clojure_project_for_every_tool(
         assert fake.sent("format")["arg"]["paths"] == ["src/a.clj"]
         language.run_tests(["src/a.clj"])
         assert fake.sent("test")["root"] == str(root.resolve())
+        for operation in (
+            language.repl_start,
+            language.repl_status,
+            language.repl_stop,
+        ):
+            assert operation().directory == str(root.resolve())
+            assert fake.sent("repl")["root"] == str(root.resolve())
         assert language.repl_status(cwd=".").directory == str(root.resolve())
         assert fake.sent("repl")["root"] == str(root.resolve())
 
