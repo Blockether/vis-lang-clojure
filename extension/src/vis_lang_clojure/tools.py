@@ -210,6 +210,12 @@ class ClojureTools:
         # a non-zero exit. Its own verdict decides, so a red run never reads green.
         if not result.get("is_pass") and not failed:
             failed = max(len(failures), 1)
+        # A run refused before any test started answers only why; that reason
+        # leads the output, so the red result explains itself.
+        output = str(result.get("output") or "")
+        error = str(result.get("error") or "")
+        if error and error not in output:
+            output = f"{error}\n\n{output}" if output else error
         return TestResult.of(
             LANGUAGE,
             total=max(total, failed),
@@ -218,7 +224,7 @@ class ClojureTools:
             skipped=skipped,
             duration_ms=elapsed,
             failures=failures,
-            output=str(result.get("output") or ""),
+            output=output,
         )
 
     def repl_start(

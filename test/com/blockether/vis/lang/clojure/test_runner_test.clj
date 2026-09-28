@@ -496,6 +496,43 @@
                    (args {:framework :kaocha :mode "-X"} sel))))))
 
 (defdescribe
+  cognitect-selector-test
+  ;; Regression: a project whose test alias runs cognitect.test-runner refused
+  ;; every focused run with "this runner has no supported focus adapter".
+  (it "passes namespaces, vars and metadata as the runner's own options"
+      (let [args @#'tr/runner-selector-args]
+        (expect (= {:args ["--namespace" "one-test" "--namespace" "two-test" "--include" "slow"
+                           "--exclude" ":wip"]}
+                   (args {:framework :cognitect :mode "-M"}
+                         {:nses ["one-test" "two-test"] :include ["slow"] :exclude [":wip"]})))
+        (expect (= {:args ["--namespace" "two-test" "--var" "two-test/first-test"]}
+                   (args {:framework :cognitect :mode "-M"}
+                         {:nses ["two-test"] :vars [{:ns "two-test" :name "first-test"}]})))
+        (expect (= {:args [":nses" "[one-test]" ":vars" "[one-test/adds-test]" ":includes" "[:slow]"
+                           ":excludes" "[:wip]"]}
+                   (args {:framework :cognitect :mode "-X"}
+                         {:nses ["one-test"]
+                          :vars [{:ns "one-test" :name "adds-test"}]
+                          :include ["slow"]
+                          :exclude [":wip"]})))))
+  (it "looks for a name without a namespace in the one selected namespace"
+      (expect (= {:args ["--namespace" "one-test" "--var" "one-test/adds-test"]}
+                 (@#'tr/runner-selector-args
+                  {:framework :cognitect :mode "-M"}
+                  {:nses ["one-test"] :vars [{:ns nil :name "adds-test"}]}))))
+  (it "refuses selections the runner would narrow or fail on"
+      (let [refused? (fn [sel]
+                       (string? (:error (@#'tr/runner-selector-args
+                                         {:framework :cognitect :mode "-M"}
+                                         sel))))]
+        ;; The runner narrows every selected namespace to its --var list.
+        (expect (refused? {:nses ["one-test" "two-test"]
+                           :vars [{:ns "two-test" :name "first-test"} {:ns "one-test" :name nil}]}))
+        ;; A --var the runner cannot resolve fails the whole run.
+        (expect (refused? {:nses ["one-test" "two-test"] :vars [{:ns nil :name "adds-test"}]}))
+        (expect (refused? {:nses [] :vars [{:ns nil :name "adds-test"}]})))))
+
+(defdescribe
   var-miss-output-test
   (it "reports a bounded selector miss without dumping namespaces or vars"
       (let [result
@@ -1322,7 +1359,11 @@
                                           ["-X:checks" ":kaocha.filter/focus" "[sample.core-test]"]]
                                          [{:test {:main-opts ["-m" "lazytest.main"]}
                                            :verify {:main-opts ["-m" "kaocha.runner"]}} ["verify"]
-                                          ["-M:test:verify" "--focus" "sample.core-test"]]]]
+                                          ["-M:test:verify" "--focus" "sample.core-test"]]
+                                         [{:checks {:main-opts ["-m" "cognitect.test-runner"]}} []
+                                          ["-M:checks" "--namespace" "sample.core-test"]]
+                                         [{:checks {:exec-fn 'cognitect.test-runner.api/test}} []
+                                          ["-X:checks" ":nses" "[sample.core-test]"]]]]
       (with-project {"deps.edn" (pr-str {:aliases aliases})}
                     (fn [root]
                       (expect (= expected
@@ -1355,6 +1396,36 @@
           (expect (string? (:error (cli-command-for root
                                                     {:nses ["sample.core-test"] :include ["slow"]}
                                                     [])))))))
+  (it "runs cognitect.test-runner's -M entry when the alias also names its -X api"
+      ;; Regression: the :test alias shape of a deps.edn project using the
+      ;; cognitect runner, e.g. vis-python-runtime.
+      (with-project
+        {"deps.edn" (pr-str {:aliases {:test {:extra-paths ["test"]
+                                              :main-opts ["-m" "cognitect.test-runner"]
+                                              :exec-fn 'cognitect.test-runner.api/test}}})}
+        (fn [root]
+          (expect (= ["-M:test" "--namespace" "sample.core-test"]
+                     (vec (take-last
+                            3
+                            (:cmd (cli-command-for root {:nses ["sample.core-test"]} [])))))))))
+  (it "keeps the cognitect.test-runner filters an alias already sets"
+      (doseq [aliases
+              [{:test {:main-opts ["-m" "cognitect.test-runner" "-n" "other-test"]}}
+               {:test {:main-opts ["-m" "cognitect.test-runner" "--namespace-regex" ".*-it$"]}}
+               {:test {:exec-fn 'cognitect.test-runner.api/test :exec-args {:includes [:slow]}}}]]
+        (with-project
+          {"deps.edn" (pr-str {:aliases aliases})}
+          (fn [root]
+            (expect (string? (:error (cli-command-for root {:nses ["sample.core-test"]} [])))))))
+      ;; Clojure's own options before the entry are not runner filters.
+      (with-project {"deps.edn" (pr-str {:aliases {:test {:main-opts ["-i" "init.clj" "-m"
+                                                                      "cognitect.test-runner"]}}})}
+                    (fn [root]
+                      (expect (= ["-M:test" "--namespace" "sample.core-test"]
+                                 (vec (take-last 3
+                                                 (:cmd (cli-command-for root
+                                                                        {:nses ["sample.core-test"]}
+                                                                        [])))))))))
   (it
     "preserves focused path selection across the public language-pack boundary"
     (with-project

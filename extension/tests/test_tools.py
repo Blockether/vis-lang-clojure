@@ -180,6 +180,25 @@ def test_a_run_that_broke_without_counts_never_reads_green(tools):
     assert result.is_passed is False
 
 
+def test_a_refused_run_says_why(tools):
+    # Regression: a run the library refused before any test started answered
+    # only an `error`, which was dropped, so it read as one failure and no output.
+    clj, fake = tools
+    why = "this runner has no supported focus adapter; no tests started"
+    fake.answer("test", {"mode": "cli", "is_pass": False, "error": why})
+    result = clj.run_tests(cwd=fake.cwd, namespaces=["a.core-test"])
+    assert (result.failed, result.is_passed) == (1, False)
+    assert result.output == why
+
+
+def test_a_run_error_leads_what_the_runner_printed(tools):
+    clj, fake = tools
+    fake.answer(
+        "test", {"is_pass": False, "error": "no summary", "output": "Ran 0 tests"}
+    )
+    assert clj.run_tests(cwd=fake.cwd).output == "no summary\n\nRan 0 tests"
+
+
 def test_a_run_carries_its_selection_to_the_library(tools):
     clj, fake = tools
     fake.answer("test", {"total": 1, "fail": 0, "is_pass": True})

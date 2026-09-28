@@ -1282,6 +1282,72 @@
                       ["--exclude" (str t)])
                     exclude))))
 
+(defn- cognitect-selector-args
+  "Translate resolved selectors into cognitect.test-runner options. The runner
+   loads every selected namespace, narrows ALL of them to its --var list and fails
+   the whole run on a var it cannot resolve, so a var is passed exactly as named,
+   with its own namespace and without Lazytest's `-test` alternate. A selection it
+   cannot express is refused rather than widened or narrowed: whole namespaces
+   beside single vars, or a name without a namespace unless exactly one namespace
+   is selected. --include and --exclude narrow the selection, as in Lazytest.
+   The -X api takes the same selection as EDN collections."
+  [mode {:keys [nses vars include exclude]}]
+  (let [whole
+        (keep (fn [{:keys [ns name]}]
+                (when (nil? name) ns))
+              vars)
+
+        named
+        (filter :name vars)
+
+        targets
+        (for [{:keys [ns name]}
+              named
+
+              n
+              (if ns [ns] nses)]
+
+          [n name])]
+
+    (cond
+      (and (seq whole) (seq named))
+      {:error
+       "this runner narrows every selected namespace to the selected vars; run whole namespaces and single tests separately, so no tests started"}
+      (and (some (comp nil? :ns) named) (not= 1 (count nses)))
+      {:error
+       "a test name without its namespace needs exactly one selected namespace for this runner; name it as <path>::<name>, so no tests started"}
+      :else (let [spaces
+                  (distinct (if (seq vars) (concat whole (map first targets)) nses))
+
+                  qualified
+                  (distinct (map (fn [[n nm]]
+                                   (str n "/" nm))
+                                 targets))
+
+                  meta-key
+                  (fn [t]
+                    (keyword (str/replace (str t) #"^:" "")))]
+
+              {:args (vec
+                       (if (= "-X" mode)
+                         (mapcat (fn [[k values]]
+                                   (when (seq values) [(str k) (pr-str (vec values))]))
+                                 [[:nses (map symbol spaces)] [:vars (map symbol qualified)]
+                                  [:includes (map meta-key include)]
+                                  [:excludes (map meta-key exclude)]])
+                         (concat (mapcat (fn [n]
+                                           ["--namespace" (str n)])
+                                         spaces)
+                                 (mapcat (fn [v]
+                                           ["--var" v])
+                                         qualified)
+                                 (mapcat (fn [t]
+                                           ["--include" (str t)])
+                                         include)
+                                 (mapcat (fn [t]
+                                           ["--exclude" (str t)])
+                                         exclude))))}))))
+
 (defn- runner-entry
   "Classify an alias's executable entry point, not its name or dependencies.
    Unknown entry points can run a whole suite, but have no focus adapter."
@@ -1292,9 +1358,15 @@
                    (partition 2 1 main-opts))]
     (cond main {:mode "-M"
                 :entry main
-                :framework ({"lazytest.main" :lazytest "kaocha.runner" :kaocha} main)}
-          (qualified-symbol? exec-fn)
-          {:mode "-X" :entry (str exec-fn) :framework ({'kaocha.runner/exec-fn :kaocha} exec-fn)})))
+                :framework ({"lazytest.main" :lazytest
+                             "kaocha.runner" :kaocha
+                             "cognitect.test-runner" :cognitect}
+                            main)}
+          (qualified-symbol? exec-fn) {:mode "-X"
+                                       :entry (str exec-fn)
+                                       :framework ({'kaocha.runner/exec-fn :kaocha
+                                                    'cognitect.test-runner.api/test :cognitect}
+                                                   exec-fn)})))
 
 (defn- focused?
   "An explicit selector, as opposed to the index discovered for an unfiltered run."
@@ -1304,12 +1376,14 @@
     (boolean (some seq ((juxt :nses :vars :include :exclude) sel)))))
 
 (defn- runner-selector-args
-  "Translate focus using the detected runner's API. Kaocha -X takes EDN config,
-   not main's CLI flags. Never silently broaden unsupported selector combinations."
+  "Translate focus using the detected runner's API. Kaocha and cognitect -X take
+   EDN config, not main's CLI flags. Never silently broaden unsupported selector
+   combinations."
   [{:keys [framework mode]} sel]
   (cond
     (not (focused? sel)) {:args []}
     (nil? framework) {:error "this runner has no supported focus adapter; no tests started"}
+    (= :cognitect framework) (cognitect-selector-args mode sel)
     (and (= :kaocha framework)
          (or (and (seq (:include sel)) (or (seq (:nses sel)) (seq (:vars sel))))
              (and (seq (:exclude sel))
@@ -1344,7 +1418,9 @@
 
 (defn- inherited-runner-error
   "A one-shot operation cannot watch, or append selectors to inherited filters
-   whose union/precedence may change the request. Leave such aliases untouched."
+   whose union/precedence may change the request. Leave such aliases untouched.
+   cognitect.test-runner reads its short options after its entry; before it they
+   are Clojure's own."
   [runner opts sel]
   (let [main
         (:main-opts opts)
@@ -1356,9 +1432,17 @@
         (fn [pattern]
           (some #(re-find pattern (str %)) main))
 
+        cognitect?
+        (= :cognitect (:framework runner))
+
+        runner-args
+        (rest (drop-while #(not= (:entry runner) %) main))
+
         filter-keys
-        [:kaocha.filter/focus :kaocha.filter/skip :kaocha.filter/focus-meta
-         :kaocha.filter/skip-meta]]
+        (if cognitect?
+          [:nses :patterns :vars :includes :excludes]
+          [:kaocha.filter/focus :kaocha.filter/skip :kaocha.filter/focus-meta
+           :kaocha.filter/skip-meta])]
 
     (cond
       (or (flag? #"^(?:--watch|-w)(?:=true)?$") (and (= "-X" (:mode runner)) (:kaocha/watch? exec)))
@@ -1366,6 +1450,8 @@
       (and (focused? sel)
            (or (flag?
                  #"^--(?:focus|focus-meta|skip|skip-meta|namespace|var|include|exclude)(?:=|$)")
+               (and cognitect?
+                    (some #(re-find #"^(?:-[nrvie]|--namespace-regex(?:=|$))" (str %)) runner-args))
                (and (= "-X" (:mode runner)) (some #(seq (get exec %)) filter-keys))))
       "the selected runner already has focus/metadata filters; use an unfiltered runner alias to honor this selection")))
 
