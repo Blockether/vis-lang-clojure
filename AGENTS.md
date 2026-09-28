@@ -16,6 +16,11 @@ a Clojure library on Clojars and a thin Python extension in `extension/` that ru
   must be on Clojars before the extension release that pins it.
 - Tests are Lazytest, not `clojure.test`: `clojure -M:test`. The Python tests run against a fake
   `clojure` command and need no JVM: `vis-agent python -m pytest extension/tests -q`.
+- ClojureScript tests run only through the project's shadow-cljs build (`shadow_cljs.clj`);
+  `clojure -M:test` cannot load a `*_test.cljs`. shadow-cljs can exit zero without compiling
+  anything, and its Node autorun drops the test exit status, so judge a run by its printed counts,
+  not just its exit code. `test_runner.clj` passes a run only on a complete summary with at least
+  one test and no failures or errors.
 - Formatting is zprint with this repository's `.zprint.edn`; lint is clj-kondo, and reflection
   warnings are errors here because the code has to run in a native image elsewhere.
 - No tree-sitter and no syntax highlighting. Delimiter repair is the conservative add-only pass in
