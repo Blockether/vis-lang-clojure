@@ -46,28 +46,17 @@
           (expect (true? (get r "wrote")))
           (expect (nil? (get r "text")))
           (expect (str/includes? (slurp file) "\n  (* x 2))")))))
-  (it "counts the lines formatting added and removed, a rewritten line in each"
-      (let [changes @#'api/line-changes]
-        (expect (= {"added" 0 "removed" 0} (changes "(ns a)\n" "(ns a)\n")))
-        (expect (= {"added" 1 "removed" 1} (changes "a\nb\nc" "a\nB\nc")))
-        (expect (= {"added" 1 "removed" 0} (changes "a\nb" "a\nb\n")))
-        (expect (= {"added" 2 "removed" 2} (changes "a\nb\nc\nd" "a\nc\nx\ny")))
-        (expect (= {"added" 1 "removed" 1} (changes "a\nb" "b\na")))))
-  (it "reports the changed lines of a code string, of each file and of a batch"
+  (it "hands back the text of each file a batch changed, before and after"
       (let [dir (temp-dir)]
         (spit (io/file dir "a.clj") "(defn f [x]\n(* x 2))\n")
         (spit (io/file dir "b.clj") "(defn g [x]\n  (* x 3))\n")
-        (let [code (result (api/clj-format-fn {:workspace/root (str dir)}
-                                              {"code" "(defn f [x]\n(* x 2))\n"}))
-              batch (result (api/clj-format-fn {:workspace/root (str dir)} {"paths" ["."]}))]
+        (let [batch (result (api/clj-format-fn {:workspace/root (str dir)} {"paths" ["."]}))
+              files (into {} (map (juxt #(get % "path") identity)) (get batch "files"))]
 
-          (expect (= [1 1] [(get code "added") (get code "removed")]))
           (expect (= 1 (get batch "changed")))
-          (expect (= [1 1] [(get batch "added") (get batch "removed")]))
-          (expect (= {"a.clj" [1 1] "b.clj" [0 0]}
-                     (into {}
-                           (map (juxt #(get % "path") (juxt #(get % "added") #(get % "removed"))))
-                           (get batch "files"))))))))
+          (expect (= "(defn f [x]\n(* x 2))\n" (get-in files ["a.clj" "before"])))
+          (expect (= (slurp (io/file dir "a.clj")) (get-in files ["a.clj" "after"])))
+          (expect (not-any? #(contains? (get files "b.clj") %) ["before" "after"]))))))
 
 (defdescribe clj-lint-fn-test
              (it "reports a finding with its level, location and provider"

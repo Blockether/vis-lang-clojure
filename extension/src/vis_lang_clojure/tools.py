@@ -20,6 +20,7 @@ from vis_lang_interface import (
     ReplSession,
     TestFailure,
     TestResult,
+    line_changes,
     project_root,
 )
 
@@ -118,27 +119,23 @@ class ClojureTools:
         root = self._root(cwd, tuple(paths))
         if source:
             result = bridge.call("format", {"code": source}, root=root)
-            return FormatResult(
-                LANGUAGE,
-                (),
-                (),
-                str(result.get("text") or ""),
-                False,
-                int(result.get("added") or 0),
-                int(result.get("removed") or 0),
-            )
+            text = str(result.get("text") or "")
+            added, removed = line_changes(source, text)
+            return FormatResult(LANGUAGE, (), (), text, False, added, removed)
         result = bridge.call(
             "format", {"paths": list(paths)} if paths else {}, root=root
         )
         files = result.get("files") or ()
+        changed = [one for one in files if one.get("changed")]
+        counts = [line_changes(one["before"], one["after"]) for one in changed]
         return FormatResult(
             LANGUAGE,
-            tuple(str(one.get("path")) for one in files if one.get("changed")),
+            tuple(str(one.get("path")) for one in changed),
             tuple(str(one.get("path")) for one in files if not one.get("changed")),
             "",
             True,
-            int(result.get("added") or 0),
-            int(result.get("removed") or 0),
+            sum(added for added, _ in counts),
+            sum(removed for _, removed in counts),
         )
 
     def lint_code(

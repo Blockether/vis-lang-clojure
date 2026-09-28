@@ -17,15 +17,13 @@ def test_formatting_a_source_string_returns_the_formatted_text(tools):
             "changed": True,
             "text": "(defn f [x] (* x 2))\n",
             "formatter": "zprint",
-            "added": 2,
-            "removed": 2,
         },
     )
     result = clj.format_code(source="(defn f [x]\n(* x 2))", cwd=fake.cwd)
     assert result.language == "clojure"
     assert result.source == "(defn f [x] (* x 2))\n"
     assert result.is_written is False
-    assert (result.lines_added, result.lines_removed) == (2, 2)
+    assert (result.lines_added, result.lines_removed) == (1, 2)
     assert fake.sent("format")["arg"] == {"code": "(defn f [x]\n(* x 2))"}
 
 
@@ -35,19 +33,28 @@ def test_formatting_files_reports_what_changed(tools):
         "format",
         {
             "files": [
-                {"path": "src/a.clj", "changed": True, "added": 3, "removed": 1},
-                {"path": "src/b.clj", "changed": False, "added": 0, "removed": 0},
+                {
+                    "path": "src/a.clj",
+                    "changed": True,
+                    "before": "(defn f [x]\n(* x 2))\n",
+                    "after": "(defn f [x]\n  (* x 2))\n",
+                },
+                {"path": "src/b.clj", "changed": False},
+                {
+                    "path": "src/c.clj",
+                    "changed": True,
+                    "before": "(ns c)\n(def x 1)",
+                    "after": "(ns c)\n\n(def x 1)\n",
+                },
             ],
-            "changed": 1,
-            "added": 3,
-            "removed": 1,
+            "changed": 2,
         },
     )
     result = clj.format_code(["src"], cwd=fake.cwd)
-    assert result.changed == ("src/a.clj",)
+    assert result.changed == ("src/a.clj", "src/c.clj")
     assert result.unchanged == ("src/b.clj",)
     assert result.is_written is True
-    assert (result.lines_added, result.lines_removed) == (3, 1)
+    assert (result.lines_added, result.lines_removed) == (3, 2)
     assert fake.sent("format")["arg"] == {"paths": ["src"]}
 
 
