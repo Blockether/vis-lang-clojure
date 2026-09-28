@@ -1855,6 +1855,12 @@
             (.isFile (io/file d "shadow-cljs.edn")) d
             :else (recur (.getParentFile d))))))
 
+(defn- shadow-project?
+  "Whether a `shadow-cljs.edn` at or above `file`, within `root`, claims it. Nothing
+   else makes a ClojureScript test runnable here."
+  [^java.io.File root ^java.io.File file]
+  (.isFile (io/file (nearest-shadow-root root file) "shadow-cljs.edn")))
+
 (defn- effective-shadow-root
   "The shadow-cljs project the requested ClojureScript tests belong to: the
    nearest `shadow-cljs.edn` ancestor SHARED by every selected test file.
@@ -1902,7 +1908,10 @@
    The files and an optional build choose the runtime. .cljs cannot run on the
    JVM, .clj cannot run in JS, and .cljc can accompany either. An explicit build
    selects JS for shared tests. Mixed JVM/JS selections are refused, never
-   silently trimmed. The nearest project manifest roots the command.
+   silently trimmed. Only a shadow-cljs.edn makes JS runnable: a bare run leaves
+   a .cljs test outside every shadow-cljs project to the project's own runner,
+   and JS discovery reads sources only under one. The nearest project manifest
+   roots the command.
 
    No REPL is started: reuse this session's JVM REPL or shell an executable
    project runner. aliases add classpath or select that runner. Lazytest/Kaocha
@@ -1949,11 +1958,12 @@
            (or (test-source-file? file)
                (and (clj-source-file? file)
                     (not (str/ends-with? (.getName file) ".clj"))
-                    (when-let [ns-str (ns-of-file file)]
-                      (shadow/test-namespace?
-                        (shadow-config (.getPath (nearest-shadow-root (io/file root) file)))
-                        (:build norm)
-                        ns-str)))))
+                    ;; Only a shadow-cljs.edn's namespace rules make a non-_test file a
+                    ;; test, so without one the file is never read.
+                    (when-let [cfg (shadow-config (.getPath (nearest-shadow-root (io/file root)
+                                                                                 file)))]
+                      (when-let [ns-str (ns-of-file file)]
+                        (shadow/test-namespace? cfg (:build norm) ns-str))))))
 
          resolved
          (resolve-selection root paths ns-selectors test-file?)
@@ -1977,7 +1987,14 @@
          (cond (or (some :path paths) (some :ns ns-selectors)) (select-keys resolved
                                                                             [:nses :ns-files])
                (:build norm) {:nses [] :ns-files {}}
-               :else (let [index (all-test-files root test-file?)]
+               :else (let [;; A bare run is the project's own suite: a *_test.cljs that
+                           ;; no shadow-cljs.edn claims has no runtime here, and no JVM
+                           ;; runner loads it.
+                           index (into {}
+                                       (remove (fn [[_ file]]
+                                                 (and (cljs-file? file)
+                                                      (not (shadow-project? (io/file root) file)))))
+                                       (all-test-files root test-file?))]
                        {:nses (vec (sort (keys index))) :ns-files index}))
 
          ;; An explicit build selects JS, including shared .cljc tests. Otherwise

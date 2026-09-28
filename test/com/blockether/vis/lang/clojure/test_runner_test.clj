@@ -927,6 +927,45 @@
                                    {"paths" ["repositories/app/test/repro/core_test.cljs"]})]
                         (expect (= (str root "/repositories/app") (:root seen))))))))
 
+(defdescribe
+  clj-test-fn-cljs-without-shadow-test
+  "ClojureScript routing depends on a shadow-cljs.edn. Without one no Vis runtime can
+   run a *_test.cljs and the project's JVM runner never loads it, so a bare run stays
+   the project's own suite; a test the caller names still reaches shadow-cljs, whose
+   error names the missing config."
+  (it "runs the JVM suite when no shadow-cljs.edn claims the *_test.cljs beside it"
+      (with-project {"deps.edn" "{}\n"
+                     "test/app/core_test.clj" "(ns app.core-test)\n"
+                     "test/app/view_test.cljs" "(ns app.view-test)\n"}
+                    (fn [root]
+                      (let [seen (run-capturing-cljs root {})]
+                        (expect (= root (:cli-root seen)))
+                        (expect (= ["app.core-test"] (:cli-nses seen)))
+                        (expect (nil? (:nses seen)))))))
+  (it "leaves a bare run to the project's own runner when only *_test.cljs exist"
+      (with-project {"deps.edn" "{}\n" "test/app/view_test.cljs" "(ns app.view-test)\n"}
+                    (fn [root]
+                      (let [seen (run-capturing-cljs root {})]
+                        (expect (= root (:cli-root seen)))
+                        (expect (nil? (:nses seen)))))))
+  (it "still sends a *_test.cljs the caller names to shadow-cljs"
+      (with-project
+        {"deps.edn" "{}\n" "test/app/view_test.cljs" "(ns app.view-test)\n"}
+        (fn [root]
+          (expect (= ["app.view-test"]
+                     (:nses (run-capturing-cljs root {"paths" ["test/app/view_test.cljs"]})))))))
+  (it "reads no source for shadow-cljs namespace rules without a shadow-cljs.edn"
+      (let [asked (atom 0)]
+        (with-redefs [shadow/test-namespace? (fn [& _]
+                                               (swap! asked inc)
+                                               false)]
+          (with-project {"deps.edn" "{}\n"
+                         "src/app/util.cljc" "(ns app.util)\n"
+                         "test/app/core_test.clj" "(ns app.core-test)\n"}
+                        (fn [root]
+                          (expect (= ["app.core-test"] (:cli-nses (run-capturing-cljs root {}))))
+                          (expect (zero? @asked))))))))
+
 (defn- run-via-shadow
   "The shadow-cljs runner."
   [root nses norm]
