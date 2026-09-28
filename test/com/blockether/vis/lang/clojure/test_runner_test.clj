@@ -650,7 +650,7 @@
         (expect (= "sample.other-test" (get-in faults [2 "ns"])))
         (expect (= 19 (get-in faults [2 "line"])))
         (expect (str/includes? (str (get-in faults [2 "message"])) "ExceptionInfo: boom"))
-        (expect (str/includes? (str (get-in faults [2 "message"])) trace))))
+        (expect (str/includes? (str (get-in faults [2 "message"])) (str/trimr trace)))))
   (it "reads a real clojure.test reporter rather than only canned output"
       (let [report
             (with-out-str
@@ -712,7 +712,16 @@
             (with-cli-run {:exit 1 :out report})]
 
         (expect (= report (get r "output")))
-        (expect (= ["broken-test" "throws-test"] (mapv #(get % "test") (get r "failures"))))
+        (expect (= ["broken-test › checks equality" "throws-test › throws"]
+                   (mapv #(get % "test") (get r "failures"))))
+        ;; Regression: the docs lines led the message, so a failure's reason
+        ;; repeated its name; the message is the reporter's details alone.
+        (expect
+          (= "values differ\nExpected: (= 1 2)\nActual: false\nEvaluated arguments:\n * 1\n * 2"
+             (get-in r ["failures" 0 "message"])))
+        (expect (= (str "clojure.lang.ExceptionInfo: boom\n\n"
+                        "Originating error:\n    sample.core_test.invoke(core_test.clj:19)")
+                   (get-in r ["failures" 1 "message"])))
         (expect (= ["fail" "error"] (mapv #(get % "type") (get r "failures"))))
         (expect (= [7 19] (mapv #(get % "line") (get r "failures"))))
         (expect (str/includes? (str (get-in r ["failures" 1 "message"])) "ExceptionInfo: boom"))))
@@ -750,6 +759,58 @@
                             (expect (= 1 (get r "errored")))
                             (expect (= ["error"] (mapv #(get % "type") (get r "failures"))))))
                         (finally (remove-ns fixture-ns))))))
+
+(defn- run-fixture
+  "Define `forms` in a fresh namespace, run them through the REPL run-form and
+   answer the normalized result."
+  [fixture-ns forms]
+  (let [n
+        (create-ns fixture-ns)
+
+        run-form
+        @#'com.blockether.vis.lang.clojure.test-runner/run-form
+
+        normalize
+        @#'com.blockether.vis.lang.clojure.test-runner/normalize-faults]
+
+    (try (binding [*ns* n]
+           (eval (list* 'do '(clojure.core/refer-clojure) forms)))
+         (with-redefs [clojure.core/require (fn [& _])]
+           (normalize "." ((eval run-form) [fixture-ns] {} {})))
+         (finally (remove-ns fixture-ns)))))
+
+;; Regression: a failure was named by its innermost doc alone, so the cases of
+;; one describe could not be told apart, and its message was the stock
+;; `Expectation failed`; a failure is named by its whole docs path and its
+;; message leads with the expectation that failed.
+(defdescribe
+  repl-failure-naming-test
+  (it
+    "names a Lazytest failure by its docs path and leads with what failed"
+    (let [r (run-fixture
+              'vis.test-runner-naming-fixture
+              '[(clojure.core/require '[lazytest.core :refer [defdescribe describe expect it]])
+                (defdescribe
+                 picks-test
+                 "A model picked during a turn"
+                 (describe "on the next turn" (it "applies" (expect (= 1 2))))
+                 (it "throws" (throw (ex-info "boom" {}))))])]
+      (expect (= ["A model picked during a turn › on the next turn › applies"
+                  "A model picked during a turn › throws"]
+                 (mapv #(get % "test") (get r "failures"))))
+      (expect (= ["Expected: (= 1 2)\nActual: false" "clojure.lang.ExceptionInfo: boom"]
+                 (mapv #(get % "message") (get r "failures"))))))
+  (it
+    "names a clojure.test failure with its testing contexts"
+    (let [r (run-fixture
+              'vis.test-runner-contexts-fixture
+              '[(clojure.core/require 'clojure.test)
+                (clojure.test/deftest
+                 adds-test
+                 (clojure.test/testing "with small numbers" (clojure.test/is (= 3 (+ 1 1)))))])]
+      (expect (= ["adds-test › with small numbers"] (mapv #(get % "test") (get r "failures"))))
+      (expect (= ["Expected: (= 3 (+ 1 1))\nActual: (not (= 3 2))"]
+                 (mapv #(get % "message") (get r "failures")))))))
 
 (def ^:private ns-of-file @#'com.blockether.vis.lang.clojure.test-runner/ns-of-file)
 

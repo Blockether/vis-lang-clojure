@@ -204,14 +204,21 @@
 
                                         (swap! fails conj
                                           {"ns" (str (:ns vm))
-                                           "test" (when v0 (str (:name vm)))
+                                           ;; Nested `testing` contexts, outermost first, name
+                                           ;; the case the way Lazytest's docs name theirs.
+                                           "test" (when v0
+                                                    (apply str
+                                                      (interpose " › "
+                                                        (cons (str (:name vm))
+                                                              (reverse
+                                                                clojure.test/*testing-contexts*)))))
                                            "type" (name (:type m))
                                            "message" (if thrown
                                                        (str (.getName (class thrown))
                                                             (when-let [msg (.getMessage ^Throwable
                                                                                         thrown)]
                                                               (str ": " msg)))
-                                                       (str (or (:message m) (:type m))))
+                                                       (str (:message m)))
                                            "expected" (pr-str (:expected m))
                                            ;; For an :error the raw :actual is the whole Throwable
                                            ;; (a giant #error map with stacktrace) — the class+message
@@ -297,25 +304,53 @@
                                   (#{:fail :error :pass} (:type x)))
                                 results)
 
+                        suite-result?
+                        (requiring-resolve (quote lazytest.suite/suite-result?))
+
+                        ex-failed?
+                        (try (requiring-resolve (quote lazytest.expectation-failed/ex-failed?))
+                             (catch Exception _ nil))
+
+                        ;; Each test-case result with the docs of the suites above
+                        ;; it, outermost first: Lazytest's own reporter names a
+                        ;; failure by that whole path, not by its innermost doc.
+                        with-docs
+                        (fn with-docs [docs r]
+                          (if (suite-result? r)
+                            (let [d (str (:doc r))]
+                              (mapcat (fn [c]
+                                        (with-docs (if (= "" d) docs (conj docs d)) c))
+                                      (:children r)))
+                            [(assoc r
+                               :vis/docs (conj docs (str (or (:doc r) "Anonymous test case"))))]))
+
                         fails
                         (filter (fn [x]
                                   (#{:fail :error} (:type x)))
-                                results)
+                                (mapcat (fn [t]
+                                          (with-docs [] t))
+                                        trees))
 
                         ->fail
                         (fn [f]
-                          {"ns" (str (:ns f))
-                           "test" (str (:doc f))
-                           "type" (name (:type f))
-                           "message" (let [m (:message f)]
-                                       (cond (seq (str m)) (str m)
-                                             (:thrown f) (str (.getMessage (:thrown f)))
-                                             :else (str "expected " (pr-str (:expected f))
-                                                        " actual " (pr-str (:actual f)))))
-                           "expected" (pr-str (:expected f))
-                           "actual" (pr-str (:actual f))
-                           "file" (str (:file f))
-                           "line" (:line f)})]
+                          (let [thrown
+                                (:thrown f)
+
+                                message
+                                (str (:message f))]
+
+                            {"ns" (str (:ns f))
+                             "test" (apply str (interpose " › " (:vis/docs f)))
+                             "type" (name (:type f))
+                             ;; Like Lazytest's reporter, an exception other than a
+                             ;; failed expectation is named by its class.
+                             "message" (if (and thrown ex-failed? (not (ex-failed? thrown)))
+                                         (str (.getName (class thrown)) ": " message)
+                                         message)
+                             "expected" (pr-str (:expected f))
+                             "actual" (pr-str (:actual f))
+                             "file" (str (:file f))
+                             "line" (:line f)}))]
 
                     {"framework" "lazytest"
                      "total" (count leaves)
@@ -431,53 +466,79 @@
       "file" (when-not (or (str/blank? file) (contains? unlocated-files file)) file)
       "line" (when (nat-int? line) line))))
 
+(defn- describe-fault
+  "Shape a fault's `\"message\"` the way a reader takes it in: the reason on its
+   first line, the details below. Expected and actual values a runner reported
+   apart from the message are added as labelled lines, Lazytest's stock
+   `Expectation failed` gives way to them, and the `Expected: nil` / `Actual: nil`
+   pair printed for a thrown exception is dropped. Idempotent."
+  [fault]
+  (let [message
+        (str/trim (str (get fault "message")))
+
+        expected
+        (str/trim (str (get fault "expected")))
+
+        actual
+        (str/trim (str (get fault "actual")))
+
+        message
+        (if (or (re-find #"(?im)^[ \t]*expected:" message) (str/blank? expected) (= "nil" expected))
+          message
+          (str/join "\n"
+                    (remove str/blank?
+                      [message (str "Expected: " expected)
+                       (when-not (str/blank? actual) (str "Actual: " actual))])))
+
+        lines
+        (str/split-lines (str/replace message #"(?m)^Expected: nil\r?\nActual: nil(?:\r?\n|\z)" ""))
+
+        lines
+        (if (and (= "Expectation failed" (str/trim (str (first lines))))
+                 (some (complement str/blank?) (rest lines)))
+          (rest lines)
+          lines)]
+
+    (assoc fault "message" (str/trim (str/join "\n" lines)))))
+
 (defn- normalize-faults
-  "Make every fault's location in `parsed`'s \"failures\" honest: an unresolvable
-   location is dropped (`locate-fault`) and a real absolute path is rewritten
-   relative to workspace `root`. Idempotent — an already-relative path and an
-   already-dropped location are left as-is."
+  "Make every fault in `parsed`'s \"failures\" honest and readable: an unresolvable
+   location is dropped (`locate-fault`), a real absolute path is rewritten relative
+   to workspace `root`, and the message leads with its reason (`describe-fault`).
+   Idempotent — an already-normalized fault is left as-is."
   [root parsed]
   (let [root-file
         (io/file (str root))
 
         clean
-        (comp (partial rel-fault-file root-file) locate-fault)]
+        (comp describe-fault (partial rel-fault-file root-file) locate-fault)]
 
     (if (seq (get parsed "failures")) (update parsed "failures" (partial mapv clean)) parsed)))
 
 (defn- failures->text
   "Concise, framework-neutral digest of the structured failure/error maps a
    run-form result carries: one `✗ ns/test (file:line)` line per failure with its
-   message (and expected/actual when they add signal). REPLACES each framework's own
-   verbose per-namespace reporter tree, so a run's `output` stays a tight, ANSI-free
-   summary instead of a `Ran N test cases … 0 failures` block repeated per
-   defdescribe."
+   message, which `describe-fault` already gave the expected and actual values.
+   REPLACES each framework's own verbose per-namespace reporter tree, so a run's
+   `output` stays a tight, ANSI-free summary instead of a `Ran N test cases …
+   0 failures` block repeated per defdescribe."
   [fails]
   (->> fails
-       (map
-         (fn [{:strs [ns test message expected actual file line]}]
-           (let [keep?
-                 (fn [x]
-                   (and x (not (str/blank? (str x))) (not= "nil" (str x))))
+       (map (fn [{:strs [ns test message file line]}]
+              (let [keep?
+                    (fn [x]
+                      (and x (not (str/blank? (str x))) (not= "nil" (str x))))
 
-                 loc
-                 (when (keep? file) (str "  (" file (when line (str ":" line)) ")"))
+                    loc
+                    (when (keep? file) (str "  (" file (when line (str ":" line)) ")"))
 
-                 head
-                 (str "✗ " ns (when (keep? test) (str "/" test)) loc)
+                    head
+                    (str "✗ " ns (when (keep? test) (str "/" test)) loc)]
 
-                 detail
-                 (cond-> []
-                   (keep? message)
-                   (conj (str "    " message))
-
-                   (keep? expected)
-                   (conj (str "    expected: " expected))
-
-                   (keep? actual)
-                   (conj (str "    actual:   " actual)))]
-
-             (str/join "\n" (cons head detail)))))
+                (str/join "\n"
+                          (cons head
+                                (map #(str "    " %)
+                                     (remove str/blank? (str/split-lines (str message)))))))))
        (str/join "\n")))
 
 (defn- compose-repl-output
@@ -1120,15 +1181,19 @@
 
 (defn- lazytest-cli-failures
   "Lazytest's default results reporter prints an indented identity followed by
-   assertion/exception details and an `in file:line` footer, not FAIL headers."
+   assertion/exception details and an `in file:line` footer, not FAIL headers.
+   The identity lists the suites above the failing case, one per line and the
+   case last with a colon; the test is named by all of them, outermost first,
+   joined with ` › `, and the message is the details alone."
   [out]
   (mapv (fn [[_ ns-name docs details file line-number]]
           (cli-fault {"ns" ns-name
-                      "test" (str/replace (str/trim (first (str/split-lines docs))) #":$" "")
+                      "test"
+                      (str/replace (str/join " › " (map str/trim (str/split-lines docs))) #":$" "")
                       "type" (if (str/includes? details "Originating error:") "error" "fail")
                       "file" file
                       "line" (parse-long line-number)}
-                     (str docs "\n" details)))
+                     details))
         (re-seq #"(?ms)^(\S+)\r?\n((?:[ \t]+[^\r\n]+\r?\n)+)\r?\n(.*?)^in ([^\r\n]+):(-?\d+)\r?$"
                 out)))
 
