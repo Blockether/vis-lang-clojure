@@ -6,14 +6,16 @@ from vis_lang_interface import presentation, prompt
 from vis_lang_clojure.tools import ClojureTools
 
 
-def _bind(name, label, build, *, tag="observation", show_start=True):
+def _bind(name, label, build, *, tag="observation", show_start=True, describe=None):
     """Attach one Activity presentation to a method of ClojureTools."""
     setattr(
         ClojureTools,
         name,
         vis.method(
             tag=tag,
-            activity=presentation.activity(label, build, show_start=show_start),
+            activity=presentation.activity(
+                label, build, show_start=show_start, describe=describe
+            ),
         )(getattr(ClojureTools, name)),
     )
 
@@ -80,6 +82,7 @@ _bind(
     "Evaluate in Clojure REPL",
     lambda result: presentation.repl_presentation("Evaluate in Clojure REPL", result),
     tag="mutation",
+    describe=presentation.code_argument("clojure"),
 )
 
 PROMPT = prompt.routing(

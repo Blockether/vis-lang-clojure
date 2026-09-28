@@ -118,7 +118,15 @@ class ClojureTools:
         root = self._root(cwd, tuple(paths))
         if source:
             result = bridge.call("format", {"code": source}, root=root)
-            return FormatResult(LANGUAGE, (), (), str(result.get("text") or ""), False)
+            return FormatResult(
+                LANGUAGE,
+                (),
+                (),
+                str(result.get("text") or ""),
+                False,
+                int(result.get("added") or 0),
+                int(result.get("removed") or 0),
+            )
         result = bridge.call(
             "format", {"paths": list(paths)} if paths else {}, root=root
         )
@@ -129,6 +137,8 @@ class ClojureTools:
             tuple(str(one.get("path")) for one in files if not one.get("changed")),
             "",
             True,
+            int(result.get("added") or 0),
+            int(result.get("removed") or 0),
         )
 
     def lint_code(
@@ -313,12 +323,17 @@ class ClojureTools:
             )
             if part.strip()
         )
+        timed_out = bool(result.get("timed_out"))
+        error = (named or stderr) if broke else ""
+        if timed_out and not error:
+            error = f"Timed out after {int(timeout_ms)} ms."
         return ReplResult(
             LANGUAGE,
             str(result.get("repl") or root),
             str(result.get("value") or ""),
             printed if broke else printed + stderr,
-            (named or stderr) if broke else "",
+            error,
             int(result.get("ms") or 0),
-            not result.get("timed_out"),
+            not timed_out,
+            str(result.get("code") or code),
         )

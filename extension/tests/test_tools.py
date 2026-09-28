@@ -13,12 +13,19 @@ def test_formatting_a_source_string_returns_the_formatted_text(tools):
     clj, fake = tools
     fake.answer(
         "format",
-        {"changed": True, "text": "(defn f [x] (* x 2))\n", "formatter": "zprint"},
+        {
+            "changed": True,
+            "text": "(defn f [x] (* x 2))\n",
+            "formatter": "zprint",
+            "added": 2,
+            "removed": 2,
+        },
     )
     result = clj.format_code(source="(defn f [x]\n(* x 2))", cwd=fake.cwd)
     assert result.language == "clojure"
     assert result.source == "(defn f [x] (* x 2))\n"
     assert result.is_written is False
+    assert (result.lines_added, result.lines_removed) == (2, 2)
     assert fake.sent("format")["arg"] == {"code": "(defn f [x]\n(* x 2))"}
 
 
@@ -28,16 +35,19 @@ def test_formatting_files_reports_what_changed(tools):
         "format",
         {
             "files": [
-                {"path": "src/a.clj", "changed": True},
-                {"path": "src/b.clj", "changed": False},
+                {"path": "src/a.clj", "changed": True, "added": 3, "removed": 1},
+                {"path": "src/b.clj", "changed": False, "added": 0, "removed": 0},
             ],
             "changed": 1,
+            "added": 3,
+            "removed": 1,
         },
     )
     result = clj.format_code(["src"], cwd=fake.cwd)
     assert result.changed == ("src/a.clj",)
     assert result.unchanged == ("src/b.clj",)
     assert result.is_written is True
+    assert (result.lines_added, result.lines_removed) == (3, 1)
     assert fake.sent("format")["arg"] == {"paths": ["src"]}
 
 
@@ -314,13 +324,14 @@ def test_an_evaluation_returns_its_value_and_what_it_printed(tools):
             "out": "hello\n",
             "ms": 12,
             "repl": "nrepl:~/project",
-            "code": "(+ 1 1)",
+            "code": "(+ 1\n   1)",
         },
     )
     result = clj.repl_eval("(+ 1 1)", cwd=fake.cwd, ns="user")
     assert (result.value, result.output, result.error) == ("2", "hello\n", "")
     assert (result.duration_ms, result.is_running) == (12, True)
     assert result.id == "nrepl:~/project"
+    assert result.code == "(+ 1\n   1)"
     assert fake.sent("repl-eval")["arg"] == {
         "code": "(+ 1 1)",
         "timeout_ms": 30000,
@@ -355,6 +366,14 @@ def test_a_healthy_evaluation_keeps_what_it_wrote_to_stderr(tools):
     result = clj.repl_eval("(binding [*out* *err*] (println :x) 5)", cwd=fake.cwd)
     assert result.output == "to-stderr\n"
     assert result.error == ""
+
+
+def test_a_timed_out_evaluation_says_so(tools):
+    clj, fake = tools
+    fake.answer("repl-eval", {"timed_out": True, "out": "partial\n", "ms": 1000})
+    result = clj.repl_eval("(Thread/sleep 5000)", cwd=fake.cwd, timeout_ms=1000)
+    assert result.error == "Timed out after 1000 ms."
+    assert (result.output, result.code) == ("partial\n", "(Thread/sleep 5000)")
 
 
 def test_evaluating_without_a_repl_says_which_project_has_none(tools):
@@ -485,3 +504,40 @@ def test_an_older_host_records_lint_and_test_runs_as_reads(monkeypatch):
     tags = _entrypoint_tags(monkeypatch)
     assert (tags["lint_code"], tags["run_tests"]) == ("observation", "observation")
     assert tags["repl_eval"] == "mutation"
+
+
+def test_every_tool_owns_an_activity_and_an_evaluation_shows_its_code(monkeypatch):
+    from vis_lang_clojure.tools import ClojureTools
+
+    registered = []
+    monkeypatch.setattr(vis, "register_extension", registered.append)
+    runpy.run_path(str(Path(__file__).resolve().parents[1] / "extension.py"))
+    members = registered[0].symbols[0].contract["members"]
+    for name in (member["name"].rsplit(".", 1)[-1] for member in members):
+        label = getattr(ClojureTools, name).__vis_symbol_activity__.label
+        assert label[:1].isupper() and "_" not in label, name
+
+    activity = ClojureTools.repl_eval.__vis_symbol_activity__
+    running = activity.render(phase="start", args=(), kwargs={"code": "(+ 1 2)"})
+    assert (running.headline, running.summary) == (
+        "Evaluate in Clojure REPL",
+        "running",
+    )
+    assert [
+        (block.text, getattr(block, "language", None)) for block in running.content
+    ] == [
+        ("Code", None),
+        ("(+ 1 2)", "clojure"),
+    ]
+    failed = activity.render(
+        phase="failure",
+        args=(),
+        kwargs={"code": "(boom)"},
+        error=RuntimeError("no REPL"),
+    )
+    assert [block.text for block in failed.content] == [
+        "Code",
+        "(boom)",
+        "Error",
+        "no REPL",
+    ]

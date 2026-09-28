@@ -737,7 +737,19 @@
 
                      (api/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
                                       {"code" "(+ 1 1)"})
-                     (expect (= ["devbox.internal" 4001] @captured))))))
+                     (expect (= ["devbox.internal" 4001] @captured)))))
+             (it "answers the evaluated code pretty-printed by the project's formatter"
+                 (with-redefs [rm/resolve-target!
+                               (fn [_sid _rid _default]
+                                 {:id "nrepl:/p" :dir (tmp-dir) :port 4001})
+
+                               nrepl-client/eval!
+                               (fn [_]
+                                 {"value" "2"})]
+
+                   (let [res (api/clj-eval-fn {:workspace/root (tmp-dir) :session-id "s"}
+                                              {"code" "(let [x 1]\n(+ x 1))"})]
+                     (expect (= "(let [x 1]\n  (+ x 1))" (get-in res [:result "code"])))))))
 
 (def ^:private shadow-watching
   "What `shadow-repl/probe!` answers for a live `shadow-cljs watch app`: the ids

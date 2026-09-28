@@ -5,7 +5,7 @@ description = "Clojure tools for Vis: zprint and cljfmt formatting, clj-kondo li
 requires-python = ">=3.11"
 dependencies = [
   "vis-agent>=0.2.26",
-  "vis-lang-interface @ git+https://github.com/Blockether/vis-lang-interface@v2.2.0",
+  "vis-lang-interface @ git+https://github.com/Blockether/vis-lang-interface@v2.3.0",
 ]
 
 [tool.vis]

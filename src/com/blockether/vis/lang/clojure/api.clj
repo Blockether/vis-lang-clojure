@@ -265,9 +265,10 @@
          run
          (fn [target repl-label]
            ;; Carry the evaluated FORM back on the result (string key, crosses the
-           ;; strings-only boundary) so the repl_eval op-card can show it in the
-           ;; collapsed chip / expanded FORM section. `repl` names WHICH nREPL
-           ;; actually ran it, so a multi-REPL session reports the target used.
+           ;; strings-only boundary), pretty-printed by the project's formatter, so
+           ;; the evaluation's activity shows the code the way a reader writes it.
+           ;; `repl` names WHICH nREPL actually ran it, so a multi-REPL session
+           ;; reports the target used.
            ;; The eval goes through repl-manager, not straight to the client: a
            ;; target attached to a shadow-cljs BUILD has to have that build selected
            ;; in the nREPL session first, or the same code answers as JVM Clojure.
@@ -275,7 +276,7 @@
                  (assoc target :host (or (:host target) host))
                  {:code code :ns ns :pretty? true :timeout-ms (or timeout_ms 30000)})
                strip-blank-repl-fields
-               (assoc "code" code
+               (assoc "code" (str/trimr (fmt/format-source code (or (:dir target) root)))
                       "repl" repl-label)))]
 
      (if port
@@ -472,10 +473,76 @@
                              (mapv str))]
                   (if (seq d) d [(str root)])))))
 
+(defn- shortest-edit
+  "Length of the shortest insert/delete script turning line vector `a` into `b`
+   (Myers' greedy algorithm). It costs O((N+M)·D), little for formatting, which
+   rewrites few lines of a file."
+  ^long [a b]
+  (let [n
+        (count a)
+
+        m
+        (count b)
+
+        offset
+        (+ n m 1)
+
+        v
+        (long-array (inc (* 2 offset)))]
+
+    (loop [d 0]
+      (or (loop [k (- d)]
+            (when (<= k d)
+              (let [down? (or (== k (- d))
+                              (and (not= k d) (< (aget v (+ offset k -1)) (aget v (+ offset k 1)))))
+                    x (loop [x (if down? (aget v (+ offset k 1)) (inc (aget v (+ offset k -1))))]
+                        (if (and (< x n) (< (- x k) m) (= (nth a x) (nth b (- x k))))
+                          (recur (inc x))
+                          x))]
+
+                (aset v (+ offset k) x)
+                (if (and (>= x n) (>= (- x k) m)) d (recur (+ k 2))))))
+          (recur (inc d))))))
+
+(defn- line-changes
+  "The lines formatting added and removed turning `before` into `after`, as
+   {\"added\" n \"removed\" n}; a rewritten line counts once in each. Lines split
+   on every newline, so any change to the text, a final newline included, counts."
+  [before after]
+  (let [a
+        (str/split before #"\n" -1)
+
+        b
+        (str/split after #"\n" -1)
+
+        n
+        (count a)
+
+        m
+        (count b)
+
+        prefix
+        (count (take-while true? (map = a b)))
+
+        suffix
+        (min (- (min n m) prefix) (count (take-while true? (map = (rseq a) (rseq b)))))
+
+        a
+        (subvec a prefix (- n suffix))
+
+        b
+        (subvec b prefix (- m suffix))
+
+        d
+        (shortest-edit a b)]
+
+    {"added" (quot (+ d (- (count b) (count a))) 2)
+     "removed" (quot (+ d (- (count a) (count b))) 2)}))
+
 (defn- clj-format-one-file!
   "Format a single file at `path` IN PLACE (add-only paren repair + cljfmt), writing
    back ONLY when the content changes. Returns a per-file result map with the
-   workspace-relative path.
+   workspace-relative path and the lines formatting `\"added\"` and `\"removed\"`.
 
    Runs the repair ONCE and reuses its verdict for the `\"repaired\"` flag, for the
    `\"repairs\"` notes naming the lines it completed, and for `\"unbalanced\"` — a repair
@@ -495,11 +562,12 @@
         (fmt/format-source fixed for-path)]
 
     (when (not= out code) (spit (str path) out))
-    (cond-> {"path" (relativize-path (io/file (or (:workspace/root env) ".")) path)
-             "changed" (not= out code)
-             "repaired" repaired?
-             "wrote" (not= out code)
-             "formatter" (name (fmt/formatter-for for-path))}
+    (cond-> (merge {"path" (relativize-path (io/file (or (:workspace/root env) ".")) path)
+                    "changed" (not= out code)
+                    "repaired" repaired?
+                    "wrote" (not= out code)
+                    "formatter" (name (fmt/formatter-for for-path))}
+                   (line-changes code out))
       (seq repairs)
       (assoc "repairs" repairs)
 
@@ -517,7 +585,9 @@
          dirs (target, dist, node_modules, .clj-kondo, .clojure-lsp, .cpcache…)
    Paths are resolved against the workspace root when relative. Every result
    NAMES the backend that ran: `\"formatter\"` (\"zprint\" | \"cljfmt\") on a
-   single file / code string, and the distinct `\"formatters\"` set on a batch."
+    single file / code string, and the distinct `\"formatters\"` set on a batch. Every
+    result counts the lines formatting `\"added\"` and `\"removed\"`: per file, and in
+    total on a batch."
   ([arg] (clj-format-fn nil arg))
   ([env arg]
    (let [root
@@ -550,6 +620,8 @@
          (host/success {:result {"op" "clj-format"
                                  "files" files
                                  "changed" (count (filter #(get % "changed") files))
+                                 "added" (reduce + 0 (map #(get % "added") files))
+                                 "removed" (reduce + 0 (map #(get % "removed") files))
                                  "formatters" (vec (sort (distinct (keep #(get % "formatter")
                                                                          files))))}}))
        (let
@@ -578,25 +650,26 @@
           (fmt/format-source fixed for-path)]
 
          (when (and path (not= out code)) (spit (str path) out))
-         (host/success {:result (cond-> {"op" "clj-format"
-                                         "changed" (not= out code)
-                                         "chars" (- (count out) (count code))
-                                         "repaired" repaired?
-                                         "formatter" (name (fmt/formatter-for for-path))}
-                                  (not path)
-                                  (assoc "text" out)
+         (host/success
+           {:result (cond-> (merge {"op" "clj-format"
+                                    "changed" (not= out code)
+                                    "chars" (- (count out) (count code))
+                                    "repaired" repaired?
+                                    "formatter" (name (fmt/formatter-for for-path))}
+                                   (line-changes code out))
+                      (not path)
+                      (assoc "text" out)
 
-                                  (seq repairs)
-                                  (assoc "repairs" repairs)
+                      (seq repairs)
+                      (assoc "repairs" repairs)
 
-                                  why
-                                  (assoc "unbalanced" why)
+                      why
+                      (assoc "unbalanced" why)
 
-                                  path
-                                  (assoc "path"
-                                    (relativize-path (io/file (or (:workspace/root env) ".")) path)
-                                    "wrote"
-                                    (not= out code)))}))))))
+                      path
+                      (assoc "path"
+                        (relativize-path (io/file (or (:workspace/root env) ".")) path) "wrote"
+                        (not= out code)))}))))))
 
 (defn- nearest-kondo-dir
   "The nearest `.clj-kondo` config directory walking UP from `file`, or nil when
