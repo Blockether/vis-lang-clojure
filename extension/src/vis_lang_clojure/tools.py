@@ -1,9 +1,8 @@
 """The Clojure tools this extension exports.
 
 Ordinary Python: every method takes plain arguments and returns a contract
-result from `vis_lang_interface`, so the same calls work in a script, in a test
-and from Vis. The work itself happens in the Clojure library, one JSON request
-away.
+result from `vis_lang_interface`. The same calls work in a script, in a test and
+from Vis. The Clojure library does the work itself, one JSON request away.
 """
 
 from __future__ import annotations
@@ -96,7 +95,7 @@ class ClojureTools:
     """Format, lint and test Clojure, and evaluate in a project nREPL."""
 
     def __init__(self, *, workspace_root=Path.cwd):
-        """Keep a live root provider; hosted tools receive the SDK function."""
+        """Keep a live root provider. Hosted tools receive the SDK function."""
         self._workspace_root = workspace_root
 
     def _root(self, cwd, paths=()):
@@ -111,10 +110,10 @@ class ClojureTools:
     ) -> FormatResult:
         """Format Clojure with zprint, or cljfmt when the project has no zprint config.
 
-        A delimiter you left out is added back first; one you wrote is never
-        deleted. With source, the formatted text comes back and nothing is
+        First, a delimiter you left out is added back. A delimiter you wrote is
+        never deleted. With source, the formatted text comes back and nothing is
         written. With paths, those files are rewritten where they differ, and a
-        directory is walked; with neither, the whole project is formatted.
+        directory is walked. With neither, the whole project is formatted.
         """
         root = self._root(cwd, tuple(paths))
         if source:
@@ -234,10 +233,10 @@ class ClojureTools:
     ) -> ReplSession:
         """Start a project nREPL, or keep the live one.
 
-        The REPL is a child of the Clojure process this extension keeps for the
-        project, so it survives between calls. A live REPL is never replaced,
-        because its state is the work; stop it first when you want a new
-        classpath.
+        The REPL is a child of the Clojure process that this extension keeps for
+        the project, so it survives between calls. A live REPL is never
+        replaced, because its state is the work. Stop it first when you want a
+        new classpath.
         """
         root = self._root(cwd)
         arg = {"aliases": list(aliases)} if aliases else {}

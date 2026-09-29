@@ -1,24 +1,26 @@
 """What a jailed JVM needs before it can reach a Maven repository.
 
-Vis can confine a tool: it may write to the workspace it was given and to Vis'
-own state directory, and everything it sends leaves through a local proxy that
-asks for a credential and terminates TLS with a certificate authority of its
-own. A program that reads `https_proxy` needs nothing more than that variable.
-A JVM does not read it — it takes its proxy from system properties — and Maven
-takes its proxy from `settings.xml`, so a confined Clojure run reaches no
-repository at all and fails with an unknown host.
+Vis can confine a tool. A confined tool can write only to its workspace and to
+Vis' own state directory. All its outbound traffic goes through a local proxy.
+That proxy asks for a credential and presents TLS certificates from its own
+certificate authority.
 
-This module prepares both, and it does so inside the sandbox, where the proxy
-and its certificate bundle exist: a small shell preamble runs in front of the
-real command and hands over to it with `exec`. The preamble points the JVM at
-the proxy, builds a trust store from the sandbox's certificate bundle, writes a
-`settings.xml` that carries the proxy and its credential, and names a Maven home
-the confined run may write to. With no proxy in the environment it sets nothing
-and execs the command unchanged.
+A program that reads `https_proxy` needs only that variable. A JVM does not read
+it: it takes its proxy from system properties. Maven takes its proxy from
+`settings.xml`. Without them, a confined Clojure run reaches no repository and
+fails with an unknown host.
 
-The Maven home it names is Vis' own, not `$HOME`: a confined run may not write
-to the real one, and a `settings.xml` of Vis' making never belongs in a
-directory a person keeps their own in.
+This module prepares both inside the sandbox, where the proxy and its
+certificate bundle exist. A small shell preamble runs before the real command
+and then hands over to it with `exec`. The preamble points the JVM at the proxy
+and builds a trust store from the sandbox's certificate bundle. It also writes a
+`settings.xml` with the proxy and its credential. It names a Maven home that the
+confined run can write to. With no proxy in the environment, it sets nothing and
+runs the command unchanged with `exec`.
+
+The Maven home it names belongs to Vis, not to `$HOME`. A confined run cannot
+write to the real one. Also, a `settings.xml` that Vis writes never belongs in
+the directory where a person keeps their own.
 """
 
 from __future__ import annotations
@@ -241,9 +243,9 @@ def preamble(boot):
 def prepared(command, boot):
     """`command`, run behind the preamble.
 
-    The preamble decides at run time whether anything needs preparing, so a
-    command is wrapped whether or not this process is confined: only the
-    sandbox knows, and only from inside it.
+    The preamble decides at run time whether anything needs preparing. So a
+    command is wrapped whether or not this process is confined. Only the sandbox
+    knows that, and only from inside it.
 
     Args:
         command: Program and arguments to run.

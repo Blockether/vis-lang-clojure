@@ -4,16 +4,16 @@ Everything Clojure happens in `com.blockether/vis-lang-clojure`, the library on
 Clojars. This module boots it with the Clojure CLI and speaks its protocol: one
 JSON request per line in, one answer per line out.
 
-One process serves one project directory, and it stays alive: an nREPL it
-started is its child, so a REPL from one call is still there for the next one.
-Closing its stdin is what ends it, which stops every REPL it owns on the way
-out.
+One process serves one project directory, and it stays alive. Each nREPL it
+starts is its child, so a REPL from one call is still there for the next call.
+Closing its stdin ends the process, and every REPL it owns stops with it.
 
-The library's classpath is resolved away from the project, so a project's own
-`deps.edn` — an older Clojure, a pinned older clj-kondo, a dependency only its
-repository serves — cannot decide what the tools run on, or stop them booting
-at all. The project's dependencies stay where they matter: the nREPL and the
-test runs the library starts inside that project.
+The library's classpath is resolved outside the project. A project's own
+`deps.edn` cannot choose what the tools run on or stop them from starting. This
+holds for an older Clojure, a pinned older clj-kondo, or a dependency that only
+the project's repository serves. The project's dependencies stay where they
+matter: in the nREPL and the test runs that the library starts inside that
+project.
 """
 
 from __future__ import annotations
@@ -67,16 +67,15 @@ class ClojureStopped(ClojureError):
 def boot_directory():
     """Where the library's classpath is resolved — never the project.
 
-    Vis' own state directory holds it. A confined tool may write to the
-    workspace it was given and to that directory, and to nothing else: a boot
-    area under `~/.cache` is outside both, and a resolution run there never
-    starts at all.
+    Vis' own state directory holds it. A confined tool can write only to its
+    workspace and to that directory. A boot area under `~/.cache` is outside
+    both, so a resolution run there never starts.
 
     Returns:
         A stable directory, created when it is missing. Nothing writes a
-        `deps.edn` there, so a resolution run in it sees the library coordinate
-        and nothing else, and its `.cpcache` makes every later boot a cache read
-        instead of a download.
+        `deps.edn` there, so a resolution run in it sees only the library
+        coordinate. Its `.cpcache` makes every later boot a cache read instead
+        of a download.
     """
     base = os.environ.get("VIS_HOME", "").strip() or os.path.join(
         os.path.expanduser("~"), ".vis"
@@ -89,10 +88,10 @@ def boot_directory():
 def maven_repository():
     """The Maven repository a confined run shares with the person's own tools.
 
-    `MAVEN_LOCAL_REPO` names it when the machine keeps one elsewhere; otherwise
-    it is the ordinary `~/.m2/repository`. Sharing it is what makes a confined
-    run cheap: the library, its linter and a project's own dependencies are
-    already there, and whatever one run downloads the next one finds.
+    `MAVEN_LOCAL_REPO` names it when the machine keeps one elsewhere. Otherwise
+    it is the usual `~/.m2/repository`. Sharing it makes a confined run cheap.
+    The library, its linter and a project's own dependencies are already there.
+    Whatever one run downloads, the next run finds.
 
     Returns:
         The repository directory.
@@ -114,11 +113,11 @@ def git_libraries():
 def user_configuration():
     """The person's own tools.deps configuration, found the way the CLI finds it.
 
-    `CLJ_CONFIG` names it when a machine keeps it elsewhere; otherwise it is
-    `$XDG_CONFIG_HOME/clojure` where that variable is set, which is the usual
-    Linux arrangement, and `~/.clojure` everywhere else. That is the order the
-    `clojure` command itself uses, so a run started here reads the configuration
-    the person's own terminal reads.
+    `CLJ_CONFIG` names it when a machine keeps it elsewhere. Otherwise it is
+    `$XDG_CONFIG_HOME/clojure` when that variable is set, as is usual on Linux.
+    In all other cases it is `~/.clojure`. The `clojure` command uses the same
+    order, so a run started here reads the same configuration as the person's
+    own terminal.
 
     Returns:
         The configuration directory, whether or not it exists.
@@ -135,13 +134,12 @@ def user_configuration():
 def granted_paths():
     """Paths outside the session that every Clojure run is handed.
 
-    A confined child may write to the workspace it was given and to Vis' own
-    state directory, and to nothing else. The shared caches and the person's
-    Clojure configuration are outside both, so the extension grants exactly
-    those directories on the call that starts the run; the jail refuses
-    everything else, unchanged. A configuration directory that is not there is
-    left out: a machine that has none needs no grant, and the run reads the
-    project's own `deps.edn` as before.
+    A confined child can write only to its workspace and to Vis' own state
+    directory. The shared caches and the person's Clojure configuration are
+    outside both. The extension grants exactly those directories on the call
+    that starts the run. The jail still refuses everything else. A configuration
+    directory that does not exist is left out. A machine without one needs no
+    grant, and the run reads the project's own `deps.edn` as before.
 
     Returns:
         The directories to grant, as a tuple.
@@ -155,11 +153,11 @@ def granted_paths():
 def boot_environment(boot):
     """Everything the Clojure CLI writes while it resolves.
 
-    Its own configuration and classpath cache live in the boot directory: a
-    project's ambient Clojure setup then decides nothing about the tools, and a
-    confined run may write there, which `$HOME` it may not. Downloaded artifacts
-    are different — a coordinate names exactly one file — so they go to the
-    shared caches the run is granted.
+    Its own configuration and classpath cache live in the boot directory. As a
+    result, the Clojure setup around a project decides nothing about the tools.
+    A confined run can also write there, but not in `$HOME`. Downloaded
+    artifacts are different, because a coordinate names exactly one file. They
+    go to the shared caches that the run is granted.
 
     Args:
         boot: The boot directory.
@@ -179,10 +177,11 @@ def project_environment(boot):
     """The environment of the process that serves ONE project.
 
     Its classpath cache stays where the boot run keeps one, so a confined run
-    always has somewhere to write it, but its CONFIGURATION is the person's own:
-    the REPLs and test runs this process starts resolve the aliases the person's
-    terminal resolves, including those a cross-project `deps.edn` defines. That
-    directory is granted to the run, so a confined one reaches it too.
+    always has a place to write it. Its CONFIGURATION, however, is the person's
+    own. The REPLs and test runs that this process starts resolve the same
+    aliases as the person's terminal. This includes aliases that a cross-project
+    `deps.edn` defines. That directory is granted to the run, so a confined run
+    can reach it too.
 
     Args:
         boot: The boot directory.
@@ -226,9 +225,9 @@ def library_classpath(refresh=False):
         The classpath the library runs on.
 
     Raises:
-        ClojureError: Resolution failed; the message carries what it printed.
+        ClojureError: Resolution failed. The message includes its output.
         ToolMissing: The Clojure CLI is not installed.
-        ToolTimeout: Resolution outlasted `BOOT_TIMEOUT_S`.
+        ToolTimeout: Resolution took longer than `BOOT_TIMEOUT_S`.
     """
     global _CLASSPATH
     with _CLASSPATH_LOCK:
@@ -284,17 +283,17 @@ def library_classpath(refresh=False):
 def boot_command():
     """The command that starts the library.
 
-    The library runs on its OWN classpath, resolved away from the project, while
-    the process itself still runs IN the project directory. A project's
-    `deps.edn` therefore decides nothing about the tools: an older Clojure, a
-    pinned older clj-kondo or a dependency only that project's own repository
-    serves can no longer break them, and the project keeps its dependencies
-    where they belong — in the nREPL and the test runs the library starts for it.
+    The library runs on its OWN classpath, resolved outside the project. The
+    process itself still runs IN the project directory. So a project's
+    `deps.edn` decides nothing about the tools. An older Clojure, a pinned older
+    clj-kondo or a dependency that only the project's own repository serves
+    cannot break them. The project keeps its dependencies where they belong: in
+    the nREPL and the test runs that the library starts for it.
 
     Returns:
         Program and arguments. `VIS_LANG_CLOJURE_COMMAND` replaces the whole
-        command, which is how you run a checkout instead of the release; an
-        override brings its own classpath and is run as written.
+        command, so you can run a checkout instead of the release. An override
+        brings its own classpath and runs as written.
 
     Raises:
         ClojureError: The library's classpath could not be resolved.

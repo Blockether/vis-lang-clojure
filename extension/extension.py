@@ -21,7 +21,7 @@ def _bind(name, label, build, *, tag="observation", show_start=True, describe=No
 
 
 def _knows(tag):
-    """Whether this Vis host accepts `tag`; hosts before `verification` refuse it."""
+    """Whether this Vis host accepts `tag`. Older hosts refuse `verification`."""
     try:
         vis.method(tag=tag)
     except ValueError:
