@@ -105,15 +105,14 @@ PROMPT = prompt.routing(
         "repl_stop",
     ),
     notes=(
-        "`clj.repl_eval` needs a REPL `clj.repl_start` already started, or `clj.repl_connect`"
-        " attached to an nREPL that is running elsewhere.",
-        "`clj.run_tests` starts a clean JVM unless this session's REPL is live, in which case it"
-        " serves the code that REPL has loaded: reload the namespaces you changed with"
-        " `(require ... :reload)` or stop the REPL first.",
-        "`clj.lint_code` is clj-kondo and also reports the compiler's reflection warnings,"
-        " which this toolchain treats as failures.",
-        "A `patch` that would leave a parseable Clojure or EDN file unparseable is refused"
-        " and writes nothing. A file that a Python block left unparseable stays in"
+        "`clj.repl_eval` needs a REPL from `clj.repl_start`, or an nREPL elsewhere that"
+        " `clj.repl_connect` attached.",
+        "If this session's REPL is live, `clj.run_tests` uses the code that REPL loaded; else it"
+        " starts a clean JVM. With a live REPL, first reload changed namespaces with"
+        " `(require ... :reload)` or stop the REPL.",
+        "`clj.lint_code` runs clj-kondo and also reports compiler reflection warnings as failures.",
+        "`patch` refuses an edit that makes a parseable Clojure or EDN file unparseable; it writes"
+        " nothing. If a Python block leaves a file unparseable, the file stays in"
         " `clojure_syntax_errors` in the session context until it parses again.",
     ),
 )
@@ -126,7 +125,7 @@ vis.register_extension(
     vis.Extension(
         name="vis-lang-clojure",
         description="Clojure tools: zprint and cljfmt formatting, clj-kondo lint, reader syntax checks, test runs and an nREPL.",
-        version="1.9.1",
+        version="1.9.2",
         alias="clj",
         symbols=[
             vis.Symbol(ClojureTools(workspace_root=vis.workspace_root), name="clj")
