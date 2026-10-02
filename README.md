@@ -39,8 +39,8 @@ Tests reuse a running REPL when there is one, and otherwise run in a clean JVM.
 ## Keep files parseable
 
 The extension checks every `.clj`, `.cljs`, `.cljc`, `.cljx`, `.bb` and `.edn` file in the
-workspace with the Clojure reader. The reader only reads: `#=` is not evaluated, reader tags stay
-data and an alias needs no loaded namespace.
+workspace with the Clojure reader. The reader only reads: `#=` and record literals are reported,
+not evaluated. Other reader tags stay data, and an alias needs no loaded namespace.
 
 - A `patch` that would make a parseable file unparseable is refused, and nothing is written.
 - After every `python_execution` block, the changed files are read again. A file that a Python

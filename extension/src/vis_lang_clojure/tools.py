@@ -212,9 +212,10 @@ class ClojureTools:
         """Check that Clojure and EDN files parse, with the Clojure reader itself.
 
         Each file that does not parse reports its first error and where it is.
-        Nothing is evaluated or loaded: `#=` and reader tags are read as data,
-        and an alias needs no namespace. With no paths and no source, the
-        project's own source roots are checked.
+        Nothing is evaluated or loaded: `#=` and record literals are reported
+        instead of evaluated, other reader tags read as data, and an alias needs
+        no namespace. With no paths and no source, the project's own source roots
+        are checked.
         """
         root = self._root(cwd, tuple(paths))
         arg = {"code": source} if source else ({"paths": list(paths)} if paths else {})
