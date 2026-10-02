@@ -48,7 +48,7 @@ STDERR_TAIL_LINES = 40
 SESSION = "vis-lang-clojure"
 """Owner the library files its REPLs under."""
 
-RESTARTABLE = frozenset({"ping", "format", "lint"})
+RESTARTABLE = frozenset({"ping", "format", "lint", "check"})
 """Verbs a fresh process may be asked again when one died before answering.
 
 Each of them reads or rewrites files and runs none of the project's own code,
@@ -350,18 +350,26 @@ class Process:
     def call(self, request, timeout_s=DEFAULT_TIMEOUT_S):
         """Send one request and wait for the answer to that request.
 
+        The process answers one call at a time. A call waits at most `timeout_s`
+        for the call before it to finish, and then at most `timeout_s` for its
+        own answer, so a short check never waits out a long test run.
+
         Args:
             request: Verb and its argument, without the framing keys.
-            timeout_s: Seconds to wait for the answer.
+            timeout_s: Seconds to wait for the process, and again for the answer.
 
         Returns:
             The answer map, whether it reports success or failure.
 
         Raises:
             ClojureError: The process stopped before answering.
-            ToolTimeout: The deadline passed with no answer.
+            ToolTimeout: The process stayed busy, or no answer came in time.
         """
-        with self.lock:
+        if not self.lock.acquire(timeout=timeout_s):
+            raise ToolTimeout(
+                f"{MAIN} stayed busy with another call for {timeout_s:g}s"
+            )
+        try:
             wanted = str(next(self.ids))
             payload = dict(request, id=wanted, root=self.root, session=SESSION)
             try:
@@ -374,6 +382,8 @@ class Process:
                 raise ToolTimeout(
                     f"{MAIN} did not answer within {timeout_s:g}s"
                 ) from exc
+        finally:
+            self.lock.release()
 
     def stop(self):
         """End the process, and with it every REPL it owns."""
@@ -393,7 +403,7 @@ def call(verb, arg=None, *, root, op="", timeout_s=DEFAULT_TIMEOUT_S):
     """Run one verb in the process serving `root`.
 
     Args:
-        verb: `format`, `lint`, `test`, `repl-eval`, `repl` or `ping`.
+        verb: `format`, `lint`, `check`, `test`, `repl-eval`, `repl` or `ping`.
         arg: The verb's own argument.
         root: Project directory the call is about.
         op: REPL lifecycle op, for the `repl` verb.

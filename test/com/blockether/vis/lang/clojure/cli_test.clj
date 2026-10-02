@@ -41,7 +41,8 @@
                    (expect (str/includes? (get-in answer ["error" "message"])
                                           "reformat-everything"))
                    (expect (str/includes? (get-in answer ["error" "hint"]) "format"))
-                   (expect (str/includes? (get-in answer ["error" "hint"]) "repl-eval")))))
+                   (expect (str/includes? (get-in answer ["error" "hint"]) "repl-eval"))
+                   (expect (str/includes? (get-in answer ["error" "hint"]) "check")))))
 
 (defdescribe
   format-verb-test
@@ -69,6 +70,27 @@
                    (expect (= 0 (get-in answer ["result" "warning"])))
                    (expect (empty? (get-in answer ["result" "findings"]))))))
 
+(defdescribe check-verb-test
+             (it "checks sources by path and reports where each one stops reading"
+                 (let [sources
+                       {"src/a.clj" "(defn f [x]\n  (inc x)\n" "src/b.edn" "{:a 1}"}
+
+                       answer
+                       (cli/handle (request "check" "arg" {"sources" sources}))]
+
+                   (expect (true? (get answer "ok")))
+                   (expect (= {"language" "clojure"
+                               "files" 2
+                               "problems" [{"file" "src/a.clj"
+                                            "line" 2
+                                            "column" 10
+                                            "message" "EOF while reading, starting at line 1"}]}
+                              (get answer "result")))))
+             (it "reports a clean code string with no problems"
+                 (let [answer (cli/handle (request "check" "arg" {"code" "(def answer 42)\n"}))]
+                   (expect (= {"language" "clojure" "files" 1 "problems" []}
+                              (get answer "result"))))))
+
 (defdescribe
   routing-test
   (it "hands each verb its own tool, with the workspace root and session it named"
@@ -87,19 +109,22 @@
                       api/clj-lint-fn
                       (record "lint")
 
+                      api/clj-check-fn
+                      (record "check")
+
                       test-runner/clj-test-fn
                       (record "test")
 
                       api/clj-eval-fn
                       (record "repl-eval")]
 
-          (doseq [verb ["format" "lint" "test" "repl-eval"]]
+          (doseq [verb ["format" "lint" "check" "test" "repl-eval"]]
             (expect (= {"ran" verb}
                        (get (cli/handle (request verb "root" "/proj" "arg" {"k" verb})) "result"))))
-          (expect (= ["format" "lint" "test" "repl-eval"] (mapv first @seen)))
+          (expect (= ["format" "lint" "check" "test" "repl-eval"] (mapv first @seen)))
           (expect (= [{:workspace/root "/proj" :session-id "cli-test"}]
                      (distinct (mapv second @seen))))
-          (expect (= [{"k" "format"} {"k" "lint"} {"k" "test"} {"k" "repl-eval"}]
+          (expect (= [{"k" "format"} {"k" "lint"} {"k" "check"} {"k" "test"} {"k" "repl-eval"}]
                      (mapv last @seen))))))
   (it "passes the repl op through as its own positional argument"
       (let [seen (atom nil)]

@@ -15,7 +15,8 @@
             [com.blockether.vis.lang.clojure.lint :as lint]
             [com.blockether.vis.lang.clojure.reflection :as reflection]
             [com.blockether.vis.lang.clojure.repair :as repair]
-            [com.blockether.vis.lang.clojure.repl-manager :as repl-manager]))
+            [com.blockether.vis.lang.clojure.repl-manager :as repl-manager]
+            [com.blockether.vis.lang.clojure.syntax :as syntax]))
 
 ;; Tool fns
 
@@ -349,11 +350,17 @@
 ;; reader and zprint both read straight through as a comment.
 (def ^:private clj-source-exts [".clj" ".cljs" ".cljc" ".cljx" ".bb"])
 
+(def ^:private syntax-source-exts
+  "Every file the reader checks: the Clojure dialects and `.edn`. Reading rewrites
+   nothing, so the reason `.edn` stays out of formatting does not apply."
+  (conj clj-source-exts ".edn"))
+
 (defn- clj-source-file?
-  "True when `path` names a Clojure source file (by extension)."
-  [path]
-  (let [p (str/lower-case (str path))]
-    (boolean (some #(str/ends-with? p %) clj-source-exts))))
+  "True when `path` ends in one of `exts`, the Clojure source dialects by default."
+  ([path] (clj-source-file? path clj-source-exts))
+  ([path exts]
+   (let [p (str/lower-case (str path))]
+     (boolean (some #(str/ends-with? p %) exts)))))
 
 (def ^:private denied-dir-names
   "Directory names we NEVER format or lint: build artifacts, vendored deps and
@@ -374,29 +381,30 @@
 
 (defn- expand-clj-source-files
   "Expand `paths` (resolved against workspace `root` when relative) into concrete
-   Clojure source files. A DIRECTORY is walked RECURSIVELY, collecting every
-   `.clj`/`.cljs`/`.cljc`/`.cljx`/`.bb` file under it; a plain file is kept
-   as-is; a non-existent path is dropped. Returns a de-duplicated, sorted vector
-   of absolute path strings."
-  [^java.io.File root paths]
-  (->> paths
-       (mapcat (fn [p]
-                 (let [g
-                       (io/file (str p))
+   source files. A DIRECTORY is walked RECURSIVELY, collecting every file under it
+   that ends in one of `exts`, the `.clj`/`.cljs`/`.cljc`/`.cljx`/`.bb` dialects by
+   default; a plain file is kept as-is; a non-existent path is dropped. Returns a
+   de-duplicated, sorted vector of absolute path strings."
+  ([root paths] (expand-clj-source-files root paths clj-source-exts))
+  ([^java.io.File root paths exts]
+   (->> paths
+        (mapcat (fn [p]
+                  (let [g
+                        (io/file (str p))
 
-                       f
-                       (if (.isAbsolute g) g (io/file root (str p)))]
+                        f
+                        (if (.isAbsolute g) g (io/file root (str p)))]
 
-                   (cond (.isDirectory f) (->> (file-seq f)
-                                               (filter #(.isFile ^java.io.File %))
-                                               (filter #(clj-source-file? (str %)))
-                                               (remove under-denied-dir?))
-                         (.isFile f) [f]
-                         :else nil))))
-       (map str)
-       (distinct)
-       (sort)
-       (vec)))
+                    (cond (.isDirectory f) (->> (file-seq f)
+                                                (filter #(.isFile ^java.io.File %))
+                                                (filter #(clj-source-file? (str %) exts))
+                                                (remove under-denied-dir?))
+                          (.isFile f) [f]
+                          :else nil))))
+        (map str)
+        (distinct)
+        (sort)
+        (vec))))
 
 (defn- read-edn-safe
   "Read `f` as EDN, returning nil on any failure (missing / malformed)."
@@ -735,3 +743,73 @@
 
                                  (seq targets)
                                  (assoc "targets" (vec targets)))})))))
+
+(defn clj-check-fn
+  "The Clojure reader's verdict for the `check` verb (`clj.check_syntax`). Accepts:
+     - {\"sources\": {path text}}           -> check those texts, under those paths
+     - a raw code string / {\"code\": ...}  -> check it, reported as `<code>`
+     - {\"path\": ...} / {\"paths\": [...]} -> check those files and directories
+     - nothing / {}                        -> check the whole project's source roots
+   A directory is walked for the Clojure dialects and `.edn`, skipping build and
+   vendor dirs. `path` and `paths` are UNIONED, and a named target that does not
+   exist is an ERROR, as in `lint`. Answers `{\"language\" \"files\" \"problems\"}`:
+   one problem for each source that does not read, with the `file`, the 1-based
+   `line` and `column` where the reader stopped and its `message` (`syntax/problem`)."
+  [env arg]
+  (let [root
+        (io/file (or (:workspace/root env) "."))
+
+        sources
+        (when (map? arg) (get arg "sources"))
+
+        code
+        (cond (string? arg) (when-not (str/blank? arg) arg)
+              (and (map? arg) (not (str/blank? (str (get arg "code"))))) (str (get arg "code"))
+              :else nil)
+
+        path
+        (when (map? arg)
+          (let [p (get arg "path")]
+            (when-not (str/blank? (str p)) p)))
+
+        paths
+        (when (map? arg) (get arg "paths"))
+
+        under
+        (fn [p]
+          (let [f (io/file (str p))]
+            (str (if (.isAbsolute f) f (io/file root (str p))))))
+
+        requested
+        (into [] (distinct (concat (when path [path]) (when (seq paths) paths))))
+
+        missing
+        (when-not (or (map? sources) code)
+          (into [] (remove #(.exists (io/file (under %))) requested)))
+
+        answer
+        (fn [pairs]
+          (host/success {:result {"language" "clojure"
+                                  "files" (count pairs)
+                                  "problems"
+                                  (mapv
+                                    (fn [{:keys [path line column message]}]
+                                      {"file" path "line" line "column" column "message" message})
+                                    (syntax/check pairs))}}))]
+
+    (cond (map? sources) (answer (vec sources))
+          code (answer [["<code>" code]])
+          (seq missing)
+          (host/failure
+            {:error {:message (str "check target does not exist: "
+                                   (str/join ", " missing)
+                                   " — relative paths resolve against the workspace root")
+                     :hint
+                     "pass an existing file/dir, or omit path/paths to check the whole project"}})
+          :else (answer (mapv (fn [f]
+                                [(relativize-path root f) (slurp f)])
+                              (expand-clj-source-files root
+                                                       (if (seq requested)
+                                                         (mapv under requested)
+                                                         (discover-project-source-paths root))
+                                                       syntax-source-exts))))))

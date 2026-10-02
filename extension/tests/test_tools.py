@@ -5,6 +5,7 @@ from pathlib import Path
 
 import blockether.vis.extension as vis
 import pytest
+from vis_lang_interface import Diagnostic
 
 from vis_lang_clojure import bridge
 
@@ -118,6 +119,73 @@ def test_a_clean_lint_of_a_source_string_says_so(tools):
     assert result.is_clean is True
     assert result.diagnostics == ()
     assert fake.sent("lint")["arg"] == {"code": "(inc 1)"}
+
+
+def test_a_syntax_check_reports_the_first_error_of_each_file(tools):
+    clj, fake = tools
+    fake.answer(
+        "check",
+        {
+            "language": "clojure",
+            "files": 2,
+            "problems": [
+                {
+                    "file": "src/a.clj",
+                    "line": 3,
+                    "column": 7,
+                    "message": "EOF while reading",
+                }
+            ],
+        },
+    )
+    result = clj.check_syntax(["src"], cwd=fake.cwd)
+    assert (result.language, result.files, result.is_clean) == ("clojure", 2, False)
+    assert result.diagnostics == (
+        Diagnostic("src/a.clj", 3, 7, "error", "EOF while reading"),
+    )
+    assert fake.sent("check")["arg"] == {"paths": ["src"]}
+
+
+def test_a_source_string_that_parses_is_clean(tools):
+    clj, fake = tools
+    fake.answer("check", {"language": "clojure", "files": 1, "problems": []})
+    result = clj.check_syntax(source="(inc 1)", cwd=fake.cwd)
+    assert (result.files, result.is_clean, result.diagnostics) == (1, True, ())
+    assert fake.sent("check")["arg"] == {"code": "(inc 1)"}
+
+
+def test_the_guard_check_sends_texts_to_the_project_process(fake):
+    from vis_lang_clojure.tools import check_sources
+
+    fake.answer(
+        "check",
+        {
+            "files": 1,
+            "problems": [
+                {
+                    "file": "src/a.clj",
+                    "line": 1,
+                    "column": 4,
+                    "message": "Unmatched delimiter: )",
+                }
+            ],
+        },
+    )
+    result = check_sources({"src/a.clj": "(a))"}, fake.directory)
+    sent = fake.sent("check")
+    assert sent["arg"] == {"sources": {"src/a.clj": "(a))"}}
+    assert sent["root"] == fake.cwd
+    assert [(row.path, row.line, row.column) for row in result.diagnostics] == [
+        ("src/a.clj", 1, 4)
+    ]
+
+
+def test_the_guard_check_asks_nothing_for_no_sources(fake):
+    from vis_lang_clojure.tools import check_sources
+
+    result = check_sources({}, fake.directory)
+    assert (result.files, result.is_clean) == (0, True)
+    assert fake.requests() == []
 
 
 def test_a_green_run_is_counted_the_way_the_runner_counted_it(tools):
@@ -522,6 +590,7 @@ def _knows_verification():
 def test_lint_and_test_runs_report_as_checks(monkeypatch):
     tags = _entrypoint_tags(monkeypatch)
     assert (tags["lint_code"], tags["run_tests"]) == ("verification", "verification")
+    assert tags["check_syntax"] == "verification"
     assert tags["format_code"] == "mutation"
 
 
@@ -530,6 +599,26 @@ def test_an_older_host_records_lint_and_test_runs_as_reads(monkeypatch):
     tags = _entrypoint_tags(monkeypatch)
     assert (tags["lint_code"], tags["run_tests"]) == ("observation", "observation")
     assert tags["repl_eval"] == "mutation"
+    assert tags["check_syntax"] == "observation"
+
+
+def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch):
+    registered = []
+    monkeypatch.setattr(vis, "register_extension", registered.append)
+    runpy.run_path(str(Path(__file__).resolve().parents[1] / "extension.py"))
+    extension = registered[0]
+    assert [(tuple(hook.ops), hook.phase) for hook in extension.op_hooks] == [
+        (("patch",), "before"),
+        (("python_execution",), "before"),
+        (("patch", "python_execution"), "after"),
+    ]
+    assert callable(extension.ctx)
+    guard = extension.ctx.__self__
+    assert guard.key == "clojure_syntax_errors"
+    assert all(
+        guard.covers(f"src/a{suffix}") for suffix in (".clj", ".cljs", ".cljc", ".edn")
+    )
+    assert not guard.covers("src/a.py")
 
 
 def test_every_tool_owns_an_activity_and_an_evaluation_shows_its_code(monkeypatch):

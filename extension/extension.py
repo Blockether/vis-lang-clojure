@@ -2,8 +2,14 @@
 
 import blockether.vis.extension as vis
 from vis_lang_interface import presentation, prompt
+from vis_lang_interface.syntax import SyntaxGuard
 
-from vis_lang_clojure.tools import ClojureTools
+from vis_lang_clojure.tools import (
+    LANGUAGE,
+    SYNTAX_SUFFIXES,
+    ClojureTools,
+    check_sources,
+)
 
 
 def _bind(name, label, build, *, tag="observation", show_start=True, describe=None):
@@ -44,6 +50,12 @@ _bind(
     "lint_code",
     "Lint Clojure code",
     lambda result: presentation.lint_presentation("Lint Clojure code", result),
+    tag=_CHECK,
+)
+_bind(
+    "check_syntax",
+    "Check Clojure syntax",
+    lambda result: presentation.syntax_presentation("Check Clojure syntax", result),
     tag=_CHECK,
 )
 _bind(
@@ -91,6 +103,7 @@ PROMPT = prompt.routing(
     (
         "format_code",
         "lint_code",
+        "check_syntax",
         "run_tests",
         "repl_start",
         "repl_status",
@@ -106,19 +119,27 @@ PROMPT = prompt.routing(
         " `(require ... :reload)` or stop the REPL first.",
         "`clj.lint_code` is clj-kondo and also reports the compiler's reflection warnings,"
         " which this toolchain treats as failures.",
+        "A `patch` that would leave a parseable Clojure or EDN file unparseable is refused"
+        " and writes nothing. A file that a Python block left unparseable stays in"
+        " `clojure_syntax_errors` in the session context until it parses again.",
     ),
 )
+
+# Keeps the files the Clojure reader reads parseable, across patches and Python writes.
+GUARD = SyntaxGuard(LANGUAGE, SYNTAX_SUFFIXES, check_sources)
 
 
 vis.register_extension(
     vis.Extension(
         name="vis-lang-clojure",
-        description="Clojure tools: zprint and cljfmt formatting, clj-kondo lint, test runs and an nREPL.",
+        description="Clojure tools: zprint and cljfmt formatting, clj-kondo lint, reader syntax checks, test runs and an nREPL.",
         version="1.7.2",
         alias="clj",
         symbols=[
             vis.Symbol(ClojureTools(workspace_root=vis.workspace_root), name="clj")
         ],
         prompt=PROMPT,
+        op_hooks=GUARD.op_hooks(),
+        ctx=GUARD.ctx,
     )
 )

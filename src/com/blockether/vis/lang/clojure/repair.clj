@@ -8,26 +8,8 @@
    file whose delimiters already balance is answered untouched."
   (:require [clojure.string :as str]
             [com.blockether.parinferish :as parinferish]
-            [com.blockether.parinferish.balance :as balance])
-  (:import (java.io PushbackReader StringReader)))
-
-(defn parses-clean?
-  "True when `source` reads as Clojure from end to end. Reader conditionals are
-   allowed and an unknown tagged literal reads as its value, so a perfectly good
-   `.cljc` file is never mistaken for a broken one. Evaluation stays off."
-  [^String source]
-  (binding [*read-eval*
-            false
-
-            *default-data-reader-fn*
-            (fn [_tag value]
-              value)]
-
-    (try (with-open [rdr (PushbackReader. (StringReader. (str source)))]
-           (loop []
-
-             (if (= ::eof (read {:read-cond :allow :eof ::eof} rdr)) true (recur))))
-         (catch Exception _ false))))
+            [com.blockether.parinferish.balance :as balance]
+            [com.blockether.vis.lang.clojure.syntax :as syntax]))
 
 (defn- balancer
   "The candidate repair: parinfer in INDENT mode, which trusts the indentation the
@@ -44,10 +26,10 @@
    mistake to look for, because a formatter that guesses which of the two happened is
    the corruption it was meant to prevent."
   [^String code]
-  (if (or (str/blank? (str code)) (parses-clean? code))
+  (if (or (str/blank? (str code)) (syntax/parses-clean? code))
     {:code code :repaired? false}
     (let [verdict (balance/rebalance {:balancer balancer
-                                      :parses-clean? parses-clean?
+                                      :parses-clean? syntax/parses-clean?
                                       :source code
                                       :spans [[1 (max 1 (count (str/split-lines code)))]]
                                       :subject "this file has"})]

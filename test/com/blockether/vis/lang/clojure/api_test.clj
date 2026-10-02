@@ -79,3 +79,41 @@
                  (let [envelope (api/clj-lint-fn {:workspace/root "."} {"paths" ["no/such/dir"]})]
                    (expect (false? (:success? envelope)))
                    (expect (str/includes? (get-in envelope [:error :message]) "no/such/dir")))))
+
+(defdescribe
+  clj-check-fn-test
+  (it "walks a directory for Clojure dialects and .edn, skipping build output"
+      (let [root (temp-dir)]
+        (spit (io/file root "a.clj") "(ns a)\n(defn f [x]\n")
+        (spit (io/file root "b.edn") "{:paths [\"src\"] :deps}")
+        (spit (io/file root "c.cljc") "(def x #?(:clj 1 :cljs 2))\n")
+        (spit (io/file root "notes.txt") "(not clojure")
+        (.mkdirs (io/file root "target"))
+        (spit (io/file root "target" "out.clj") "(stale")
+        (let [r (result (api/clj-check-fn {:workspace/root (str root)} {"paths" ["."]}))]
+          (expect (= "clojure" (get r "language")))
+          (expect (= 3 (get r "files")))
+          (expect (= [{"file" "a.clj"
+                       "line" 2
+                       "column" 12
+                       "message" "EOF while reading, starting at line 2"}
+                      {"file" "b.edn"
+                       "line" 1
+                       "column" 23
+                       "message" "Map literal must contain an even number of forms"}]
+                     (get r "problems"))))))
+  (it "checks texts under the paths they are given, without reading the disk"
+      (let [r (result (api/clj-check-fn {:workspace/root "."}
+                                        {"sources" {"src/new.clj" "(def s \"open)"
+                                                    "src/ok.clj" "(ok)"}}))]
+        (expect (= 2 (get r "files")))
+        (expect (=
+                  [{"file" "src/new.clj" "line" 1 "column" 14 "message" "EOF while reading string"}]
+                  (get r "problems")))))
+  (it "reports a clean code string with no problems"
+      (expect (= {"language" "clojure" "files" 1 "problems" []}
+                 (result (api/clj-check-fn {:workspace/root "."} "(def answer 42)")))))
+  (it "refuses a target that does not exist instead of reporting it clean"
+      (let [envelope (api/clj-check-fn {:workspace/root "."} {"paths" ["no/such/dir"]})]
+        (expect (false? (:success? envelope)))
+        (expect (str/includes? (get-in envelope [:error :message]) "no/such/dir")))))

@@ -17,6 +17,7 @@ from vis_lang_interface import (
     LintResult,
     ReplResult,
     ReplSession,
+    SyntaxResult,
     TestFailure,
     TestResult,
     line_changes,
@@ -38,6 +39,13 @@ MARKERS = (
 
 LEVELS = ("error", "warning", "info")
 
+# The files the library's reader checks: its `syntax-source-exts` in `api.clj`.
+SYNTAX_SUFFIXES = (".clj", ".cljs", ".cljc", ".cljx", ".bb", ".edn")
+
+# Seconds a syntax check waits. Reading takes milliseconds, so a longer wait
+# means the process is busy with another call, and the guard asking stops waiting.
+CHECK_TIMEOUT_S = 10.0
+
 
 def _root(cwd, paths=(), workspace_root=Path.cwd):
     """Find the nearest Clojure project in the current session working copy."""
@@ -57,6 +65,43 @@ def _diagnostic(finding):
         str(finding.get("message") or ""),
         str(finding.get("type") or finding.get("provider") or ""),
     )
+
+
+def _syntax(result):
+    """The library's `check` answer as a contract `SyntaxResult`."""
+    problems = tuple(
+        Diagnostic(
+            str(problem.get("file") or ""),
+            int(problem.get("line") or 0),
+            int(problem.get("column") or 0),
+            "error",
+            str(problem.get("message") or ""),
+        )
+        for problem in result.get("problems") or ()
+    )
+    return SyntaxResult.of(LANGUAGE, problems, result.get("files") or 0)
+
+
+def check_sources(sources, root):
+    """Ask the Clojure reader whether each text in `sources` parses.
+
+    This is the check a `SyntaxGuard` runs. `sources` maps a path, spelled the
+    way the result names it, to the text to read; nothing is read from disk. The
+    process of the project around the first path answers, so the guard shares
+    the process the other tools already use.
+
+    Raises:
+        ClojureError: The library refused the call, or its process stopped.
+        ToolTimeout: No answer came within `CHECK_TIMEOUT_S`.
+    """
+    texts = {str(path): str(text) for path, text in dict(sources).items()}
+    if not texts:
+        return SyntaxResult.of(LANGUAGE, (), 0)
+    directory = _root("", (next(iter(texts)),), lambda: root)
+    result = bridge.call(
+        "check", {"sources": texts}, root=directory, timeout_s=CHECK_TIMEOUT_S
+    )
+    return _syntax(result)
 
 
 def _failure(fault):
@@ -92,7 +137,7 @@ def _session(result, directory):
 
 
 class ClojureTools:
-    """Format, lint and test Clojure, and evaluate in a project nREPL."""
+    """Format, lint, syntax-check and test Clojure, and evaluate in a project nREPL."""
 
     def __init__(self, *, workspace_root=Path.cwd):
         """Keep a live root provider. Hosted tools receive the SDK function."""
@@ -156,6 +201,24 @@ class ClojureTools:
         result = bridge.call("lint", arg, root=root)
         findings = tuple(_diagnostic(one) for one in result.get("findings") or ())
         return LintResult.of(LANGUAGE, findings, result.get("files") or 0)
+
+    def check_syntax(
+        self,
+        paths: Annotated[list[str], "Files or directories to check."] = (),
+        *,
+        source: Annotated[str, "Check this text instead of files."] = "",
+        cwd: Annotated[str, "Project directory; inferred from paths when empty."] = "",
+    ) -> SyntaxResult:
+        """Check that Clojure and EDN files parse, with the Clojure reader itself.
+
+        Each file that does not parse reports its first error and where it is.
+        Nothing is evaluated or loaded: `#=` and reader tags are read as data,
+        and an alias needs no namespace. With no paths and no source, the
+        project's own source roots are checked.
+        """
+        root = self._root(cwd, tuple(paths))
+        arg = {"code": source} if source else ({"paths": list(paths)} if paths else {})
+        return _syntax(bridge.call("check", arg, root=root))
 
     def run_tests(
         self,

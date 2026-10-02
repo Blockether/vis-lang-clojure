@@ -14,7 +14,7 @@
    Answer:   {\"id\": \"7\", \"ok\": true, \"result\": …}
              {\"id\": \"7\", \"ok\": false, \"error\": {\"message\": …, \"hint\": …}}
 
-   Verbs: `format`, `lint`, `test`, `repl-eval`, `repl` (with `op`), `ping`."
+   Verbs: `format`, `lint`, `check`, `test`, `repl-eval`, `repl` (with `op`), `ping`."
   (:require [charred.api :as json]
             [clojure.string :as str]
             [com.blockether.vis.lang.clojure.api :as api]
@@ -78,6 +78,9 @@
            "lint"
            (envelope->answer id (api/clj-lint-fn env arg))
 
+           "check"
+           (envelope->answer id (api/clj-check-fn env arg))
+
            "test"
            (envelope->answer id (test-runner/clj-test-fn env arg))
 
@@ -90,7 +93,7 @@
            {"id" id
             "ok" false
             "error" {"message" (str "unknown verb " (pr-str verb))
-                     "hint" "verbs: ping, format, lint, test, repl-eval, repl"}})
+                     "hint" "verbs: ping, format, lint, check, test, repl-eval, repl"}})
          (catch Throwable e {"id" id "ok" false "error" (error-data e)}))))
 
 (defn stop-repls!
