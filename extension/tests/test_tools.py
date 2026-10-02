@@ -8,6 +8,7 @@ import pytest
 from vis_lang_interface import Diagnostic
 
 from vis_lang_clojure import bridge
+from vis_lang_clojure.tools import _check_syntax
 
 
 def test_formatting_a_source_string_returns_the_formatted_text(tools):
@@ -121,8 +122,7 @@ def test_a_clean_lint_of_a_source_string_says_so(tools):
     assert fake.sent("lint")["arg"] == {"code": "(inc 1)"}
 
 
-def test_a_syntax_check_reports_the_first_error_of_each_file(tools):
-    clj, fake = tools
+def test_a_syntax_check_reports_the_first_error_of_each_file(fake):
     fake.answer(
         "check",
         {
@@ -138,25 +138,23 @@ def test_a_syntax_check_reports_the_first_error_of_each_file(tools):
             ],
         },
     )
-    result = clj.check_syntax(["src"], cwd=fake.cwd)
+    sources = {"src/a.clj": "(a", "src/b.clj": "(b)"}
+    result = _check_syntax(sources, fake.directory)
     assert (result.language, result.files, result.is_clean) == ("clojure", 2, False)
     assert result.diagnostics == (
         Diagnostic("src/a.clj", 3, 7, "error", "EOF while reading"),
     )
-    assert fake.sent("check")["arg"] == {"paths": ["src"]}
+    assert fake.sent("check")["arg"] == {"sources": sources}
 
 
-def test_a_source_string_that_parses_is_clean(tools):
-    clj, fake = tools
+def test_a_source_string_that_parses_is_clean(fake):
     fake.answer("check", {"language": "clojure", "files": 1, "problems": []})
-    result = clj.check_syntax(source="(inc 1)", cwd=fake.cwd)
+    result = _check_syntax({"src/a.clj": "(inc 1)"}, fake.directory)
     assert (result.files, result.is_clean, result.diagnostics) == (1, True, ())
-    assert fake.sent("check")["arg"] == {"code": "(inc 1)"}
+    assert fake.sent("check")["arg"] == {"sources": {"src/a.clj": "(inc 1)"}}
 
 
 def test_the_guard_check_sends_texts_to_the_project_process(fake):
-    from vis_lang_clojure.tools import check_sources
-
     fake.answer(
         "check",
         {
@@ -171,7 +169,7 @@ def test_the_guard_check_sends_texts_to_the_project_process(fake):
             ],
         },
     )
-    result = check_sources({"src/a.clj": "(a))"}, fake.directory)
+    result = _check_syntax({"src/a.clj": "(a))"}, fake.directory)
     sent = fake.sent("check")
     assert sent["arg"] == {"sources": {"src/a.clj": "(a))"}}
     assert sent["root"] == fake.cwd
@@ -181,9 +179,7 @@ def test_the_guard_check_sends_texts_to_the_project_process(fake):
 
 
 def test_the_guard_check_asks_nothing_for_no_sources(fake):
-    from vis_lang_clojure.tools import check_sources
-
-    result = check_sources({}, fake.directory)
+    result = _check_syntax({}, fake.directory)
     assert (result.files, result.is_clean) == (0, True)
     assert fake.requests() == []
 
@@ -590,7 +586,7 @@ def _knows_verification():
 def test_lint_and_test_runs_report_as_checks(monkeypatch):
     tags = _entrypoint_tags(monkeypatch)
     assert (tags["lint_code"], tags["run_tests"]) == ("verification", "verification")
-    assert tags["check_syntax"] == "verification"
+    assert "check_syntax" not in tags
     assert tags["format_code"] == "mutation"
 
 
@@ -599,11 +595,39 @@ def test_an_older_host_records_lint_and_test_runs_as_reads(monkeypatch):
     tags = _entrypoint_tags(monkeypatch)
     assert (tags["lint_code"], tags["run_tests"]) == ("observation", "observation")
     assert tags["repl_eval"] == "mutation"
-    assert tags["check_syntax"] == "observation"
+    assert "check_syntax" not in tags
 
 
-def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch):
+def test_syntax_check_is_not_exported_or_advertised(monkeypatch):
     registered = []
+    monkeypatch.setattr(vis, "register_extension", registered.append)
+    runpy.run_path(str(Path(__file__).resolve().parents[1] / "extension.py"))
+    extension = registered[0]
+    members = extension.symbols[0].contract["members"]
+    assert "clj.check_syntax" not in {member["name"] for member in members}
+    assert not hasattr(extension.symbols[0].fn, "check_syntax")
+    assert "check_syntax" not in extension.prompt
+
+
+def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch, tmp_path):
+    registered = []
+    calls = []
+    (tmp_path / "deps.edn").write_text("{}\n")
+    path = tmp_path / "core.clj"
+    path.write_text("(a)\n")
+
+    def check(verb, arg, *, root, timeout_s):
+        calls.append((verb, arg, root, timeout_s))
+        problems = [
+            {"file": name, "line": 1, "column": 3, "message": "EOF while reading"}
+            for name, text in arg["sources"].items()
+            if text == "(a"
+        ]
+        return {"files": len(arg["sources"]), "problems": problems}
+
+    monkeypatch.setattr(bridge, "call", check)
+    monkeypatch.setattr(vis, "workspace_root", lambda: tmp_path)
+    monkeypatch.setattr(vis, "state", {})
     monkeypatch.setattr(vis, "register_extension", registered.append)
     runpy.run_path(str(Path(__file__).resolve().parents[1] / "extension.py"))
     extension = registered[0]
@@ -619,6 +643,16 @@ def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch):
         guard.covers(f"src/a{suffix}") for suffix in (".clj", ".cljs", ".cljc", ".edn")
     )
     assert not guard.covers("src/a.py")
+    preview = {"path": str(path), "before": "(a)\n", "after": "(a"}
+    refusal = extension.op_hooks[0].fn({"op": "patch", "preview": preview})
+    assert refusal["marker"] == "block"
+    assert path.read_text() == "(a)\n"
+    assert calls[0][:3] == ("check", {"sources": {str(path): "(a"}}, str(tmp_path))
+    assert calls[1][1] == {"sources": {str(path): "(a)\n"}}
+    assert (
+        extension.op_hooks[0].fn({"preview": {**preview, "path": "example.py"}}) is None
+    )
+    assert len(calls) == 2
 
 
 def test_every_tool_owns_an_activity_and_an_evaluation_shows_its_code(monkeypatch):

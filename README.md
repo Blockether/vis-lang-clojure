@@ -24,8 +24,6 @@ library itself is fetched from Clojars the first time a tool runs.
 clj.format_code(["src"])                         # zprint, or cljfmt when that is the project's config
 clj.format_code(source="(defn f [x](* x 2))")    # format a snippet, nothing written
 clj.lint_code(["src"])                           # clj-kondo + reflection warnings
-clj.check_syntax(["src"])                        # the Clojure reader; nothing is evaluated
-clj.check_syntax(source="(defn f [x]")           # check text before you write it
 clj.run_tests(["test"])                          # Lazytest and clojure.test
 clj.run_tests(["test/app/core_test.clj::adds"])  # one test
 clj.repl_start(cwd="~/app", aliases=["dev"])     # a project nREPL for this session
@@ -38,9 +36,10 @@ Tests reuse a running REPL when there is one, and otherwise run in a clean JVM.
 
 ## Keep files parseable
 
-The extension checks every `.clj`, `.cljs`, `.cljc`, `.cljx`, `.bb` and `.edn` file in the
-workspace with the Clojure reader. The reader only reads: `#=` and record literals are reported,
-not evaluated. Other reader tags stay data, and an alias needs no loaded namespace.
+Syntax checks run automatically through edit hooks, not through a public tool.
+The extension checks changed `.clj`, `.cljs`, `.cljc`, `.cljx`, `.bb` and `.edn` files with the
+Clojure reader. The reader only reads: `#=` and record literals are reported, not evaluated.
+Other reader tags stay data, and an alias needs no loaded namespace.
 
 - A `patch` that would make a parseable file unparseable is refused, and nothing is written.
 - After every `python_execution` block, the changed files are read again. A file that a Python

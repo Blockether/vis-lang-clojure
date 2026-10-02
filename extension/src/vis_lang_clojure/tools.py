@@ -82,7 +82,7 @@ def _syntax(result):
     return SyntaxResult.of(LANGUAGE, problems, result.get("files") or 0)
 
 
-def check_sources(sources, root):
+def _check_syntax(sources, root):
     """Ask the Clojure reader whether each text in `sources` parses.
 
     This is the check a `SyntaxGuard` runs. `sources` maps a path, spelled the
@@ -201,25 +201,6 @@ class ClojureTools:
         result = bridge.call("lint", arg, root=root)
         findings = tuple(_diagnostic(one) for one in result.get("findings") or ())
         return LintResult.of(LANGUAGE, findings, result.get("files") or 0)
-
-    def check_syntax(
-        self,
-        paths: Annotated[list[str], "Files or directories to check."] = (),
-        *,
-        source: Annotated[str, "Check this text instead of files."] = "",
-        cwd: Annotated[str, "Project directory; inferred from paths when empty."] = "",
-    ) -> SyntaxResult:
-        """Check that Clojure and EDN files parse, with the Clojure reader itself.
-
-        Each file that does not parse reports its first error and where it is.
-        Nothing is evaluated or loaded: `#=` and record literals are reported
-        instead of evaluated, other reader tags read as data, and an alias needs
-        no namespace. With no paths and no source, the project's own source roots
-        are checked.
-        """
-        root = self._root(cwd, tuple(paths))
-        arg = {"code": source} if source else ({"paths": list(paths)} if paths else {})
-        return _syntax(bridge.call("check", arg, root=root))
 
     def run_tests(
         self,

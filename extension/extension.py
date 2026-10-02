@@ -8,7 +8,7 @@ from vis_lang_clojure.tools import (
     LANGUAGE,
     SYNTAX_SUFFIXES,
     ClojureTools,
-    check_sources,
+    _check_syntax,
 )
 
 
@@ -50,12 +50,6 @@ _bind(
     "lint_code",
     "Lint Clojure code",
     lambda result: presentation.lint_presentation("Lint Clojure code", result),
-    tag=_CHECK,
-)
-_bind(
-    "check_syntax",
-    "Check Clojure syntax",
-    lambda result: presentation.syntax_presentation("Check Clojure syntax", result),
     tag=_CHECK,
 )
 _bind(
@@ -103,7 +97,6 @@ PROMPT = prompt.routing(
     (
         "format_code",
         "lint_code",
-        "check_syntax",
         "run_tests",
         "repl_start",
         "repl_status",
@@ -126,7 +119,7 @@ PROMPT = prompt.routing(
 )
 
 # Keeps the files the Clojure reader reads parseable, across patches and Python writes.
-GUARD = SyntaxGuard(LANGUAGE, SYNTAX_SUFFIXES, check_sources)
+GUARD = SyntaxGuard(LANGUAGE, SYNTAX_SUFFIXES, _check_syntax)
 
 
 vis.register_extension(

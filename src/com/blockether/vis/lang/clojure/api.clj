@@ -745,7 +745,7 @@
                                  (assoc "targets" (vec targets)))})))))
 
 (defn clj-check-fn
-  "The Clojure reader's verdict for the `check` verb (`clj.check_syntax`). Accepts:
+  "The Clojure reader's verdict for the edit hook's `check` verb. Accepts:
      - {\"sources\": {path text}}           -> check those texts, under those paths
      - a raw code string / {\"code\": ...}  -> check it, reported as `<code>`
      - {\"path\": ...} / {\"paths\": [...]} -> check those files and directories
