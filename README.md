@@ -6,9 +6,8 @@ Use this extension to [format, lint, test and evaluate Clojure](#tools) from Vis
 To catch or repair broken source after edits, see [Keep files parseable](#keep-files-parseable).
 For the shared language result types, see [vis-lang-interface](https://github.com/Blockether/vis-lang-interface).
 
-Formatting, lint, tests, evaluation and full reader validation use a Clojure library published to Clojars.
-Structural repair runs locally in Python. It proposes changes without starting a JVM.
-The full Clojure reader must still accept each repair before a hook can use it.
+Formatting, lint, tests and evaluation use a Clojure library published to Clojars.
+Syntax checks and structural repair run locally in Python, without a JVM.
 
 ## Install
 
@@ -17,7 +16,8 @@ vis-agent extension install Blockether/vis-lang-clojure --subdirectory extension
 ```
 
 You need the [Clojure CLI](https://clojure.org/guides/install_clojure) and a JDK on `PATH`. The
-library itself is fetched from Clojars the first time a tool runs.
+library itself is fetched from Clojars the first time a tool runs. Syntax checks and repairs do
+not need them.
 
 ## Tools
 
@@ -38,9 +38,11 @@ Tests reuse a running REPL when there is one, and otherwise run in a clean JVM.
 ## Keep files parseable
 
 Syntax checks run automatically through edit hooks, not through a public tool.
-The extension checks changed `.clj`, `.cljs`, `.cljc`, `.cljx`, `.bb` and `.edn` files with the
-Clojure reader. The reader only reads: `#=` and record literals are reported, not evaluated.
+The extension checks changed `.clj`, `.cljs`, `.cljc`, `.cljx`, `.bb` and `.edn` files with a
+Python port of the Clojure reader. Tests compare its verdicts with Clojure's own reader.
+The reader only reads: `#=` and record literals are reported, not evaluated.
 Other reader tags stay data, and an alias needs no loaded namespace.
+A few extreme inputs, such as very deep nesting, get no verdict and count as readable.
 
 - `format_code` changes layout only. It does not repair broken structure.
 - Before a `patch` writes, the guard tries a conservative repair of the complete proposed file.
@@ -54,7 +56,6 @@ Other reader tags stay data, and an alias needs no loaded namespace.
 
 Most repairs only add missing delimiters. The original text can also prove a narrow closer or quote correction.
 A generic deletion, a retyped delimiter or a change to unrelated code is refused.
-The local engine does not replace full reader validation, which still needs a JVM.
 This workflow needs a Vis host that supports repair decisions from operation hooks.
 
 The guard is `SyntaxGuard` from
@@ -67,7 +68,7 @@ which describes the shared rules.
 of its own —
 
 ```
-clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.10.0"}}}' -Spath
+clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.11.0"}}}' -Spath
 ```
 
 — and then runs
@@ -81,9 +82,9 @@ once per project root, inside that project. Resolving away from the project is d
 on, so a project pinning an older Clojure — or one whose dependencies come from a repository the
 tools cannot reach — still formats, lints and tests. The two sides exchange one JSON object per
 line with each other. The Clojure side
-(`src/com/blockether/vis/lang/clojure/`) runs the language tools and the full reader.
+(`src/com/blockether/vis/lang/clojure/`) runs the language tools.
 The Python side maps results to
-[vis-lang-interface](https://github.com/Blockether/vis-lang-interface) types and owns structural repair.
+[vis-lang-interface](https://github.com/Blockether/vis-lang-interface) types and owns syntax checks and structural repair.
 
 ## Inside a Vis sandbox
 

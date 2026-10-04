@@ -122,66 +122,36 @@ def test_a_clean_lint_of_a_source_string_says_so(tools):
     assert fake.sent("lint")["arg"] == {"code": "(inc 1)"}
 
 
-def test_a_syntax_check_reports_the_first_error_of_each_file(fake):
-    fake.answer(
-        "check",
-        {
-            "language": "clojure",
-            "files": 2,
-            "problems": [
-                {
-                    "file": "src/a.clj",
-                    "line": 3,
-                    "column": 7,
-                    "message": "EOF while reading",
-                }
-            ],
-        },
-    )
-    sources = {"src/a.clj": "(a", "src/b.clj": "(b)"}
+def test_a_syntax_check_reports_where_each_file_stops_reading(fake):
+    sources = {"z.edn": "{:a}", "ok.cljc": "#?(:clj 1)", "a.clj": "(a"}
     result = _check_syntax(sources, fake.directory)
-    assert (result.language, result.files, result.is_clean) == ("clojure", 2, False)
+    assert (result.language, result.files, result.is_clean) == ("clojure", 3, False)
     assert result.diagnostics == (
-        Diagnostic("src/a.clj", 3, 7, "error", "EOF while reading"),
+        Diagnostic("a.clj", 1, 3, "error", "EOF while reading, starting at line 1"),
+        Diagnostic(
+            "z.edn", 1, 5, "error", "Map literal must contain an even number of forms"
+        ),
     )
-    assert fake.sent("check")["arg"] == {"sources": sources}
 
 
 def test_a_source_string_that_parses_is_clean(fake):
-    fake.answer("check", {"language": "clojure", "files": 1, "problems": []})
     result = _check_syntax({"src/a.clj": "(inc 1)"}, fake.directory)
     assert (result.files, result.is_clean, result.diagnostics) == (1, True, ())
-    assert fake.sent("check")["arg"] == {"sources": {"src/a.clj": "(inc 1)"}}
 
 
-def test_the_guard_check_sends_texts_to_the_project_process(fake):
-    fake.answer(
-        "check",
-        {
-            "files": 1,
-            "problems": [
-                {
-                    "file": "src/a.clj",
-                    "line": 1,
-                    "column": 4,
-                    "message": "Unmatched delimiter: )",
-                }
-            ],
-        },
+def test_the_guard_check_reads_without_a_jvm(fake):
+    result = _check_syntax(
+        {"src/a.clj": "(a))", "src/b.cljs": "#js {}"}, fake.directory
     )
-    result = _check_syntax({"src/a.clj": "(a))"}, fake.directory)
-    sent = fake.sent("check")
-    assert sent["arg"] == {"sources": {"src/a.clj": "(a))"}}
-    assert sent["root"] == fake.cwd
-    assert [(row.path, row.line, row.column) for row in result.diagnostics] == [
-        ("src/a.clj", 1, 4)
+    assert [(row.path, row.message) for row in result.diagnostics] == [
+        ("src/a.clj", "Unmatched delimiter: )")
     ]
+    assert fake.requests() == []
 
 
-def test_the_guard_check_asks_nothing_for_no_sources(fake):
+def test_the_guard_check_answers_clean_for_no_sources(fake):
     result = _check_syntax({}, fake.directory)
     assert (result.files, result.is_clean) == (0, True)
-    assert fake.requests() == []
 
 
 def test_a_green_run_is_counted_the_way_the_runner_counted_it(tools):
@@ -616,16 +586,7 @@ def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch, tmp_path):
     path = tmp_path / "core.clj"
     path.write_text("(a)\n")
 
-    def check(verb, arg, *, root, timeout_s):
-        calls.append((verb, arg, root, timeout_s))
-        problems = [
-            {"file": name, "line": 1, "column": 3, "message": "EOF while reading"}
-            for name, text in arg["sources"].items()
-            if text == "(a"
-        ]
-        return {"files": len(arg["sources"]), "problems": problems}
-
-    monkeypatch.setattr(bridge, "call", check)
+    monkeypatch.setattr(bridge, "call", lambda *args, **kwargs: calls.append(args))
     monkeypatch.setattr(vis, "workspace_root", lambda: tmp_path)
     monkeypatch.setattr(vis, "state", {})
     monkeypatch.setattr(vis, "register_extension", registered.append)
@@ -647,12 +608,11 @@ def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch, tmp_path):
     refusal = extension.op_hooks[0].fn({"op": "patch", "preview": preview})
     assert refusal["marker"] == "block"
     assert path.read_text() == "(a)\n"
-    assert calls[0][:3] == ("check", {"sources": {str(path): "(a"}}, str(tmp_path))
-    assert calls[1][1] == {"sources": {str(path): "(a)\n"}}
     assert (
         extension.op_hooks[0].fn({"preview": {**preview, "path": "example.py"}}) is None
     )
-    assert len(calls) == 2
+    # The reader runs in Python, so a syntax check never starts the JVM bridge.
+    assert calls == []
 
 
 def test_every_tool_owns_an_activity_and_an_evaluation_shows_its_code(monkeypatch):

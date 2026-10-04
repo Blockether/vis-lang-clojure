@@ -11,5 +11,6 @@ a Clojure library on Clojars and a Python extension in `extension/` that owns st
 - ClojureScript tests run only through a shadow-cljs build (`shadow_cljs.clj`), and only where a `shadow-cljs.edn` claims them. `clojure -M:test` cannot load a `*_test.cljs`. In a bare run, the project's own runner handles a test outside every shadow-cljs project.
 - shadow-cljs can exit with zero without compiling anything, and its Node autorun drops the test exit status. Judge a run by its printed counts, not only by its exit code. `test_runner.clj` passes a run only on a complete summary with at least one test and no failures or errors.
 - Format with zprint and this repository's `.zprint.edn`. Lint with clj-kondo. Reflection warnings are errors here, because the code must run in a native image.
-- Do not add tree-sitter or syntax highlighting. Structural repair must pass the full Clojure reader before a hook accepts it.
+- Do not add tree-sitter or syntax highlighting. Structural repair must pass `reader.py` before a hook accepts it.
+- `reader.py` and `_jregex.py` must give the verdicts of Clojure's reader and Java's `Pattern`. Add each new case to `extension/tests/fixtures/`, and run `clojure -M:test` to check it on the JVM.
 - Never leave a JVM behind. Own, reap and report every REPL and test subprocess.

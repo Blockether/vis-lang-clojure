@@ -1,4 +1,4 @@
-"""Propose local structural repairs, then require the full Clojure reader."""
+"""Propose local structural repairs, then require that the source reads."""
 
 from dataclasses import dataclass
 

@@ -36,8 +36,13 @@ jobs:
         run: clojure -M:test
 
   extension:
-    name: ruff + pytest
+    name: ruff + pytest (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The lowest supported Python and the Python of the Vis runtime.
+        python: ["3.11", "3.14"]
     defaults:
       run:
         working-directory: extension
@@ -45,7 +50,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python }}
           enable-cache: true
       - name: Install the declared dependencies
         run: uv sync

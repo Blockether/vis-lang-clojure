@@ -114,7 +114,7 @@ PROMPT = prompt.routing(
         "`clj.lint_code` runs clj-kondo and also reports compiler reflection warnings as failures.",
         "`clj.format_code` changes layout only. Structural repair runs through operation hooks.",
         "`patch` validates repairs before one atomic write and reports each correction.",
-        "The repair engine is local Python. Full validation still uses the Clojure reader.",
+        "Syntax checks and repairs run in local Python, without a JVM.",
         "Python file writes are checked after the block, without a transaction or rollback.",
         "Repairs appear in `clojure_syntax_repairs`; unresolved files stay in `clojure_syntax_errors`.",
     ),
@@ -128,7 +128,7 @@ vis.register_extension(
     vis.Extension(
         name="vis-lang-clojure",
         description="Clojure tools: zprint and cljfmt formatting, clj-kondo lint, reader syntax checks, test runs and an nREPL.",
-        version="1.10.0",
+        version="1.11.0",
         alias="clj",
         symbols=[
             vis.Symbol(ClojureTools(workspace_root=vis.workspace_root), name="clj")

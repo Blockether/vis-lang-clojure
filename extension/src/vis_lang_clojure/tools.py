@@ -2,7 +2,8 @@
 
 Ordinary Python: every method takes plain arguments and returns a contract
 result from `vis_lang_interface`. The same calls work in a script, in a test and
-from Vis. The Clojure library does the work itself, one JSON request away.
+from Vis. The Clojure library does the work itself, one JSON request away. The
+syntax check is the exception: `reader` reads source in Python, without a JVM.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from vis_lang_interface import (
     project_root,
 )
 
-from vis_lang_clojure import bridge
+from vis_lang_clojure import bridge, reader
 
 LANGUAGE = "clojure"
 
@@ -39,12 +40,8 @@ MARKERS = (
 
 LEVELS = ("error", "warning", "info")
 
-# The files the library's reader checks: its `syntax-source-exts` in `api.clj`.
+# The files the reader checks: Clojure, ClojureScript, shared, Babashka and EDN.
 SYNTAX_SUFFIXES = (".clj", ".cljs", ".cljc", ".cljx", ".bb", ".edn")
-
-# Seconds a syntax check waits. Reading takes milliseconds, so a longer wait
-# means the process is busy with another call, and the guard asking stops waiting.
-CHECK_TIMEOUT_S = 10.0
 
 
 def _root(cwd, paths=(), workspace_root=Path.cwd):
@@ -67,41 +64,23 @@ def _diagnostic(finding):
     )
 
 
-def _syntax(result):
-    """The library's `check` answer as a contract `SyntaxResult`."""
-    problems = tuple(
-        Diagnostic(
-            str(problem.get("file") or ""),
-            int(problem.get("line") or 0),
-            int(problem.get("column") or 0),
-            "error",
-            str(problem.get("message") or ""),
-        )
-        for problem in result.get("problems") or ()
-    )
-    return SyntaxResult.of(LANGUAGE, problems, result.get("files") or 0)
-
-
 def _check_syntax(sources, root):
-    """Ask the Clojure reader whether each text in `sources` parses.
+    """Read each text in `sources` with the Python port of Clojure's reader.
 
     This is the check a `SyntaxGuard` runs. `sources` maps a path, spelled the
-    way the result names it, to the text to read; nothing is read from disk. The
-    process of the project around the first path answers, so the guard shares
-    the process the other tools already use.
-
-    Raises:
-        ClojureError: The library refused the call, or its process stopped.
-        ToolTimeout: No answer came within `CHECK_TIMEOUT_S`.
+    way the result names it, to the text to read. Nothing is read from disk and no
+    JVM starts, so `root` is not used. Each text that does not read gives one error:
+    where the reader stopped, as `reader.problem` reports it.
     """
     texts = {str(path): str(text) for path, text in dict(sources).items()}
-    if not texts:
-        return SyntaxResult.of(LANGUAGE, (), 0)
-    directory = _root("", (next(iter(texts)),), lambda: root)
-    result = bridge.call(
-        "check", {"sources": texts}, root=directory, timeout_s=CHECK_TIMEOUT_S
-    )
-    return _syntax(result)
+    problems = []
+    for path in sorted(texts):
+        found = reader.problem(texts[path])
+        if found is not None:
+            problems.append(
+                Diagnostic(path, found.line, found.column, "error", found.message)
+            )
+    return SyntaxResult.of(LANGUAGE, tuple(problems), len(texts))
 
 
 def _failure(fault):

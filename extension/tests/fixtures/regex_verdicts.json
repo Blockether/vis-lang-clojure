@@ -1,0 +1,3630 @@
+[
+  {
+    "pattern": "[&&](?i:(?<=\\Q\\D*",
+    "problem": "Bad class syntax near index 2"
+  },
+  {
+    "pattern": "[&&]*?\ud83d\ude00\\",
+    "problem": "Bad class syntax near index 2"
+  },
+  {
+    "pattern": "\\B\\2[&&]\\b\\x41",
+    "problem": "Bad class syntax near index 6"
+  },
+  {
+    "pattern": "]\\b?[&&](?-i)\\p{L}",
+    "problem": "Bad class syntax near index 6"
+  },
+  {
+    "pattern": "\\d\\P{Lu}[&&]",
+    "problem": "Bad class syntax near index 10"
+  },
+  {
+    "pattern": "\\t[a-{1}[&&]\\D",
+    "problem": "Bad class syntax near index 10"
+  },
+  {
+    "pattern": "\\x41].\\p{IsLatin}[&&]\\p{L}",
+    "problem": "Bad class syntax near index 19"
+  },
+  {
+    "pattern": "1\\Z[&&]\\b\\d[a&&]",
+    "problem": "Bad class syntax near index 5"
+  },
+  {
+    "pattern": "\\07}[&&]",
+    "problem": "Bad class syntax near index 6"
+  },
+  {
+    "pattern": "[&&](?<1>",
+    "problem": "Bad class syntax near index 2"
+  },
+  {
+    "pattern": "\\A[&&](?>",
+    "problem": "Bad class syntax near index 4"
+  },
+  {
+    "pattern": "(?x)[&&]\\08",
+    "problem": "Bad class syntax near index 6"
+  },
+  {
+    "pattern": "\\v[:alpha:][&&]9{1}",
+    "problem": "Bad class syntax near index 13"
+  },
+  {
+    "pattern": "[&&](?<!",
+    "problem": "Bad class syntax near index 2"
+  },
+  {
+    "pattern": "\\-|([&&]\\E",
+    "problem": "Bad class syntax near index 6"
+  },
+  {
+    "pattern": "*?[\\d-z]",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "*?#)\\p{InGreek}\\p{IsEmoji}",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "*#\\t1\\Z\\e",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "]\\w{1,2}*?",
+    "problem": "Dangling meta character '*' near index 8"
+  },
+  {
+    "pattern": "*?\\1(?i)",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "*?\\y\\k<\\08\\u0041\\N{",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "(?<a>*[a-\\Q\\07",
+    "problem": "Dangling meta character '*' near index 5"
+  },
+  {
+    "pattern": "*\\u004{2,1}",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "*? ",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "(?-i)*?(?<a>\\c",
+    "problem": "Dangling meta character '*' near index 5"
+  },
+  {
+    "pattern": "*?\\u0041(?<!}0",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "*?(?:\\p{Foo}",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "*(?<b>1",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "*?\\pL\\A.(?!(",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "*b\\x4",
+    "problem": "Dangling meta character '*' near index 0"
+  },
+  {
+    "pattern": "+\\x4",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "++(?[\\d-z](?<!?",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "++\\p{",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "+\\0400\\u004\\v",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "++\\Zaa)",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "+\ud83d\ude00",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "\\z+++1",
+    "problem": "Dangling meta character '+' near index 4"
+  },
+  {
+    "pattern": "{1,2}?+(?>",
+    "problem": "Dangling meta character '+' near index 6"
+  },
+  {
+    "pattern": "+\\t",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "+\\1\\d",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "+\\t[^\\P{Lu}(?-i)",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "++{9999999999}",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "++&&{,{2,1}}",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "+[a-\\d]\\N{",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "++\\p{IsLatin}*?[^a]",
+    "problem": "Dangling meta character '+' near index 0"
+  },
+  {
+    "pattern": "?|\\1",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?+(?i)^{,[a-\\p{IsLatin}",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?{1,}[z-a]",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?{9999999999}(?!\\G",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?+[a&&b]\\p{L}",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?+}(?<1>*?",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?+\\H(?i:[a-",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?+[a-\\d]a\\x41{9999999999}\\w",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?\\H\\D",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?+\\u004(?<a>&&(?<!(?<!",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?\\Z(?!\\u0041",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?\ud83d\ude00\\x{41}",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?+\\y",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?+{1,}(?:\n[&&](?-i)",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "?\\p{IsLatin}\\x{41}(?=\\N{LATIN SMALL LETTER A}\\2",
+    "problem": "Dangling meta character '?' near index 0"
+  },
+  {
+    "pattern": "[\\d-z]*?\\p{}(?<a>",
+    "problem": "Empty character family near index 11"
+  },
+  {
+    "pattern": "\\p{}\\pL(\\cA(?q)",
+    "problem": "Empty character family near index 3"
+  },
+  {
+    "pattern": "\\p{}\\u004\\[",
+    "problem": "Empty character family near index 3"
+  },
+  {
+    "pattern": "\\x{110000} \\p{InGreek}\\cA\\E",
+    "problem": "Hexadecimal codepoint is too big near index 8"
+  },
+  {
+    "pattern": "\\p{IsLatin}\\x{110000}(?!",
+    "problem": "Hexadecimal codepoint is too big near index 19"
+  },
+  {
+    "pattern": "\\x{110000}\\b{g}",
+    "problem": "Hexadecimal codepoint is too big near index 8"
+  },
+  {
+    "pattern": "\\A\\x{110000}\\p{IsLatin}\\u004\\E",
+    "problem": "Hexadecimal codepoint is too big near index 10"
+  },
+  {
+    "pattern": "9\u00e9\\x{110000}",
+    "problem": "Hexadecimal codepoint is too big near index 10"
+  },
+  {
+    "pattern": "\\x{110000}{1,9999999999}\\h",
+    "problem": "Hexadecimal codepoint is too big near index 8"
+  },
+  {
+    "pattern": "a\\x{41}\ud83d\ude00\\v\\s\\x{110000}",
+    "problem": "Hexadecimal codepoint is too big near index 20"
+  },
+  {
+    "pattern": "\\x{110000}\\p{IsEmoji}#",
+    "problem": "Hexadecimal codepoint is too big near index 8"
+  },
+  {
+    "pattern": "\n\\x{110000}\\B",
+    "problem": "Hexadecimal codepoint is too big near index 9"
+  },
+  {
+    "pattern": "\\x{110000}{,?\ud83d\ude00",
+    "problem": "Hexadecimal codepoint is too big near index 8"
+  },
+  {
+    "pattern": "(?={1}\\07\\s\\x{110000}",
+    "problem": "Hexadecimal codepoint is too big near index 19"
+  },
+  {
+    "pattern": "\\x41&&\\x{110000}{,\\Z[a-z]",
+    "problem": "Hexadecimal codepoint is too big near index 14"
+  },
+  {
+    "pattern": "\\N{LATIN SMALL LETTER A}\\x41[a-z]\\x{110000}$",
+    "problem": "Hexadecimal codepoint is too big near index 41"
+  },
+  {
+    "pattern": "}[a-z]}\\x{110000}\\G",
+    "problem": "Hexadecimal codepoint is too big near index 15"
+  },
+  {
+    "pattern": "\\z(?i:\\b{g}\\x{110000}",
+    "problem": "Hexadecimal codepoint is too big near index 19"
+  },
+  {
+    "pattern": "\\u004[a-z]?+|\\Q[",
+    "problem": "Illegal Unicode escape sequence near index 5"
+  },
+  {
+    "pattern": "\\A\\u004-[a-\\d]\n",
+    "problem": "Illegal Unicode escape sequence near index 7"
+  },
+  {
+    "pattern": "[\\d-z]\\u004",
+    "problem": "Illegal Unicode escape sequence near index 11"
+  },
+  {
+    "pattern": "\\u004\\k<\\w",
+    "problem": "Illegal Unicode escape sequence near index 5"
+  },
+  {
+    "pattern": "\\h\\u004\\p{-",
+    "problem": "Illegal Unicode escape sequence near index 7"
+  },
+  {
+    "pattern": "\\u004\\k<a>[a&&]\\N{[a-{,",
+    "problem": "Illegal Unicode escape sequence near index 5"
+  },
+  {
+    "pattern": "\\u004}\\H\\N{LATIN SMALL LETTER A}[a-\\b",
+    "problem": "Illegal Unicode escape sequence near index 5"
+  },
+  {
+    "pattern": "\\A\\u004(?<b>(?=",
+    "problem": "Illegal Unicode escape sequence near index 7"
+  },
+  {
+    "pattern": "\\v\\u004",
+    "problem": "Illegal Unicode escape sequence near index 7"
+  },
+  {
+    "pattern": "\\u004\\p{L}\\d\\07[^",
+    "problem": "Illegal Unicode escape sequence near index 5"
+  },
+  {
+    "pattern": "\\u004\\y*?[",
+    "problem": "Illegal Unicode escape sequence near index 5"
+  },
+  {
+    "pattern": "\\[{1,2}\\u004\\t\\p{Foo}\\B",
+    "problem": "Illegal Unicode escape sequence near index 12"
+  },
+  {
+    "pattern": "[a-[a-z]\\u004",
+    "problem": "Illegal Unicode escape sequence near index 13"
+  },
+  {
+    "pattern": "\\u004\\\\p{",
+    "problem": "Illegal Unicode escape sequence near index 5"
+  },
+  {
+    "pattern": "\\u004{2,1}\\2(?<a>(?!",
+    "problem": "Illegal Unicode escape sequence near index 5"
+  },
+  {
+    "pattern": "^[a-\\d](?x)(?<b>{2,1}[z-a]",
+    "problem": "Illegal character range near index 5"
+  },
+  {
+    "pattern": "[z-a][\\d-z][]\\p{\\-|",
+    "problem": "Illegal character range near index 3"
+  },
+  {
+    "pattern": "\\[\\R[z-a]",
+    "problem": "Illegal character range near index 7"
+  },
+  {
+    "pattern": "|0\\h\\cA\\e[z-a]",
+    "problem": "Illegal character range near index 12"
+  },
+  {
+    "pattern": "[:alpha:](?<b>[z-a]",
+    "problem": "Illegal character range near index 17"
+  },
+  {
+    "pattern": "\\u0041[a-(?<=\u00e9",
+    "problem": "Illegal character range near index 9"
+  },
+  {
+    "pattern": "[a-\\d](?=\\G\\v{1,2}",
+    "problem": "Illegal character range near index 4"
+  },
+  {
+    "pattern": "\\P{Lu}(?<a>\\b{g}\\X\\X[a-",
+    "problem": "Illegal character range near index 23"
+  },
+  {
+    "pattern": "[a-[:alpha:][^[a-\\d](?u\\y",
+    "problem": "Illegal character range near index 18"
+  },
+  {
+    "pattern": "\\x{41}$[z-a]",
+    "problem": "Illegal character range near index 10"
+  },
+  {
+    "pattern": "(?:}(?-i)[a-\\d]\\-",
+    "problem": "Illegal character range near index 13"
+  },
+  {
+    "pattern": "\\p{IsEmoji}\\pL[a-\\d](?u(?i)",
+    "problem": "Illegal character range near index 18"
+  },
+  {
+    "pattern": "\\s(?-i)a[a-\\d]",
+    "problem": "Illegal character range near index 12"
+  },
+  {
+    "pattern": "(?:[a-\\\\x{41}\\k<a>\\b{g}",
+    "problem": "Illegal character range near index 7"
+  },
+  {
+    "pattern": "[z-a](?q){1}",
+    "problem": "Illegal character range near index 3"
+  },
+  {
+    "pattern": "\\w{1,}\\e\\c",
+    "problem": "Illegal control escape sequence near index 9"
+  },
+  {
+    "pattern": "\\v\\sa\\B\\c",
+    "problem": "Illegal control escape sequence near index 8"
+  },
+  {
+    "pattern": "\\X\\c",
+    "problem": "Illegal control escape sequence near index 3"
+  },
+  {
+    "pattern": "[:alpha:][a-z](?i)\\1\\c",
+    "problem": "Illegal control escape sequence near index 21"
+  },
+  {
+    "pattern": "\\D\\p{IsEmoji}\\b{g}](?<=\\c",
+    "problem": "Illegal control escape sequence near index 24"
+  },
+  {
+    "pattern": "[:alpha:]\\c",
+    "problem": "Illegal control escape sequence near index 10"
+  },
+  {
+    "pattern": "9\\c",
+    "problem": "Illegal control escape sequence near index 2"
+  },
+  {
+    "pattern": "\ud83d\ude00\\D\\c",
+    "problem": "Illegal control escape sequence near index 4"
+  },
+  {
+    "pattern": "\\t\\c",
+    "problem": "Illegal control escape sequence near index 3"
+  },
+  {
+    "pattern": "(?x)\\A(?x)\\t\\c",
+    "problem": "Illegal control escape sequence near index 13"
+  },
+  {
+    "pattern": "[a&&]{1,}{1,}\\c",
+    "problem": "Illegal control escape sequence near index 14"
+  },
+  {
+    "pattern": "(?<=\\c",
+    "problem": "Illegal control escape sequence near index 5"
+  },
+  {
+    "pattern": "\\cA\\z\\P{Lu}\\1\\c",
+    "problem": "Illegal control escape sequence near index 14"
+  },
+  {
+    "pattern": "|\\s\\c",
+    "problem": "Illegal control escape sequence near index 4"
+  },
+  {
+    "pattern": "\\x41\\p{IsLatin}\\c",
+    "problem": "Illegal control escape sequence near index 16"
+  },
+  {
+    "pattern": "\\x4\n\\u0041b0(?i:",
+    "problem": "Illegal hexadecimal escape sequence near index 3"
+  },
+  {
+    "pattern": "\\x4\\p{InGreek}\\P{Lu}\\u004(?:\\H",
+    "problem": "Illegal hexadecimal escape sequence near index 3"
+  },
+  {
+    "pattern": "\\w\\x4\\07\\08",
+    "problem": "Illegal hexadecimal escape sequence near index 5"
+  },
+  {
+    "pattern": "\\x4[a-\\d]",
+    "problem": "Illegal hexadecimal escape sequence near index 3"
+  },
+  {
+    "pattern": "(0\\x4\\0400[\\d-z]",
+    "problem": "Illegal hexadecimal escape sequence near index 5"
+  },
+  {
+    "pattern": "}\\x4",
+    "problem": "Illegal hexadecimal escape sequence near index 4"
+  },
+  {
+    "pattern": "\\h(?x)\\x4",
+    "problem": "Illegal hexadecimal escape sequence near index 9"
+  },
+  {
+    "pattern": "\\x4\\s",
+    "problem": "Illegal hexadecimal escape sequence near index 3"
+  },
+  {
+    "pattern": "\\N{LATIN SMALL LETTER A}\\x4{1}-\\p{IsLatin}[^a]",
+    "problem": "Illegal hexadecimal escape sequence near index 27"
+  },
+  {
+    "pattern": "\\x4-\\k<}[a-\\d]",
+    "problem": "Illegal hexadecimal escape sequence near index 3"
+  },
+  {
+    "pattern": "(?>\\x4{2,1}(?<b>",
+    "problem": "Illegal hexadecimal escape sequence near index 6"
+  },
+  {
+    "pattern": "\\v{1,2}\\x4",
+    "problem": "Illegal hexadecimal escape sequence near index 10"
+  },
+  {
+    "pattern": "\n\\h[a-[&&a]\\x4",
+    "problem": "Illegal hexadecimal escape sequence near index 14"
+  },
+  {
+    "pattern": "(\\x4\ud83d\ude00\\R#.",
+    "problem": "Illegal hexadecimal escape sequence near index 4"
+  },
+  {
+    "pattern": "\\D\\x4{9999999999}",
+    "problem": "Illegal hexadecimal escape sequence near index 5"
+  },
+  {
+    "pattern": "[a&&b]&&\\08",
+    "problem": "Illegal octal escape sequence near index 10"
+  },
+  {
+    "pattern": "\\b}\\0[^a]\\",
+    "problem": "Illegal octal escape sequence near index 5"
+  },
+  {
+    "pattern": "\\0\\P{Lu}",
+    "problem": "Illegal octal escape sequence near index 2"
+  },
+  {
+    "pattern": "\\08| ",
+    "problem": "Illegal octal escape sequence near index 2"
+  },
+  {
+    "pattern": "0\n9\\0400\\08",
+    "problem": "Illegal octal escape sequence near index 10"
+  },
+  {
+    "pattern": "\\v\\08\\u0041\\X[a&&b](?!",
+    "problem": "Illegal octal escape sequence near index 4"
+  },
+  {
+    "pattern": "}\\A$\\B{1}\\0",
+    "problem": "Illegal octal escape sequence near index 11"
+  },
+  {
+    "pattern": "\\G\\0\\[\\P{Lu}\\x41",
+    "problem": "Illegal octal escape sequence near index 4"
+  },
+  {
+    "pattern": "(?<a>\\p{IsEmoji}\\08b&&",
+    "problem": "Illegal octal escape sequence near index 18"
+  },
+  {
+    "pattern": " \\0",
+    "problem": "Illegal octal escape sequence near index 3"
+  },
+  {
+    "pattern": "\\0\\p{Foo}\\B[^\\b",
+    "problem": "Illegal octal escape sequence near index 2"
+  },
+  {
+    "pattern": "\\0b{,",
+    "problem": "Illegal octal escape sequence near index 2"
+  },
+  {
+    "pattern": "\\0(?x)(?i:(?<1>\\y",
+    "problem": "Illegal octal escape sequence near index 2"
+  },
+  {
+    "pattern": "a\\d{1,}\\s\\0",
+    "problem": "Illegal octal escape sequence near index 11"
+  },
+  {
+    "pattern": "|a&&(?i)\\0",
+    "problem": "Illegal octal escape sequence near index 10"
+  },
+  {
+    "pattern": "{\\b\\x4}",
+    "problem": "Illegal repetition near index 1"
+  },
+  {
+    "pattern": "\\e{[\\d-z]",
+    "problem": "Illegal repetition near index 3"
+  },
+  {
+    "pattern": "\\c\\N{LATIN SMALL LETTER A}|{1,}\ud83d\ude00[a-",
+    "problem": "Illegal repetition near index 5"
+  },
+  {
+    "pattern": "b(?=\\b{,",
+    "problem": "Illegal repetition near index 7"
+  },
+  {
+    "pattern": "(?<!\\1\ud83d\ude00\\V{,",
+    "problem": "Illegal repetition near index 10"
+  },
+  {
+    "pattern": "{,\\G(?-i)\\0(?<a>[]",
+    "problem": "Illegal repetition near index 1"
+  },
+  {
+    "pattern": "{{\\z\\cA&&",
+    "problem": "Illegal repetition near index 1"
+  },
+  {
+    "pattern": "\\P{Lu}\\c\\p{IsLatin}\\B(?",
+    "problem": "Illegal repetition near index 11"
+  },
+  {
+    "pattern": "\\G&&{(?<b>(?!",
+    "problem": "Illegal repetition near index 5"
+  },
+  {
+    "pattern": "\\v(?={,\\E",
+    "problem": "Illegal repetition near index 6"
+  },
+  {
+    "pattern": "{,{1,2}{9999999999}\\D1(?u",
+    "problem": "Illegal repetition near index 1"
+  },
+  {
+    "pattern": "\\c\\p{L}",
+    "problem": "Illegal repetition near index 5"
+  },
+  {
+    "pattern": "{,{1,2}",
+    "problem": "Illegal repetition near index 1"
+  },
+  {
+    "pattern": "\\p{InGreek}{\\x{110000}",
+    "problem": "Illegal repetition near index 12"
+  },
+  {
+    "pattern": "{,[[^",
+    "problem": "Illegal repetition near index 1"
+  },
+  {
+    "pattern": "\\[\\w{1,9999999999}\\D",
+    "problem": "Illegal repetition range near index 16"
+  },
+  {
+    "pattern": "{2,1}^9{1,2}\\w&&",
+    "problem": "Illegal repetition range near index 4"
+  },
+  {
+    "pattern": "\\h\\t{9999999999}{9999999999}?+\\Q",
+    "problem": "Illegal repetition range near index 14"
+  },
+  {
+    "pattern": "{1,9999999999}\\-\\h",
+    "problem": "Illegal repetition range near index 12"
+  },
+  {
+    "pattern": "\\D\\e\\v{9999999999}\\x{110000}",
+    "problem": "Illegal repetition range near index 16"
+  },
+  {
+    "pattern": "{9999999999}[\\d-z][&&a]",
+    "problem": "Illegal repetition range near index 10"
+  },
+  {
+    "pattern": "\\z(?<a>{2,1}\\w[]",
+    "problem": "Illegal repetition range near index 11"
+  },
+  {
+    "pattern": "{1,9999999999}[a-z](?:\\p{IsLatin}",
+    "problem": "Illegal repetition range near index 12"
+  },
+  {
+    "pattern": "(?!{9999999999}(?<1>\\x{41}1+",
+    "problem": "Illegal repetition range near index 13"
+  },
+  {
+    "pattern": "\\s{1,9999999999}\\x4\\w(\\N{",
+    "problem": "Illegal repetition range near index 14"
+  },
+  {
+    "pattern": "{1,9999999999}(?<a>\\e\\A-[",
+    "problem": "Illegal repetition range near index 12"
+  },
+  {
+    "pattern": "{1,9999999999}\\k<a>+\\\\P{Lu}",
+    "problem": "Illegal repetition range near index 12"
+  },
+  {
+    "pattern": "(?i){1,9999999999}9\\V\\u004(?<a>",
+    "problem": "Illegal repetition range near index 16"
+  },
+  {
+    "pattern": "(?=\\p{L}b{2,1}(?i)",
+    "problem": "Illegal repetition range near index 13"
+  },
+  {
+    "pattern": "(?:{2,1}\\w\u00e9\\p{\\b",
+    "problem": "Illegal repetition range near index 7"
+  },
+  {
+    "pattern": "\\y[a-\u00e9-{",
+    "problem": "Illegal/unsupported escape sequence near index 1"
+  },
+  {
+    "pattern": " \n(?:\\y\\-",
+    "problem": "Illegal/unsupported escape sequence near index 6"
+  },
+  {
+    "pattern": "\\y\\x{41}\\p{Foo}[^a]0\\N{",
+    "problem": "Illegal/unsupported escape sequence near index 1"
+  },
+  {
+    "pattern": "\\E(?<a>\\x{110000}\\u004[a-",
+    "problem": "Illegal/unsupported escape sequence near index 1"
+  },
+  {
+    "pattern": "[^[\\d-z]\\X\\N{",
+    "problem": "Illegal/unsupported escape sequence near index 9"
+  },
+  {
+    "pattern": "\\Z\\G\\E\\pL",
+    "problem": "Illegal/unsupported escape sequence near index 5"
+  },
+  {
+    "pattern": "\\e\\E\\k<\\z\\y",
+    "problem": "Illegal/unsupported escape sequence near index 3"
+  },
+  {
+    "pattern": "\\y$\\h",
+    "problem": "Illegal/unsupported escape sequence near index 1"
+  },
+  {
+    "pattern": "\\E{1,}++&&",
+    "problem": "Illegal/unsupported escape sequence near index 1"
+  },
+  {
+    "pattern": "\\E[a&&](?i)}\\h(?<a>",
+    "problem": "Illegal/unsupported escape sequence near index 1"
+  },
+  {
+    "pattern": "(?>[a-\\b{g}\\N{LATIN SMALL LETTER A}\\0",
+    "problem": "Illegal/unsupported escape sequence near index 7"
+  },
+  {
+    "pattern": "\\D\\E\\c",
+    "problem": "Illegal/unsupported escape sequence near index 3"
+  },
+  {
+    "pattern": "\\t\\s[]\\y\\N{LATIN SMALL LETTER A}(?-i)",
+    "problem": "Illegal/unsupported escape sequence near index 7"
+  },
+  {
+    "pattern": "\\V\\E\u00e9[]\\[\\b{g}",
+    "problem": "Illegal/unsupported escape sequence near index 3"
+  },
+  {
+    "pattern": "[\\[\\E\\p{",
+    "problem": "Illegal/unsupported escape sequence near index 4"
+  },
+  {
+    "pattern": "(?<a>(?<a>+(?x)(?>\\",
+    "problem": "Named capturing group <a> is already defined near index 9"
+  },
+  {
+    "pattern": "$(?<a>\\p{InGreek}(?<a>1",
+    "problem": "Named capturing group <a> is already defined near index 21"
+  },
+  {
+    "pattern": "(?<a>(?<a>\n[a-\\d](?x)",
+    "problem": "Named capturing group <a> is already defined near index 9"
+  },
+  {
+    "pattern": "\\p{IsEmoji}\\G(?<a>(?<a>[a-\\d]",
+    "problem": "Named capturing group <a> is already defined near index 22"
+  },
+  {
+    "pattern": "[\\d-z](?<a>\\p{InGreek}\\2(?<a>",
+    "problem": "Named capturing group <a> is already defined near index 28"
+  },
+  {
+    "pattern": "(?<a>[:alpha:](?<a>?+*[a-",
+    "problem": "Named capturing group <a> is already defined near index 18"
+  },
+  {
+    "pattern": "(?<a>[:alpha:]\\p{IsLatin}(?<a>",
+    "problem": "Named capturing group <a> is already defined near index 29"
+  },
+  {
+    "pattern": "(?<a>(?<a>\\x41\\N{&&",
+    "problem": "Named capturing group <a> is already defined near index 9"
+  },
+  {
+    "pattern": "(?<a>(?<a>[^a]\\2{1,2}",
+    "problem": "Named capturing group <a> is already defined near index 9"
+  },
+  {
+    "pattern": "\\G(?<a>\\h{1}(?<a>(?x)",
+    "problem": "Named capturing group <a> is already defined near index 16"
+  },
+  {
+    "pattern": "(?<b>(?<b>\\P{Lu}",
+    "problem": "Named capturing group <b> is already defined near index 9"
+  },
+  {
+    "pattern": "\\cA(?<b>(?<b>\\-",
+    "problem": "Named capturing group <b> is already defined near index 12"
+  },
+  {
+    "pattern": "(?<b>\\R{1}(?<b>",
+    "problem": "Named capturing group <b> is already defined near index 14"
+  },
+  {
+    "pattern": "|\\R(?<b>(?<b>(?<1>\\z",
+    "problem": "Named capturing group <b> is already defined near index 12"
+  },
+  {
+    "pattern": "b\\X(?<b>(?<b>^{1,}",
+    "problem": "Named capturing group <b> is already defined near index 12"
+  },
+  {
+    "pattern": "(?<b>\\X\u00e99#(?<b>",
+    "problem": "Named capturing group <b> is already defined near index 14"
+  },
+  {
+    "pattern": "(?<b>\\s(?<b>\\w\\b{g}1",
+    "problem": "Named capturing group <b> is already defined near index 11"
+  },
+  {
+    "pattern": "{1}(?<b>(?<b>(?<a>",
+    "problem": "Named capturing group <b> is already defined near index 12"
+  },
+  {
+    "pattern": "(?<b>\\1(?<b>\\x41\\x41",
+    "problem": "Named capturing group <b> is already defined near index 11"
+  },
+  {
+    "pattern": "\\cA\\s(?<b>(?<b>\u00e9(?x)",
+    "problem": "Named capturing group <b> is already defined near index 14"
+  },
+  {
+    "pattern": "[]-{9999999999}\\070",
+    "problem": "Unclosed character class near index 18"
+  },
+  {
+    "pattern": "[a-[:alpha:][:alpha:](?<=\\h",
+    "problem": "Unclosed character class near index 26"
+  },
+  {
+    "pattern": "[\\P{Lu}\\P{Lu})\\x41",
+    "problem": "Unclosed character class near index 17"
+  },
+  {
+    "pattern": "(?i){1,}(?=\\[?[]",
+    "problem": "Unclosed character class near index 15"
+  },
+  {
+    "pattern": "\u00e9[(?-i)\\d",
+    "problem": "Unclosed character class near index 8"
+  },
+  {
+    "pattern": "\\p{IsLatin}[$",
+    "problem": "Unclosed character class near index 12"
+  },
+  {
+    "pattern": "(?!\\b[]",
+    "problem": "Unclosed character class near index 6"
+  },
+  {
+    "pattern": "[]",
+    "problem": "Unclosed character class near index 1"
+  },
+  {
+    "pattern": "-\ud83d\ude00\\p{IsEmoji}\\c\\[",
+    "problem": "Unclosed character class near index 16"
+  },
+  {
+    "pattern": "]{1,2}[?+",
+    "problem": "Unclosed character class near index 8"
+  },
+  {
+    "pattern": "][]",
+    "problem": "Unclosed character class near index 2"
+  },
+  {
+    "pattern": "[a-z][]",
+    "problem": "Unclosed character class near index 6"
+  },
+  {
+    "pattern": "\\b{g}|[]{1,}",
+    "problem": "Unclosed character class near index 11"
+  },
+  {
+    "pattern": "(?i)[^$",
+    "problem": "Unclosed character class near index 6"
+  },
+  {
+    "pattern": "^\\p{InGreek}\\2\\v\\u0041[",
+    "problem": "Unclosed character class near index 22"
+  },
+  {
+    "pattern": "#(?i:\\p{[]\\u0041\\cA",
+    "problem": "Unclosed character family near index 19"
+  },
+  {
+    "pattern": "\\N{LATIN SMALL LETTER A}a\\p{\\1(?<!\\cA",
+    "problem": "Unclosed character family near index 37"
+  },
+  {
+    "pattern": "b\\-#\\p{?+(?-i)",
+    "problem": "Unclosed character family near index 14"
+  },
+  {
+    "pattern": "[a&&]\\d\\p{\\e\\B",
+    "problem": "Unclosed character family near index 14"
+  },
+  {
+    "pattern": "0\\-\\b\\p{(?!",
+    "problem": "Unclosed character family near index 11"
+  },
+  {
+    "pattern": "\\p{\\0400\\u004^[\\d-z]",
+    "problem": "Unclosed character family near index 20"
+  },
+  {
+    "pattern": "\\p{(?q)\\H",
+    "problem": "Unclosed character family near index 9"
+  },
+  {
+    "pattern": "(?i:\\p{(?-i)\\N{\\x4(?>",
+    "problem": "Unclosed character family near index 21"
+  },
+  {
+    "pattern": "\\p{(?=",
+    "problem": "Unclosed character family near index 6"
+  },
+  {
+    "pattern": "\\X\\p{",
+    "problem": "Unclosed character family near index 5"
+  },
+  {
+    "pattern": "\\A\\G\\p{(?<a>a(?>",
+    "problem": "Unclosed character family near index 16"
+  },
+  {
+    "pattern": "(?<a>\\p{(?<b>|",
+    "problem": "Unclosed character family near index 14"
+  },
+  {
+    "pattern": "\\H\\2}\\p{[a-\\d]\\y",
+    "problem": "Unclosed character family near index 16"
+  },
+  {
+    "pattern": "^\\x{41}\\p{",
+    "problem": "Unclosed character family near index 10"
+  },
+  {
+    "pattern": "\\H\\H\\p{\\z\\B\\V",
+    "problem": "Unclosed character family near index 13"
+  },
+  {
+    "pattern": "\\R\\b{g}[^\\N{\\V",
+    "problem": "Unclosed character name escape sequence near index 13"
+  },
+  {
+    "pattern": "\\N{\\c",
+    "problem": "Unclosed character name escape sequence near index 4"
+  },
+  {
+    "pattern": "\\-0[a-[&&a]\\N{",
+    "problem": "Unclosed character name escape sequence near index 14"
+  },
+  {
+    "pattern": "\\d(?!\\N{",
+    "problem": "Unclosed character name escape sequence near index 8"
+  },
+  {
+    "pattern": "\\N{[a-",
+    "problem": "Unclosed character name escape sequence near index 5"
+  },
+  {
+    "pattern": "\\p{L}{1,}[\\N{",
+    "problem": "Unclosed character name escape sequence near index 13"
+  },
+  {
+    "pattern": "(?:\\N{(*?",
+    "problem": "Unclosed character name escape sequence near index 8"
+  },
+  {
+    "pattern": "\\b#\\N{?",
+    "problem": "Unclosed character name escape sequence near index 6"
+  },
+  {
+    "pattern": "(?:\\N{ [&&]\\e",
+    "problem": "Unclosed character name escape sequence near index 12"
+  },
+  {
+    "pattern": "(?x)a\\d\\N{",
+    "problem": "Unclosed character name escape sequence near index 10"
+  },
+  {
+    "pattern": "\\p{L}(?>\\N{\\b[&&](?<b>",
+    "problem": "Unclosed character name escape sequence near index 21"
+  },
+  {
+    "pattern": "1a\\w[:alpha:]\\N{\\G",
+    "problem": "Unclosed character name escape sequence near index 17"
+  },
+  {
+    "pattern": "\\Z\\H\\N{",
+    "problem": "Unclosed character name escape sequence near index 7"
+  },
+  {
+    "pattern": "\\N{[&&a]a\ud83d\ude00",
+    "problem": "Unclosed character name escape sequence near index 9"
+  },
+  {
+    "pattern": "\\N{[a-z]",
+    "problem": "Unclosed character name escape sequence near index 7"
+  },
+  {
+    "pattern": "\\s{9(?u",
+    "problem": "Unclosed counted closure near index 4"
+  },
+  {
+    "pattern": "\\d\\p{IsLatin}\\x{41}{1",
+    "problem": "Unclosed counted closure near index 21"
+  },
+  {
+    "pattern": "{9\\H",
+    "problem": "Unclosed counted closure near index 2"
+  },
+  {
+    "pattern": "{0{1,2}",
+    "problem": "Unclosed counted closure near index 2"
+  },
+  {
+    "pattern": "^{1 [a-z]",
+    "problem": "Unclosed counted closure near index 3"
+  },
+  {
+    "pattern": "(?x)\ud83d\ude00{9\\P{Lu}(?u",
+    "problem": "Unclosed counted closure near index 7"
+  },
+  {
+    "pattern": "\\G{9",
+    "problem": "Unclosed counted closure near index 4"
+  },
+  {
+    "pattern": "\\p{InGreek}{9\\t(?<1>",
+    "problem": "Unclosed counted closure near index 13"
+  },
+  {
+    "pattern": "{0\\B \\p{IsLatin}",
+    "problem": "Unclosed counted closure near index 2"
+  },
+  {
+    "pattern": "(?=(?>|",
+    "problem": "Unclosed group near index 7"
+  },
+  {
+    "pattern": "$#(?i)(?=",
+    "problem": "Unclosed group near index 9"
+  },
+  {
+    "pattern": "(?<=",
+    "problem": "Unclosed group near index 4"
+  },
+  {
+    "pattern": "a{1,}(?!\\pL\\R\\z",
+    "problem": "Unclosed group near index 15"
+  },
+  {
+    "pattern": "1\\D-(?<=",
+    "problem": "Unclosed group near index 8"
+  },
+  {
+    "pattern": "(?<!\\-(?i)\\H",
+    "problem": "Unclosed group near index 12"
+  },
+  {
+    "pattern": "\\1(?=[&&a][^a]\\t",
+    "problem": "Unclosed group near index 16"
+  },
+  {
+    "pattern": "\\cA\\H(?>\\G(?>",
+    "problem": "Unclosed group near index 13"
+  },
+  {
+    "pattern": "(?<b>\\v\\R\\b",
+    "problem": "Unclosed group near index 11"
+  },
+  {
+    "pattern": "[\\d-z]\\x41?+\\0400[a-z](?<=",
+    "problem": "Unclosed group near index 26"
+  },
+  {
+    "pattern": "(?!-\\R\\t\\X",
+    "problem": "Unclosed group near index 10"
+  },
+  {
+    "pattern": "(?<=(?=",
+    "problem": "Unclosed group near index 7"
+  },
+  {
+    "pattern": "(?<!\\Q[&&a]",
+    "problem": "Unclosed group near index 13"
+  },
+  {
+    "pattern": "[a-z](?:\\t",
+    "problem": "Unclosed group near index 10"
+  },
+  {
+    "pattern": "\\[\\07(?i:[a&&b]10",
+    "problem": "Unclosed group near index 17"
+  },
+  {
+    "pattern": "\\R[a&&]\\",
+    "problem": "Unescaped trailing backslash near index 8"
+  },
+  {
+    "pattern": "\\p{InGreek}b\\e\\",
+    "problem": "Unescaped trailing backslash near index 15"
+  },
+  {
+    "pattern": "\ud83d\ude00\\",
+    "problem": "Unescaped trailing backslash near index 2"
+  },
+  {
+    "pattern": "\\1\\R9\\w\\",
+    "problem": "Unescaped trailing backslash near index 8"
+  },
+  {
+    "pattern": "[&&a]\\c\\y+\\",
+    "problem": "Unescaped trailing backslash near index 11"
+  },
+  {
+    "pattern": "{1}\\",
+    "problem": "Unescaped trailing backslash near index 4"
+  },
+  {
+    "pattern": "\\d\\",
+    "problem": "Unescaped trailing backslash near index 3"
+  },
+  {
+    "pattern": "\\A\\w\\",
+    "problem": "Unescaped trailing backslash near index 5"
+  },
+  {
+    "pattern": "\n\\",
+    "problem": "Unescaped trailing backslash near index 2"
+  },
+  {
+    "pattern": "\\p{IsLatin}[a&&b]?\\",
+    "problem": "Unescaped trailing backslash near index 19"
+  },
+  {
+    "pattern": " \\",
+    "problem": "Unescaped trailing backslash near index 2"
+  },
+  {
+    "pattern": "\\p{IsLatin}\\",
+    "problem": "Unescaped trailing backslash near index 12"
+  },
+  {
+    "pattern": "\\07\\P{Lu}[&&a]1\\B\\",
+    "problem": "Unescaped trailing backslash near index 18"
+  },
+  {
+    "pattern": "}[a-z]\\",
+    "problem": "Unescaped trailing backslash near index 7"
+  },
+  {
+    "pattern": "\\G(?x) \\",
+    "problem": "Unescaped trailing backslash near index 8"
+  },
+  {
+    "pattern": "\\X\\b(?x)}\\c#",
+    "problem": "Unexpected internal error near index 12"
+  },
+  {
+    "pattern": "|\\p{(?<=\\p{IsLatin}\\P{Lu}",
+    "problem": "Unknown Unicode property {name=<(?<>, value=<\\p{IsLatin>} near index 18"
+  },
+  {
+    "pattern": "\\p{IsEmoji}\\p{(?>(?<=}\\[",
+    "problem": "Unknown Unicode property {name=<(?>(?<>, value=<>} near index 21"
+  },
+  {
+    "pattern": "\\N{\n\\x{41}\\u0041",
+    "problem": "Unknown character name ["
+  },
+  {
+    "pattern": "\\N{\n\\p{Foo}",
+    "problem": "Unknown character name ["
+  },
+  {
+    "pattern": "\\p{InGreek}{1,}\\N{ \\N{LATIN SMALL LETTER A}\\p{InGreek}",
+    "problem": "Unknown character name [ \\N{LATIN SMALL LETTER A] near index 42"
+  },
+  {
+    "pattern": "\\N{#\\p{IsLatin}\\E\\Q#",
+    "problem": "Unknown character name [#\\p{IsLatin] near index 14"
+  },
+  {
+    "pattern": ".\\N{(?!\\P{Lu}\\x4\\cA",
+    "problem": "Unknown character name [(?!\\P{Lu] near index 12"
+  },
+  {
+    "pattern": "\\N{(?:{9999999999}\\u004\\",
+    "problem": "Unknown character name [(?:{9999999999] near index 17"
+  },
+  {
+    "pattern": "\\N{(?<=[a-z]\\p{Foo}\\y[a-z]",
+    "problem": "Unknown character name [(?<=[a-z]\\p{Foo] near index 18"
+  },
+  {
+    "pattern": "\\N{(?<1>{1}\\p{\\cA[a-",
+    "problem": "Unknown character name [(?<1>{1] near index 10"
+  },
+  {
+    "pattern": "\\N{(?<a>\\X\\x{110000}",
+    "problem": "Unknown character name [(?<a>\\X\\x{110000] near index 19"
+  },
+  {
+    "pattern": "[\\d-z]\\N{(?=\\N{FOO}\\x4(?i:",
+    "problem": "Unknown character name [(?=\\N{FOO] near index 18"
+  },
+  {
+    "pattern": "\\N{(?>{9999999999}{9999999999}",
+    "problem": "Unknown character name [(?>{9999999999] near index 17"
+  },
+  {
+    "pattern": "#\\[\\N{(?\\p{IsEmoji}",
+    "problem": "Unknown character name [(?\\p{IsEmoji] near index 18"
+  },
+  {
+    "pattern": "[a&&]{1,2}\\N{(?i)-\\p{Foo}",
+    "problem": "Unknown character name [(?i)-\\p{Foo] near index 24"
+  },
+  {
+    "pattern": "\\N{(?i:)\\p{InGreek}\\p{InGreek}",
+    "problem": "Unknown character name [(?i:)\\p{InGreek] near index 18"
+  },
+  {
+    "pattern": "\\D\\N{(?i:\\v{1}[",
+    "problem": "Unknown character name [(?i:\\v{1] near index 13"
+  },
+  {
+    "pattern": "\\w\\V[&&a]\\N{(?q)}",
+    "problem": "Unknown character name [(?q)] near index 16"
+  },
+  {
+    "pattern": "\\N{(?x){2,1}",
+    "problem": "Unknown character name [(?x){2,1] near index 11"
+  },
+  {
+    "pattern": "\\H\\N{(?x){1}",
+    "problem": "Unknown character name [(?x){1] near index 11"
+  },
+  {
+    "pattern": "[a-z] \\N{(\\A{1,2}",
+    "problem": "Unknown character name [(\\A{1,2] near index 16"
+  },
+  {
+    "pattern": "\\N{*?\\x4{2,1}",
+    "problem": "Unknown character name [*?\\x4{2,1] near index 12"
+  },
+  {
+    "pattern": "\\N{++[a&&b]\\p{(?i:\\x{110000}",
+    "problem": "Unknown character name [++[a&&b]\\p{(?i:\\x{110000] near index 27"
+  },
+  {
+    "pattern": "\\N{.\\c\\p{IsEmoji}\\w",
+    "problem": "Unknown character name [.\\c\\p{IsEmoji] near index 16"
+  },
+  {
+    "pattern": "\\N{.{2,1})(?<a>\\H",
+    "problem": "Unknown character name [.{2,1] near index 8"
+  },
+  {
+    "pattern": "\\N{??+\\A(?=\\b{g}",
+    "problem": "Unknown character name [??+\\A(?=\\b{g] near index 15"
+  },
+  {
+    "pattern": "\\N{?\\x{110000}",
+    "problem": "Unknown character name [?\\x{110000] near index 13"
+  },
+  {
+    "pattern": "\\d\\N{FOO}\\E[](?={1,}",
+    "problem": "Unknown character name [FOO] near index 8"
+  },
+  {
+    "pattern": "$\\x41(?x)\\G(?<a>\\N{FOO}",
+    "problem": "Unknown character name [FOO] near index 22"
+  },
+  {
+    "pattern": "|\\N{FOO}$",
+    "problem": "Unknown character name [FOO] near index 7"
+  },
+  {
+    "pattern": "$[a&&]\\N{FOO}",
+    "problem": "Unknown character name [FOO] near index 12"
+  },
+  {
+    "pattern": "[a-\\N{FOO}(?q)(?<=[:alpha:]",
+    "problem": "Unknown character name [FOO] near index 9"
+  },
+  {
+    "pattern": "\\N{FOO}\\N{\\x41{,[:alpha:]",
+    "problem": "Unknown character name [FOO] near index 6"
+  },
+  {
+    "pattern": "\\0400$\\c(?i:\\N{FOO}",
+    "problem": "Unknown character name [FOO] near index 18"
+  },
+  {
+    "pattern": "(?<a>\\N{FOO}",
+    "problem": "Unknown character name [FOO] near index 11"
+  },
+  {
+    "pattern": "^\\H\\w\\N{FOO}\\p{Foo}?",
+    "problem": "Unknown character name [FOO] near index 11"
+  },
+  {
+    "pattern": "\\N{FOO}[a&&])\\A}",
+    "problem": "Unknown character name [FOO] near index 6"
+  },
+  {
+    "pattern": "\\N{FOO}+",
+    "problem": "Unknown character name [FOO] near index 6"
+  },
+  {
+    "pattern": "\\x{41}\\0400\\N{FOO}{,[:alpha:]",
+    "problem": "Unknown character name [FOO] near index 17"
+  },
+  {
+    "pattern": "0\\B\\N{FOO}{1,9999999999}\\V",
+    "problem": "Unknown character name [FOO] near index 9"
+  },
+  {
+    "pattern": "\\N{FOO}?[&&a]\\x{110000}\\X",
+    "problem": "Unknown character name [FOO] near index 6"
+  },
+  {
+    "pattern": "\\N{FOO}\\b[a&&b][](?<a>",
+    "problem": "Unknown character name [FOO] near index 6"
+  },
+  {
+    "pattern": "\\N{1(?i)[a&&]\\x{110000}0",
+    "problem": "Unknown character name [1(?i)[a&&]\\x{110000] near index 22"
+  },
+  {
+    "pattern": "\\[\\N{1{1,2}&&",
+    "problem": "Unknown character name [1{1,2] near index 10"
+  },
+  {
+    "pattern": "\\N{9{9999999999}\\[",
+    "problem": "Unknown character name [9{9999999999] near index 15"
+  },
+  {
+    "pattern": "\\N{[&&]\\k<a>\\p{Foo}",
+    "problem": "Unknown character name [[&&]\\k<a>\\p{Foo] near index 18"
+  },
+  {
+    "pattern": "\\P{Lu}\\N{[&&a][:alpha:][^a]\\P{Lu}",
+    "problem": "Unknown character name [[&&a][:alpha:][^a]\\P{Lu] near index 32"
+  },
+  {
+    "pattern": "\\N{[&&a]\\p{Foo}\\v\\x{110000}\\k<a>",
+    "problem": "Unknown character name [[&&a]\\p{Foo] near index 14"
+  },
+  {
+    "pattern": "9\\N{[&&a]\\x{41}\\p{Foo}",
+    "problem": "Unknown character name [[&&a]\\x{41] near index 14"
+  },
+  {
+    "pattern": "\n\\N{[\\d-z]{1}{2,1}\n",
+    "problem": "Unknown character name [[\\d-z]{1] near index 12"
+  },
+  {
+    "pattern": "\\N{[\\p{Foo}[&&]",
+    "problem": "Unknown character name [[\\p{Foo] near index 10"
+  },
+  {
+    "pattern": "^\\N{[]\\s\\x4\\b{g}",
+    "problem": "Unknown character name [[]\\s\\x4\\b{g] near index 15"
+  },
+  {
+    "pattern": "\\N{[^\\N{FOO}",
+    "problem": "Unknown character name [[^\\N{FOO] near index 11"
+  },
+  {
+    "pattern": "0\\N{[^{1,9999999999}\\P{Lu}",
+    "problem": "Unknown character name [[^{1,9999999999] near index 19"
+  },
+  {
+    "pattern": "\\2\\N{[a&&]\\y\\p{L}",
+    "problem": "Unknown character name [[a&&]\\y\\p{L] near index 16"
+  },
+  {
+    "pattern": "\\N{[a&&b]\\p{InGreek}\\w(?<b>{1,}",
+    "problem": "Unknown character name [[a&&b]\\p{InGreek] near index 19"
+  },
+  {
+    "pattern": "\\N{[a-\\d]\\08{1,9999999999}",
+    "problem": "Unknown character name [[a-\\d]\\08{1,9999999999] near index 25"
+  },
+  {
+    "pattern": "\\H(?<=\\N{[a-\\d]{9999999999}",
+    "problem": "Unknown character name [[a-\\d]{9999999999] near index 26"
+  },
+  {
+    "pattern": "\\N{[{\\e}\\P{Lu}",
+    "problem": "Unknown character name [[{\\e] near index 7"
+  },
+  {
+    "pattern": "(?>\\N{\\(?<1>\\p{Foo}",
+    "problem": "Unknown character name [\\(?<1>\\p{Foo] near index 18"
+  },
+  {
+    "pattern": "\\v\\N{\\-\\B\\[\\b{g}",
+    "problem": "Unknown character name [\\-\\B\\[\\b{g] near index 15"
+  },
+  {
+    "pattern": "[\\N{\\A}\\A",
+    "problem": "Unknown character name [\\A] near index 6"
+  },
+  {
+    "pattern": "\\N{\\A{,{2,1}",
+    "problem": "Unknown character name [\\A{,{2,1] near index 11"
+  },
+  {
+    "pattern": "\\N{\\B\n\\p{L}(?-i)(?:",
+    "problem": "Unknown character name [\\B"
+  },
+  {
+    "pattern": "\\N{\\D[&&a]\\c\\Q\\p{InGreek}",
+    "problem": "Unknown character name [\\D[&&a]\\c\\\\p\\{InGreek\\] near index 25"
+  },
+  {
+    "pattern": "\\N{\\E{2,1}\\N{LATIN SMALL LETTER A}0\\p{IsLatin}",
+    "problem": "Unknown character name [\\E{2,1] near index 9"
+  },
+  {
+    "pattern": "[a&&b]\\N{\\1\\[\\p{IsLatin}",
+    "problem": "Unknown character name [\\1\\[\\p{IsLatin] near index 23"
+  },
+  {
+    "pattern": "\\N{\\1\\x4\\N{FOO}\\b{g}",
+    "problem": "Unknown character name [\\1\\x4\\N{FOO] near index 14"
+  },
+  {
+    "pattern": "\\pL&&\\N{\\2}\\Z",
+    "problem": "Unknown character name [\\2] near index 10"
+  },
+  {
+    "pattern": "\\N{\\2}{1,9999999999}",
+    "problem": "Unknown character name [\\2] near index 5"
+  },
+  {
+    "pattern": "\\N{\\N{FOO}",
+    "problem": "Unknown character name [\\N{FOO] near index 9"
+  },
+  {
+    "pattern": "\\N{\\N{FOO}\\k<a>\\k<a>",
+    "problem": "Unknown character name [\\N{FOO] near index 9"
+  },
+  {
+    "pattern": "\\N{\\N{FOO}\\y[]",
+    "problem": "Unknown character name [\\N{FOO] near index 9"
+  },
+  {
+    "pattern": "-\\N{\\N{FOO}(?<1>",
+    "problem": "Unknown character name [\\N{FOO] near index 10"
+  },
+  {
+    "pattern": "(\\N{\\N{FOO}(?<a>*",
+    "problem": "Unknown character name [\\N{FOO] near index 10"
+  },
+  {
+    "pattern": "(?:\\N{\\N{FOO}\\u0041",
+    "problem": "Unknown character name [\\N{FOO] near index 12"
+  },
+  {
+    "pattern": "\\N{\\N{LATIN SMALL LETTER A}\\d",
+    "problem": "Unknown character name [\\N{LATIN SMALL LETTER A] near index 26"
+  },
+  {
+    "pattern": "\\0400#\\N{\\N{LATIN SMALL LETTER A}? ",
+    "problem": "Unknown character name [\\N{LATIN SMALL LETTER A] near index 32"
+  },
+  {
+    "pattern": "0[a-{,\\N{\\N{LATIN SMALL LETTER A}",
+    "problem": "Unknown character name [\\N{LATIN SMALL LETTER A] near index 32"
+  },
+  {
+    "pattern": "\n\\N{\\N{LATIN SMALL LETTER A}a",
+    "problem": "Unknown character name [\\N{LATIN SMALL LETTER A] near index 27"
+  },
+  {
+    "pattern": "\\N{\\0{1,2}\\G\\08(?i:",
+    "problem": "Unknown character name [\\0{1,2] near index 9"
+  },
+  {
+    "pattern": "\\N{\\P{Lu}(?<!\\ya",
+    "problem": "Unknown character name [\\P{Lu] near index 8"
+  },
+  {
+    "pattern": "\\N{\\P{Lu}\\h\\u004\\k<a>\\1",
+    "problem": "Unknown character name [\\P{Lu] near index 8"
+  },
+  {
+    "pattern": "\\N{\\P{Lu}\\t(?",
+    "problem": "Unknown character name [\\P{Lu] near index 8"
+  },
+  {
+    "pattern": "\\N{\\P{Lu}{1,2}9",
+    "problem": "Unknown character name [\\P{Lu] near index 8"
+  },
+  {
+    "pattern": "\\x41\\N{\\P{Lu})",
+    "problem": "Unknown character name [\\P{Lu] near index 12"
+  },
+  {
+    "pattern": "\\H\\N{\\R{9999999999}\\b{g}",
+    "problem": "Unknown character name [\\R{9999999999] near index 18"
+  },
+  {
+    "pattern": "\\N{\\V\\x{41}[^",
+    "problem": "Unknown character name [\\V\\x{41] near index 10"
+  },
+  {
+    "pattern": "(?i:\\v\\p{InGreek}\\N{\\V{9999999999}",
+    "problem": "Unknown character name [\\V{9999999999] near index 33"
+  },
+  {
+    "pattern": "\\N{\\X[^}",
+    "problem": "Unknown character name [\\X[^] near index 7"
+  },
+  {
+    "pattern": ".\\N{\\Z}\\2",
+    "problem": "Unknown character name [\\Z] near index 6"
+  },
+  {
+    "pattern": "&&\\N{\\[a-{1}(?-i)",
+    "problem": "Unknown character name [\\[a-{1] near index 11"
+  },
+  {
+    "pattern": "[a&&]\\N{\\Q\\b{g}{9999999999}",
+    "problem": "Unknown character name [\\\\b\\{g\\] near index 15"
+  },
+  {
+    "pattern": "{1}\\N{\\b++\\x{110000}",
+    "problem": "Unknown character name [\\b++\\x{110000] near index 19"
+  },
+  {
+    "pattern": "\\N{\\b{g}[a-z]9(?:",
+    "problem": "Unknown character name [\\b{g] near index 7"
+  },
+  {
+    "pattern": "\\R\\N{\\b{g}\\p{Foo}",
+    "problem": "Unknown character name [\\b{g] near index 9"
+  },
+  {
+    "pattern": "\\N{\\b{g}(?-i)\\N{(?<!",
+    "problem": "Unknown character name [\\b{g] near index 7"
+  },
+  {
+    "pattern": "\\h\\N{\\b{g}",
+    "problem": "Unknown character name [\\b{g] near index 9"
+  },
+  {
+    "pattern": "\\N{\\b{g}(?<1>\\Ra\\G",
+    "problem": "Unknown character name [\\b{g] near index 7"
+  },
+  {
+    "pattern": "{1,}\\N{\\b{g}[\\d-z](?i).",
+    "problem": "Unknown character name [\\b{g] near index 11"
+  },
+  {
+    "pattern": "\\N{\\b{g}+&&-",
+    "problem": "Unknown character name [\\b{g] near index 7"
+  },
+  {
+    "pattern": "\\N{\\cA{2,1}\\B",
+    "problem": "Unknown character name [\\cA{2,1] near index 10"
+  },
+  {
+    "pattern": "\\D\\D\\N{\\c\\N{FOO}",
+    "problem": "Unknown character name [\\c\\N{FOO] near index 15"
+  },
+  {
+    "pattern": "\\X\\0400\\N{\\d{2,1}[:alpha:]",
+    "problem": "Unknown character name [\\d{2,1] near index 16"
+  },
+  {
+    "pattern": "\\P{Lu}\\N{\\h{1,9999999999}\\x4(?<!",
+    "problem": "Unknown character name [\\h{1,9999999999] near index 24"
+  },
+  {
+    "pattern": "(\\N{\\k<}(?i:",
+    "problem": "Unknown character name [\\k<] near index 7"
+  },
+  {
+    "pattern": "\\N{\\k<a>\\p{Foo}",
+    "problem": "Unknown character name [\\k<a>\\p{Foo] near index 14"
+  },
+  {
+    "pattern": "\\N{\\pL\\b{g}\\k<a>\\X$",
+    "problem": "Unknown character name [\\pL\\b{g] near index 10"
+  },
+  {
+    "pattern": "(?<a>\\-\\e\\X\\N{\\p{Foo}",
+    "problem": "Unknown character name [\\p{Foo] near index 20"
+  },
+  {
+    "pattern": "\\N{\\p{Foo}\\P{Lu}",
+    "problem": "Unknown character name [\\p{Foo] near index 9"
+  },
+  {
+    "pattern": "\\N{\\p{Foo}(?<1>(?<b>\\y",
+    "problem": "Unknown character name [\\p{Foo] near index 9"
+  },
+  {
+    "pattern": "-(\\N{\\p{InGreek}(?>",
+    "problem": "Unknown character name [\\p{InGreek] near index 15"
+  },
+  {
+    "pattern": "(?<a>\\N{\\p{InGreek}^",
+    "problem": "Unknown character name [\\p{InGreek] near index 18"
+  },
+  {
+    "pattern": "\\N{\\p{InGreek}",
+    "problem": "Unknown character name [\\p{InGreek] near index 13"
+  },
+  {
+    "pattern": "a\\\\z \\N{\\p{InGreek}",
+    "problem": "Unknown character name [\\p{InGreek] near index 18"
+  },
+  {
+    "pattern": "\\p{IsLatin}\\N{\\p{InGreek}",
+    "problem": "Unknown character name [\\p{InGreek] near index 24"
+  },
+  {
+    "pattern": "\\H\\N{\\p{IsEmoji}(?=b",
+    "problem": "Unknown character name [\\p{IsEmoji] near index 15"
+  },
+  {
+    "pattern": "(?>\u00e9(?<=\\N{\\p{IsEmoji}\\h",
+    "problem": "Unknown character name [\\p{IsEmoji] near index 21"
+  },
+  {
+    "pattern": "\\Z\\N{\\p{IsEmoji}",
+    "problem": "Unknown character name [\\p{IsEmoji] near index 15"
+  },
+  {
+    "pattern": "9++\\N{\\p{IsEmoji}",
+    "problem": "Unknown character name [\\p{IsEmoji] near index 16"
+  },
+  {
+    "pattern": "\\u0041\\N{\\p{IsLatin}",
+    "problem": "Unknown character name [\\p{IsLatin] near index 19"
+  },
+  {
+    "pattern": "\\N{\\p{IsLatin}\\0400",
+    "problem": "Unknown character name [\\p{IsLatin] near index 13"
+  },
+  {
+    "pattern": "\\N{\\p{IsLatin}(?<b>",
+    "problem": "Unknown character name [\\p{IsLatin] near index 13"
+  },
+  {
+    "pattern": "\\N{\\p{IsLatin}{1}\\u004[\\d-z]\\B",
+    "problem": "Unknown character name [\\p{IsLatin] near index 13"
+  },
+  {
+    "pattern": "\\N{\\p{IsLatin}\\R\\G*?",
+    "problem": "Unknown character name [\\p{IsLatin] near index 13"
+  },
+  {
+    "pattern": "\\Z\ud83d\ude00\\{,\\N{\\p{IsLatin}",
+    "problem": "Unknown character name [\\p{IsLatin] near index 19"
+  },
+  {
+    "pattern": "\\1\\N{\\p{L}9\\p{IsEmoji}",
+    "problem": "Unknown character name [\\p{L] near index 9"
+  },
+  {
+    "pattern": "9\\N{\\p{L}",
+    "problem": "Unknown character name [\\p{L] near index 8"
+  },
+  {
+    "pattern": "[^a]\\N{\\p{L}\n",
+    "problem": "Unknown character name [\\p{L] near index 11"
+  },
+  {
+    "pattern": "\\N{\\p{{1}$\\D",
+    "problem": "Unknown character name [\\p{{1] near index 8"
+  },
+  {
+    "pattern": "\\A\\N{\\s(?<a>\\B\\b{g}",
+    "problem": "Unknown character name [\\s(?<a>\\B\\b{g] near index 18"
+  },
+  {
+    "pattern": "\\e(?-i)\\N{\\s(?q){2,1}",
+    "problem": "Unknown character name [\\s(?q){2,1] near index 20"
+  },
+  {
+    "pattern": "\\N{\\s\\0\\2\\N{FOO}",
+    "problem": "Unknown character name [\\s\\0\\2\\N{FOO] near index 15"
+  },
+  {
+    "pattern": "\\N{\\t|\\p{IsEmoji}",
+    "problem": "Unknown character name [\\t|\\p{IsEmoji] near index 16"
+  },
+  {
+    "pattern": "\\N{\\v{2,1} ",
+    "problem": "Unknown character name [\\v{2,1] near index 9"
+  },
+  {
+    "pattern": "]\\N{\\x41[\\[{1,2}",
+    "problem": "Unknown character name [\\x41[\\[{1,2] near index 15"
+  },
+  {
+    "pattern": "1\\N{\\x41\\0\\s{1}",
+    "problem": "Unknown character name [\\x41\\0\\s{1] near index 14"
+  },
+  {
+    "pattern": "(\\N{\\x{110000}\\k<a>(?>",
+    "problem": "Unknown character name [\\x{110000] near index 13"
+  },
+  {
+    "pattern": "\\p{InGreek}\\N{\\x{41}\\v",
+    "problem": "Unknown character name [\\x{41] near index 19"
+  },
+  {
+    "pattern": "\\N{\\x{110000}\\p{Foo}\\z",
+    "problem": "Unknown character name [\\x{110000] near index 12"
+  },
+  {
+    "pattern": "[:alpha:]\\p{IsEmoji}(?<!\\N{\\x{110000}",
+    "problem": "Unknown character name [\\x{110000] near index 36"
+  },
+  {
+    "pattern": "\\x{41}(?=\\x{41}\\N{\\x{110000}\\e",
+    "problem": "Unknown character name [\\x{110000] near index 27"
+  },
+  {
+    "pattern": "}\\N{\\x{41}",
+    "problem": "Unknown character name [\\x{41] near index 9"
+  },
+  {
+    "pattern": "(?<a>\\N{\\x{110000}\\p{InGreek}(?<!",
+    "problem": "Unknown character name [\\x{110000] near index 17"
+  },
+  {
+    "pattern": "\\cA\\u0041+\\N{\\x{110000}",
+    "problem": "Unknown character name [\\x{110000] near index 22"
+  },
+  {
+    "pattern": "\\N{\\z{1}(?x)",
+    "problem": "Unknown character name [\\z{1] near index 7"
+  },
+  {
+    "pattern": "\\h\\N{}(?!",
+    "problem": "Unknown character name [] near index 5"
+  },
+  {
+    "pattern": "\\N{}{1,}(?!",
+    "problem": "Unknown character name [] near index 3"
+  },
+  {
+    "pattern": "(\\w\\N{}",
+    "problem": "Unknown character name [] near index 6"
+  },
+  {
+    "pattern": "\\N{{1,9999999999}[a-\\d]^",
+    "problem": "Unknown character name [{1,9999999999] near index 16"
+  },
+  {
+    "pattern": "\\N{{2,1}{2,1}{2,1}",
+    "problem": "Unknown character name [{2,1] near index 7"
+  },
+  {
+    "pattern": "\\N{{1,9999999999}",
+    "problem": "Unknown character name [{1,9999999999] near index 16"
+  },
+  {
+    "pattern": "\\N{{1,2}&&",
+    "problem": "Unknown character name [{1,2] near index 7"
+  },
+  {
+    "pattern": "]\\N{{1,2}\\p{Foo}9?",
+    "problem": "Unknown character name [{1,2] near index 8"
+  },
+  {
+    "pattern": "\\N{{1,9999999999}[a-z]",
+    "problem": "Unknown character name [{1,9999999999] near index 16"
+  },
+  {
+    "pattern": "\\N{{2,1}",
+    "problem": "Unknown character name [{2,1] near index 7"
+  },
+  {
+    "pattern": "[a&&]\\N{{1,}#",
+    "problem": "Unknown character name [{1,] near index 11"
+  },
+  {
+    "pattern": "\\z\\P{Lu}\\s\\N{{1,}",
+    "problem": "Unknown character name [{1,] near index 16"
+  },
+  {
+    "pattern": "\\N{{1,}-0\\cA",
+    "problem": "Unknown character name [{1,] near index 6"
+  },
+  {
+    "pattern": "\\N{{1,}?[a&&](?={1}",
+    "problem": "Unknown character name [{1,] near index 6"
+  },
+  {
+    "pattern": "\\N{{1,}.",
+    "problem": "Unknown character name [{1,] near index 6"
+  },
+  {
+    "pattern": "\\N{{9999999999}(?<b>\\E",
+    "problem": "Unknown character name [{9999999999] near index 14"
+  },
+  {
+    "pattern": "\\N{{1}",
+    "problem": "Unknown character name [{1] near index 5"
+  },
+  {
+    "pattern": "\\N{{9999999999}\\x{110000}\\0[",
+    "problem": "Unknown character name [{9999999999] near index 14"
+  },
+  {
+    "pattern": "\\N{{9999999999}",
+    "problem": "Unknown character name [{9999999999] near index 14"
+  },
+  {
+    "pattern": "\\h[\\d-z]\\N{{1}\\p{L}0",
+    "problem": "Unknown character name [{1] near index 13"
+  },
+  {
+    "pattern": "\\N{{1}\\x41-",
+    "problem": "Unknown character name [{1] near index 5"
+  },
+  {
+    "pattern": "\\N{{9999999999}\\0400",
+    "problem": "Unknown character name [{9999999999] near index 14"
+  },
+  {
+    "pattern": "\\N{{1}(?i)^\\e",
+    "problem": "Unknown character name [{1] near index 5"
+  },
+  {
+    "pattern": "\\0400\\N{\u00e9{1,2}\\h\\x{41}",
+    "problem": "Unknown character name [\u00e9{1,2] near index 13"
+  },
+  {
+    "pattern": "(?i)\\p{L}.\\p{ \\x{110000}",
+    "problem": "Unknown character property name { \\x{110000} near index 23"
+  },
+  {
+    "pattern": "\\p{#{1,}\\07{2,1}\\V",
+    "problem": "Unknown character property name {#{1,} near index 7"
+  },
+  {
+    "pattern": "\\p{$(?-i)^(?i)\\p{IsEmoji}",
+    "problem": "Unknown character property name {$(?-i)^(?i)\\p{IsEmoji} near index 24"
+  },
+  {
+    "pattern": "\\p{$}{",
+    "problem": "Unknown character property name {$} near index 4"
+  },
+  {
+    "pattern": "\ud83d\ude00\\p{((?i:\\x{41}&&",
+    "problem": "Unknown character property name {((?i:\\x{41} near index 14"
+  },
+  {
+    "pattern": "\\p{(?!{1,2}",
+    "problem": "Unknown character property name {(?!{1,2} near index 10"
+  },
+  {
+    "pattern": "\\p{(?:^b\\d{1,9999999999}",
+    "problem": "Unknown character property name {(?:^b\\d{1,9999999999} near index 23"
+  },
+  {
+    "pattern": "(\\p{(?<1>\\p{IsEmoji}[z-a]\\p{InGreek}",
+    "problem": "Unknown character property name {(?<1>\\p{IsEmoji} near index 19"
+  },
+  {
+    "pattern": "\\p{(?<a>*++{1,2}\\k<",
+    "problem": "Unknown character property name {(?<a>*++{1,2} near index 15"
+  },
+  {
+    "pattern": "$\\p{(?<a>\\N{FOO}\\p{Foo}(?<!",
+    "problem": "Unknown character property name {(?<a>\\N{FOO} near index 15"
+  },
+  {
+    "pattern": "\\p{(?<b>\\N{\\N{LATIN SMALL LETTER A}\\\\k<a>",
+    "problem": "Unknown character property name {(?<b>\\N{\\N{LATIN SMALL LETTER A} near index 34"
+  },
+  {
+    "pattern": "\\p{(?i)\\p{IsLatin}",
+    "problem": "Unknown character property name {(?i)\\p{IsLatin} near index 17"
+  },
+  {
+    "pattern": "\\p{(?i:(?<!{2,1}\\A",
+    "problem": "Unknown character property name {(?i:(?<!{2,1} near index 15"
+  },
+  {
+    "pattern": "(?!\\p{(?i:{1,2}\\k<(?u",
+    "problem": "Unknown character property name {(?i:{1,2} near index 14"
+  },
+  {
+    "pattern": "(]\\p{(?q)?+\\P{Lu}",
+    "problem": "Unknown character property name {(?q)?+\\P{Lu} near index 16"
+  },
+  {
+    "pattern": "\\p{(?x)\\x{110000}|",
+    "problem": "Unknown character property name {(?x)\\x{110000} near index 16"
+  },
+  {
+    "pattern": "\\p{IsEmoji}\\v\\p{(?x){2,1}\\H",
+    "problem": "Unknown character property name {(?x){2,1} near index 24"
+  },
+  {
+    "pattern": "\\p{(a\\p{L}{9999999999}",
+    "problem": "Unknown character property name {(a\\p{L} near index 9"
+  },
+  {
+    "pattern": "\\p{){9999999999}\\1{2,1}a",
+    "problem": "Unknown character property name {){9999999999} near index 15"
+  },
+  {
+    "pattern": "\\p{*\\x{110000}\n]\\Q",
+    "problem": "Unknown character property name {*\\x{110000} near index 13"
+  },
+  {
+    "pattern": "\\p{IsEmoji}\\p{+[:alpha:]{1,}\\p{InGreek}",
+    "problem": "Unknown character property name {+[:alpha:]{1,} near index 27"
+  },
+  {
+    "pattern": "\\p{?+\\p{IsEmoji}?+",
+    "problem": "Unknown character property name {?+\\p{IsEmoji} near index 15"
+  },
+  {
+    "pattern": "#\\p{?+|\\p{IsLatin}\\-",
+    "problem": "Unknown character property name {?+|\\p{IsLatin} near index 17"
+  },
+  {
+    "pattern": "&&\\X\\p{Foo}[a-\\p{IsEmoji}[&&]",
+    "problem": "Unknown character property name {Foo} near index 10"
+  },
+  {
+    "pattern": "\\p{Foo}\\b{g}+[\\d-z]\\0400\\B",
+    "problem": "Unknown character property name {Foo} near index 6"
+  },
+  {
+    "pattern": "\\p{Foo}\\h",
+    "problem": "Unknown character property name {Foo} near index 6"
+  },
+  {
+    "pattern": "\\p{Foo}\\0\\p{Foo}",
+    "problem": "Unknown character property name {Foo} near index 6"
+  },
+  {
+    "pattern": "\\p{Foo}\\P{Lu}\\d\\Q\\p{InGreek}",
+    "problem": "Unknown character property name {Foo} near index 6"
+  },
+  {
+    "pattern": "\\N{LATIN SMALL LETTER A}\\p{Foo}",
+    "problem": "Unknown character property name {Foo} near index 30"
+  },
+  {
+    "pattern": "[&&a]\\p{Foo}\\cA\\N{",
+    "problem": "Unknown character property name {Foo} near index 11"
+  },
+  {
+    "pattern": "\\-\\cA\\p{Foo}(?q)\\P{Lu}",
+    "problem": "Unknown character property name {Foo} near index 11"
+  },
+  {
+    "pattern": "\\07\\Z\\D\\P{Lu}\\D\\p{Foo}",
+    "problem": "Unknown character property name {Foo} near index 21"
+  },
+  {
+    "pattern": "\\2\\p{Foo}",
+    "problem": "Unknown character property name {Foo} near index 8"
+  },
+  {
+    "pattern": "\\p{Foo}\ud83d\ude00\\w\\x4[a&&]",
+    "problem": "Unknown character property name {Foo} near index 6"
+  },
+  {
+    "pattern": "(?<b>[]\\p{Foo}[*?+",
+    "problem": "Unknown character property name {Foo} near index 13"
+  },
+  {
+    "pattern": "\\p{IsEmoji}1a\\p{Foo}\\0\\G",
+    "problem": "Unknown character property name {Foo} near index 19"
+  },
+  {
+    "pattern": "[^\\p{Foo}",
+    "problem": "Unknown character property name {Foo} near index 8"
+  },
+  {
+    "pattern": "{1,}\\G\\D\\A\\p{Foo}\\c",
+    "problem": "Unknown character property name {Foo} near index 16"
+  },
+  {
+    "pattern": "\\p{9[\\p{L}\\pL",
+    "problem": "Unknown character property name {9[\\p{L} near index 9"
+  },
+  {
+    "pattern": "#\\p{1[^a]\\p{IsEmoji}",
+    "problem": "Unknown character property name {1[^a]\\p{IsEmoji} near index 19"
+  },
+  {
+    "pattern": "$\\p{01\\b{g}\\w",
+    "problem": "Unknown character property name {01\\b{g} near index 10"
+  },
+  {
+    "pattern": "\\p{9{1}",
+    "problem": "Unknown character property name {9{1} near index 6"
+  },
+  {
+    "pattern": "a\\p{[(?!\\N{FOO}?+",
+    "problem": "Unknown character property name {[(?!\\N{FOO} near index 14"
+  },
+  {
+    "pattern": "\\p{[:alpha:]\\2\\p{InGreek}\\08*",
+    "problem": "Unknown character property name {[:alpha:]\\2\\p{InGreek} near index 24"
+  },
+  {
+    "pattern": "\\e\\p{[:alpha:]{1,}+\\p{InGreek}",
+    "problem": "Unknown character property name {[:alpha:]{1,} near index 17"
+  },
+  {
+    "pattern": "\\p{[][a&&]\\N{LATIN SMALL LETTER A}{1}(?<=",
+    "problem": "Unknown character property name {[][a&&]\\N{LATIN SMALL LETTER A} near index 33"
+  },
+  {
+    "pattern": "(?<a>\\p{[a&&]\\p{L}",
+    "problem": "Unknown character property name {[a&&]\\p{L} near index 17"
+  },
+  {
+    "pattern": "(?<b>\\u0041\\p{[a&&b]^\\p{IsEmoji}",
+    "problem": "Unknown character property name {[a&&b]^\\p{IsEmoji} near index 31"
+  },
+  {
+    "pattern": "\\p{\\-\\N{FOO}[a-z]{1}[&&a]",
+    "problem": "Unknown character property name {\\-\\N{FOO} near index 11"
+  },
+  {
+    "pattern": "\\G(?i)\\p{\\-\\b{g}",
+    "problem": "Unknown character property name {\\-\\b{g} near index 15"
+  },
+  {
+    "pattern": "\\p{\\-\\p{IsEmoji}(?!",
+    "problem": "Unknown character property name {\\-\\p{IsEmoji} near index 15"
+  },
+  {
+    "pattern": "(\\p{\\-{1,9999999999}",
+    "problem": "Unknown character property name {\\-{1,9999999999} near index 19"
+  },
+  {
+    "pattern": "(?-i)\\p{\\B(?!\\p{Foo}",
+    "problem": "Unknown character property name {\\B(?!\\p{Foo} near index 19"
+  },
+  {
+    "pattern": "\\p{\\B\\p{IsEmoji}",
+    "problem": "Unknown character property name {\\B\\p{IsEmoji} near index 15"
+  },
+  {
+    "pattern": "\\p{\\B{1,9999999999}\\2(?<!",
+    "problem": "Unknown character property name {\\B{1,9999999999} near index 18"
+  },
+  {
+    "pattern": "\\p{\\0400?}",
+    "problem": "Unknown character property name {\\0400?} near index 9"
+  },
+  {
+    "pattern": "\\p{\\0400[&&a]\\p{IsLatin}(?:",
+    "problem": "Unknown character property name {\\0400[&&a]\\p{IsLatin} near index 23"
+  },
+  {
+    "pattern": "}\\p{\\N{FOO}+(?<1>++",
+    "problem": "Unknown character property name {\\N{FOO} near index 10"
+  },
+  {
+    "pattern": "|\\t\\p{\\N{FOO}\\N{LATIN SMALL LETTER A}\\v",
+    "problem": "Unknown character property name {\\N{FOO} near index 12"
+  },
+  {
+    "pattern": "\\p{\\N{LATIN SMALL LETTER A}\\z",
+    "problem": "Unknown character property name {\\N{LATIN SMALL LETTER A} near index 26"
+  },
+  {
+    "pattern": "\\p{IsLatin}\\p{\\N{LATIN SMALL LETTER A}\\u0040",
+    "problem": "Unknown character property name {\\N{LATIN SMALL LETTER A} near index 37"
+  },
+  {
+    "pattern": "\\p{\\N{LATIN SMALL LETTER A}\\-?+[:alpha:][&&]",
+    "problem": "Unknown character property name {\\N{LATIN SMALL LETTER A} near index 26"
+  },
+  {
+    "pattern": "[\\d-z]]\\p{\\1{1,9999999999}*",
+    "problem": "Unknown character property name {\\1{1,9999999999} near index 25"
+  },
+  {
+    "pattern": "\\u0041\\p{\\N{\\N{FOO}{1}",
+    "problem": "Unknown character property name {\\N{\\N{FOO} near index 18"
+  },
+  {
+    "pattern": "\\p{\\N{{1,2}",
+    "problem": "Unknown character property name {\\N{{1,2} near index 10"
+  },
+  {
+    "pattern": "\\p{\\2\ud83d\ude00\\t?\\x{41}",
+    "problem": "Unknown character property name {\\2\ud83d\ude00\\t?\\x{41} near index 14"
+  },
+  {
+    "pattern": "\\p{\\P{Lu}\\X\\z(?<=",
+    "problem": "Unknown character property name {\\P{Lu} near index 8"
+  },
+  {
+    "pattern": "\\P{Lu}\\p{\\P{Lu}\\cA(?x)\\x{41}",
+    "problem": "Unknown character property name {\\P{Lu} near index 14"
+  },
+  {
+    "pattern": "\\p{\\R\\x41\\P{Lu}\\N{LATIN SMALL LETTER A}\\R",
+    "problem": "Unknown character property name {\\R\\x41\\P{Lu} near index 14"
+  },
+  {
+    "pattern": "\\p{\\V\\s\\x41}\\B",
+    "problem": "Unknown character property name {\\V\\s\\x41} near index 11"
+  },
+  {
+    "pattern": "\\p{\\Z\\p{InGreek}",
+    "problem": "Unknown character property name {\\Z\\p{InGreek} near index 15"
+  },
+  {
+    "pattern": "$\\p{\\Z\\p{IsLatin}\\(?<a>",
+    "problem": "Unknown character property name {\\Z\\p{IsLatin} near index 16"
+  },
+  {
+    "pattern": "\\p{\\Z{1,9999999999} ",
+    "problem": "Unknown character property name {\\Z{1,9999999999} near index 18"
+  },
+  {
+    "pattern": "\\p{\\[^\\p{InGreek}[a-\\d]{1}",
+    "problem": "Unknown character property name {\\[^\\p{InGreek} near index 16"
+  },
+  {
+    "pattern": "[^a]\\p{\\Q\\b{g}",
+    "problem": "Unknown character property name {\\\\b\\{g\\} near index 14"
+  },
+  {
+    "pattern": "\\p{\\Q\\p{InGreek}",
+    "problem": "Unknown character property name {\\\\p\\{InGreek\\} near index 16"
+  },
+  {
+    "pattern": "\\p{\\b{9999999999}\\e\\u0041-",
+    "problem": "Unknown character property name {\\b{9999999999} near index 16"
+  },
+  {
+    "pattern": "\\p{\\b{g}\\D",
+    "problem": "Unknown character property name {\\b{g} near index 7"
+  },
+  {
+    "pattern": "{1,}\\p{\\b{g}\\E\\N{",
+    "problem": "Unknown character property name {\\b{g} near index 11"
+  },
+  {
+    "pattern": "\\p{\\b{g}",
+    "problem": "Unknown character property name {\\b{g} near index 7"
+  },
+  {
+    "pattern": "\\p{\\cA\\08\\N{FOO}",
+    "problem": "Unknown character property name {\\cA\\08\\N{FOO} near index 15"
+  },
+  {
+    "pattern": "\\p{\\k<\\P{Lu}",
+    "problem": "Unknown character property name {\\k<\\P{Lu} near index 11"
+  },
+  {
+    "pattern": "\\p{\\k<a>{9999999999}(?x)",
+    "problem": "Unknown character property name {\\k<a>{9999999999} near index 19"
+  },
+  {
+    "pattern": "\\p{\\pL(?:\\d\\x{41}",
+    "problem": "Unknown character property name {\\pL(?:\\d\\x{41} near index 16"
+  },
+  {
+    "pattern": "\\p{\\p{Foo}",
+    "problem": "Unknown character property name {\\p{Foo} near index 9"
+  },
+  {
+    "pattern": "\\cA\\p{\\p{Foo}\\b{g}",
+    "problem": "Unknown character property name {\\p{Foo} near index 12"
+  },
+  {
+    "pattern": "(?>\\p{\\p{Foo}\\0400\\2|",
+    "problem": "Unknown character property name {\\p{Foo} near index 12"
+  },
+  {
+    "pattern": "(?-i)\\p{\\p{Foo}[&&]",
+    "problem": "Unknown character property name {\\p{Foo} near index 14"
+  },
+  {
+    "pattern": "\\p{\\p{Foo}0",
+    "problem": "Unknown character property name {\\p{Foo} near index 9"
+  },
+  {
+    "pattern": "\\V\\p{\\p{Foo}\\cA\\p{IsLatin}\\07",
+    "problem": "Unknown character property name {\\p{Foo} near index 11"
+  },
+  {
+    "pattern": "\\p{\\p{Foo}[^a]\\0400",
+    "problem": "Unknown character property name {\\p{Foo} near index 9"
+  },
+  {
+    "pattern": "\\p{\\p{InGreek}[:alpha:]\\0400\\cA",
+    "problem": "Unknown character property name {\\p{InGreek} near index 13"
+  },
+  {
+    "pattern": "\\p{IsLatin}\\p{\\p{InGreek}",
+    "problem": "Unknown character property name {\\p{InGreek} near index 24"
+  },
+  {
+    "pattern": "(?<!(?:\\p{\\p{InGreek}(?-i)#",
+    "problem": "Unknown character property name {\\p{InGreek} near index 20"
+  },
+  {
+    "pattern": "\\p{\\p{InGreek}",
+    "problem": "Unknown character property name {\\p{InGreek} near index 13"
+  },
+  {
+    "pattern": "\\p{IsLatin}\\p{\\p{IsEmoji}[a-\\d]\\H9",
+    "problem": "Unknown character property name {\\p{IsEmoji} near index 24"
+  },
+  {
+    "pattern": "\\p{\\p{IsEmoji}",
+    "problem": "Unknown character property name {\\p{IsEmoji} near index 13"
+  },
+  {
+    "pattern": "\ud83d\ude00\\X\\p{\\p{IsEmoji}",
+    "problem": "Unknown character property name {\\p{IsEmoji} near index 16"
+  },
+  {
+    "pattern": "\\t[^(?x)\\p{\\p{IsLatin}++",
+    "problem": "Unknown character property name {\\p{IsLatin} near index 21"
+  },
+  {
+    "pattern": "[]\\s{1,2}\\p{\\p{IsLatin}",
+    "problem": "Unknown character property name {\\p{IsLatin} near index 22"
+  },
+  {
+    "pattern": "\\p{\\p{IsLatin}[a-z]9\\B",
+    "problem": "Unknown character property name {\\p{IsLatin} near index 13"
+  },
+  {
+    "pattern": "\\p{\\p{IsLatin}",
+    "problem": "Unknown character property name {\\p{IsLatin} near index 13"
+  },
+  {
+    "pattern": "}[a-z]\\p{\\p{L}\\0400.",
+    "problem": "Unknown character property name {\\p{L} near index 13"
+  },
+  {
+    "pattern": "\\p{\\p{L}[^a][:alpha:]",
+    "problem": "Unknown character property name {\\p{L} near index 7"
+  },
+  {
+    "pattern": "0+\\p{\\p{L}",
+    "problem": "Unknown character property name {\\p{L} near index 9"
+  },
+  {
+    "pattern": "\\p{\\p{L}",
+    "problem": "Unknown character property name {\\p{L} near index 7"
+  },
+  {
+    "pattern": "(?>\\p{\\s[&&a]\\N{\\N{FOO}",
+    "problem": "Unknown character property name {\\s[&&a]\\N{\\N{FOO} near index 22"
+  },
+  {
+    "pattern": "\\p{\\v{2,1}",
+    "problem": "Unknown character property name {\\v{2,1} near index 9"
+  },
+  {
+    "pattern": "\\t\\p{\\w&&\\V}",
+    "problem": "Unknown character property name {\\w&&\\V} near index 11"
+  },
+  {
+    "pattern": "\\p{\\w{2,1}[a&&]",
+    "problem": "Unknown character property name {\\w{2,1} near index 9"
+  },
+  {
+    "pattern": "(?:\\p{\\x41)\\b{g}",
+    "problem": "Unknown character property name {\\x41)\\b{g} near index 15"
+  },
+  {
+    "pattern": "\\P{Lu}\\p{\\x41{1,2}\\N{",
+    "problem": "Unknown character property name {\\x41{1,2} near index 17"
+  },
+  {
+    "pattern": "$\\p{\\x{110000}\\b{g}",
+    "problem": "Unknown character property name {\\x{110000} near index 13"
+  },
+  {
+    "pattern": "\\p{\\x{110000}\\V",
+    "problem": "Unknown character property name {\\x{110000} near index 12"
+  },
+  {
+    "pattern": "\\p{\\x{41}\\c\\Q",
+    "problem": "Unknown character property name {\\x{41} near index 8"
+  },
+  {
+    "pattern": "(?!\\P{Lu}\\p{\\x{41}",
+    "problem": "Unknown character property name {\\x{41} near index 17"
+  },
+  {
+    "pattern": "\\p{\\x{41}?+&&{\\D",
+    "problem": "Unknown character property name {\\x{41} near index 8"
+  },
+  {
+    "pattern": "\\R\\X\\p{\\x{110000}",
+    "problem": "Unknown character property name {\\x{110000} near index 16"
+  },
+  {
+    "pattern": "\\p{\\x{41}",
+    "problem": "Unknown character property name {\\x{41} near index 8"
+  },
+  {
+    "pattern": "\\p{\\z\\p{IsLatin}\\Z \\Z",
+    "problem": "Unknown character property name {\\z\\p{IsLatin} near index 15"
+  },
+  {
+    "pattern": "\\p{\\z\\w\\p{InGreek}\\N{LATIN SMALL LETTER A}{1,2}",
+    "problem": "Unknown character property name {\\z\\w\\p{InGreek} near index 17"
+  },
+  {
+    "pattern": "[a&&b]1\\p{\\z{1,}",
+    "problem": "Unknown character property name {\\z{1,} near index 15"
+  },
+  {
+    "pattern": "\\N{LATIN SMALL LETTER A}\\c\\Q\\P{Lu}",
+    "problem": "Unknown character property name {\\} near index 29"
+  },
+  {
+    "pattern": "\\p{\\}\\p{InGreek}{9999999999}\\p{InGreek}",
+    "problem": "Unknown character property name {\\} near index 4"
+  },
+  {
+    "pattern": "\\p{\\}[&&][a-z]\\u004",
+    "problem": "Unknown character property name {\\} near index 4"
+  },
+  {
+    "pattern": "\\-\\pL\\p{]\\b{g}}",
+    "problem": "Unknown character property name {]\\b{g} near index 13"
+  },
+  {
+    "pattern": "\\p{^\\p{Foo}]",
+    "problem": "Unknown character property name {^\\p{Foo} near index 10"
+  },
+  {
+    "pattern": "{1,2}\\p{a\\G\\p{IsLatin}",
+    "problem": "Unknown character property name {a\\G\\p{IsLatin} near index 21"
+  },
+  {
+    "pattern": "\\\\w\\p{b#\\p{L}",
+    "problem": "Unknown character property name {b#\\p{L} near index 12"
+  },
+  {
+    "pattern": "\\x41\\x{41}\\p{{,{2,1}\\u0041",
+    "problem": "Unknown character property name {{,{2,1} near index 19"
+  },
+  {
+    "pattern": "\\p{{2,1}[&&a]\\k<\\p{|",
+    "problem": "Unknown character property name {{2,1} near index 7"
+  },
+  {
+    "pattern": "[^(?=\\p{{2,1}\\x410",
+    "problem": "Unknown character property name {{2,1} near index 12"
+  },
+  {
+    "pattern": "[&&a]\\G(?<a>\\p{{2,1}",
+    "problem": "Unknown character property name {{2,1} near index 19"
+  },
+  {
+    "pattern": "\\p{{1,2}\\x41",
+    "problem": "Unknown character property name {{1,2} near index 7"
+  },
+  {
+    "pattern": "b\\p{{1,2}\\y{9999999999}\\s",
+    "problem": "Unknown character property name {{1,2} near index 8"
+  },
+  {
+    "pattern": "\n\\p{{1,9999999999}]",
+    "problem": "Unknown character property name {{1,9999999999} near index 17"
+  },
+  {
+    "pattern": "\\p{IsLatin}\\p{{1,9999999999}\\y",
+    "problem": "Unknown character property name {{1,9999999999} near index 27"
+  },
+  {
+    "pattern": "\\N{LATIN SMALL LETTER A}\\p{{2,1}{2,1}",
+    "problem": "Unknown character property name {{2,1} near index 31"
+  },
+  {
+    "pattern": "\\p{{1,2}*)?+[^a]",
+    "problem": "Unknown character property name {{1,2} near index 7"
+  },
+  {
+    "pattern": "\\p{{1,2}]\\p{Foo}",
+    "problem": "Unknown character property name {{1,2} near index 7"
+  },
+  {
+    "pattern": "\\p{{2,1}[a&&]\\B[\\[",
+    "problem": "Unknown character property name {{2,1} near index 7"
+  },
+  {
+    "pattern": "[&&a]\\p{{1,9999999999} ",
+    "problem": "Unknown character property name {{1,9999999999} near index 21"
+  },
+  {
+    "pattern": "[^\\x{41}\\p{{1,}}",
+    "problem": "Unknown character property name {{1,} near index 14"
+  },
+  {
+    "pattern": "\\p{{1,}\\G",
+    "problem": "Unknown character property name {{1,} near index 6"
+  },
+  {
+    "pattern": "\\p{{1,}{[a&&]+\\E",
+    "problem": "Unknown character property name {{1,} near index 6"
+  },
+  {
+    "pattern": "\\p{{1,}",
+    "problem": "Unknown character property name {{1,} near index 6"
+  },
+  {
+    "pattern": "\\p{{1}\\x41[:alpha:]\ud83d\ude00[a-z]",
+    "problem": "Unknown character property name {{1} near index 5"
+  },
+  {
+    "pattern": "\\p{{9999999999}|]\\x{110000}",
+    "problem": "Unknown character property name {{9999999999} near index 14"
+  },
+  {
+    "pattern": "\\p{{9999999999}(?q) \\x41",
+    "problem": "Unknown character property name {{9999999999} near index 14"
+  },
+  {
+    "pattern": "\\p{{1}[a-",
+    "problem": "Unknown character property name {{1} near index 5"
+  },
+  {
+    "pattern": "\\Z\\p{{9999999999}a",
+    "problem": "Unknown character property name {{9999999999} near index 16"
+  },
+  {
+    "pattern": "\\x{41}\\p{{9999999999}[&&]\\D{2,1}",
+    "problem": "Unknown character property name {{9999999999} near index 20"
+  },
+  {
+    "pattern": "\\p{{9999999999}[",
+    "problem": "Unknown character property name {{9999999999} near index 14"
+  },
+  {
+    "pattern": "((?<!\\p{{1}\\y",
+    "problem": "Unknown character property name {{1} near index 10"
+  },
+  {
+    "pattern": "\\p{{1}\\z[a&&]",
+    "problem": "Unknown character property name {{1} near index 5"
+  },
+  {
+    "pattern": "\\p{{{1,2}",
+    "problem": "Unknown character property name {{{1,2} near index 8"
+  },
+  {
+    "pattern": "\\b{1}\\p{\u00e9?+\\p{IsEmoji}",
+    "problem": "Unknown character property name {\u00e9?+\\p{IsEmoji} near index 21"
+  },
+  {
+    "pattern": "\\p{\u00e9[a-\\d]\\p{L}",
+    "problem": "Unknown character property name {\u00e9[a-\\d]\\p{L} near index 14"
+  },
+  {
+    "pattern": "\\p{\u00e9\\p{IsEmoji}?{1}\\E",
+    "problem": "Unknown character property name {\u00e9\\p{IsEmoji} near index 14"
+  },
+  {
+    "pattern": "a\\p{\ud83d\ude00\\p{IsEmoji}b{2,1}",
+    "problem": "Unknown character property name {\ud83d\ude00\\p{IsEmoji} near index 15"
+  },
+  {
+    "pattern": "\\p{\ud83d\ude00\\p{IsEmoji}",
+    "problem": "Unknown character property name {\ud83d\ude00\\p{IsEmoji} near index 14"
+  },
+  {
+    "pattern": "(?$",
+    "problem": "Unknown group type near index 2"
+  },
+  {
+    "pattern": "(?<!(?>(?i)(?$.",
+    "problem": "Unknown group type near index 13"
+  },
+  {
+    "pattern": "\\?+(?$",
+    "problem": "Unknown group type near index 5"
+  },
+  {
+    "pattern": "[^a](?u\\R\\0400{9999999999}",
+    "problem": "Unknown inline modifier near index 7"
+  },
+  {
+    "pattern": "\n\\pL(?u(?i:{,\\u004",
+    "problem": "Unknown inline modifier near index 7"
+  },
+  {
+    "pattern": "(?>\\07(?q)\\p{L}(?u",
+    "problem": "Unknown inline modifier near index 8"
+  },
+  {
+    "pattern": "[\\d-z](?q)(?=",
+    "problem": "Unknown inline modifier near index 8"
+  },
+  {
+    "pattern": "[a&&](?u",
+    "problem": "Unknown inline modifier near index 8"
+  },
+  {
+    "pattern": "(?q)\\B\\N{FOO}(?=[a&&]",
+    "problem": "Unknown inline modifier near index 2"
+  },
+  {
+    "pattern": "}[a&&]{1,2}(?",
+    "problem": "Unknown inline modifier near index 13"
+  },
+  {
+    "pattern": "](?<!(?u^\\b(?!",
+    "problem": "Unknown inline modifier near index 8"
+  },
+  {
+    "pattern": "(?q)\n(?<=+\\u0041",
+    "problem": "Unknown inline modifier near index 2"
+  },
+  {
+    "pattern": "(?q)\\x41\\N{",
+    "problem": "Unknown inline modifier near index 2"
+  },
+  {
+    "pattern": "#\\B{1,2}(?q)\\Z\\x41",
+    "problem": "Unknown inline modifier near index 10"
+  },
+  {
+    "pattern": "\u00e9^(?[a-z][a&&]\\b",
+    "problem": "Unknown inline modifier near index 4"
+  },
+  {
+    "pattern": "[a&&b]\\b{g}(?>(?",
+    "problem": "Unknown inline modifier near index 16"
+  },
+  {
+    "pattern": "(?q)[&&]\\p{Foo}{,?++",
+    "problem": "Unknown inline modifier near index 2"
+  },
+  {
+    "pattern": "\\[\\t(?q){\\b",
+    "problem": "Unknown inline modifier near index 6"
+  },
+  {
+    "pattern": ")\\D",
+    "problem": "Unmatched closing ')'"
+  },
+  {
+    "pattern": "\\1)[a-\\c",
+    "problem": "Unmatched closing ')' near index 1"
+  },
+  {
+    "pattern": "[:alpha:]{1,})$\\N{LATIN SMALL LETTER A}[^a]",
+    "problem": "Unmatched closing ')' near index 12"
+  },
+  {
+    "pattern": "{1,})\\-[&&a]",
+    "problem": "Unmatched closing ')' near index 3"
+  },
+  {
+    "pattern": "\\p{L})\\t*\\s",
+    "problem": "Unmatched closing ')' near index 4"
+  },
+  {
+    "pattern": "\\[)\\2",
+    "problem": "Unmatched closing ')' near index 1"
+  },
+  {
+    "pattern": "\\07[a&&]+9)[a&&b]",
+    "problem": "Unmatched closing ')' near index 9"
+  },
+  {
+    "pattern": "a)",
+    "problem": "Unmatched closing ')' near index 0"
+  },
+  {
+    "pattern": "\n)&&\\X[:alpha:]",
+    "problem": "Unmatched closing ')' near index 0"
+  },
+  {
+    "pattern": "\\N{LATIN SMALL LETTER A}})",
+    "problem": "Unmatched closing ')' near index 24"
+  },
+  {
+    "pattern": "\\pL\\u0041\\w)0",
+    "problem": "Unmatched closing ')' near index 10"
+  },
+  {
+    "pattern": "{1})\\",
+    "problem": "Unmatched closing ')' near index 2"
+  },
+  {
+    "pattern": "\\(?x)(?u\\R\ud83d\ude00",
+    "problem": "Unmatched closing ')' near index 3"
+  },
+  {
+    "pattern": ")(?x)\\x41",
+    "problem": "Unmatched closing ')'"
+  },
+  {
+    "pattern": ")\\x41\\08[a-\\d]\\x{41}(?i)",
+    "problem": "Unmatched closing ')'"
+  },
+  {
+    "pattern": "(\\k<",
+    "problem": "capturing group name does not start with a Latin letter near index 4"
+  },
+  {
+    "pattern": "(?<1>\\z\ud83d\ude00\\P{Lu}",
+    "problem": "capturing group name does not start with a Latin letter near index 3"
+  },
+  {
+    "pattern": "\\0400\n(?:\\k<\ud83d\ude00\\R",
+    "problem": "capturing group name does not start with a Latin letter near index 12"
+  },
+  {
+    "pattern": "#(?<1>?(?i:",
+    "problem": "capturing group name does not start with a Latin letter near index 4"
+  },
+  {
+    "pattern": "\\k<\\E(?:[:alpha:]\\h",
+    "problem": "capturing group name does not start with a Latin letter near index 3"
+  },
+  {
+    "pattern": "[a&&]#|\\2(?<1>",
+    "problem": "capturing group name does not start with a Latin letter near index 12"
+  },
+  {
+    "pattern": "(?<=)\\k<(?<b>\\x{41}\\b",
+    "problem": "capturing group name does not start with a Latin letter near index 8"
+  },
+  {
+    "pattern": "(?<1>(?\\d\\h",
+    "problem": "capturing group name does not start with a Latin letter near index 3"
+  },
+  {
+    "pattern": "(?<1>[a&&b](?<=\\p{IsEmoji}[\\d-z]",
+    "problem": "capturing group name does not start with a Latin letter near index 3"
+  },
+  {
+    "pattern": "&&(?!\\k<\\h\\z\\s",
+    "problem": "capturing group name does not start with a Latin letter near index 8"
+  },
+  {
+    "pattern": "\\x41}\\k<.",
+    "problem": "capturing group name does not start with a Latin letter near index 8"
+  },
+  {
+    "pattern": "(\\X\\k<",
+    "problem": "capturing group name does not start with a Latin letter near index 6"
+  },
+  {
+    "pattern": "\\0400*\\G\\k<\\p{Foo}(?:",
+    "problem": "capturing group name does not start with a Latin letter near index 11"
+  },
+  {
+    "pattern": "$(?<1>\\p{",
+    "problem": "capturing group name does not start with a Latin letter near index 4"
+  },
+  {
+    "pattern": "(?<!(?<1>\\cA[^a][&&a]\\N{",
+    "problem": "capturing group name does not start with a Latin letter near index 7"
+  },
+  {
+    "pattern": "\\p{L}\\k<a>\\w",
+    "problem": "named capturing group <a> does not exist near index 9"
+  },
+  {
+    "pattern": "]\\k<a>\\hb",
+    "problem": "named capturing group <a> does not exist near index 5"
+  },
+  {
+    "pattern": "(?>\\k<a>(?<b>\\k<a>\\0400\n",
+    "problem": "named capturing group <a> does not exist near index 7"
+  },
+  {
+    "pattern": "(\\G\\k<a>",
+    "problem": "named capturing group <a> does not exist near index 7"
+  },
+  {
+    "pattern": "{1}\\k<a>\\N{FOO}\\H",
+    "problem": "named capturing group <a> does not exist near index 7"
+  },
+  {
+    "pattern": "\\e-|\\0400\\V\\k<a>",
+    "problem": "named capturing group <a> does not exist near index 15"
+  },
+  {
+    "pattern": "(?i:(?!\\k<a>(?<1>",
+    "problem": "named capturing group <a> does not exist near index 11"
+  },
+  {
+    "pattern": "\\k<a>\\P{Lu}",
+    "problem": "named capturing group <a> does not exist near index 4"
+  },
+  {
+    "pattern": "\\k<a>{1,9999999999}\\1(",
+    "problem": "named capturing group <a> does not exist near index 4"
+  },
+  {
+    "pattern": "\\k<a>\\pL\\s(?<=(?",
+    "problem": "named capturing group <a> does not exist near index 4"
+  },
+  {
+    "pattern": "\\k<a>{1,}(",
+    "problem": "named capturing group <a> does not exist near index 4"
+  },
+  {
+    "pattern": "^\\B\\k<a>\\p{Foo}\\H",
+    "problem": "named capturing group <a> does not exist near index 7"
+  },
+  {
+    "pattern": "[\\d-z]\\k<a>\\x4(?x)",
+    "problem": "named capturing group <a> does not exist near index 10"
+  },
+  {
+    "pattern": "\\k<a>{",
+    "problem": "named capturing group <a> does not exist near index 4"
+  },
+  {
+    "pattern": "\\k<a>\\1*[a-",
+    "problem": "named capturing group <a> does not exist near index 4"
+  },
+  {
+    "pattern": "\\x{41}\\k<a",
+    "problem": "named capturing group is missing trailing '>' near index 10"
+  },
+  {
+    "pattern": "{1,}\\k<b",
+    "problem": "named capturing group is missing trailing '>' near index 8"
+  },
+  {
+    "pattern": "(?>\\pL\\P{Lu}\\e\\k<b",
+    "problem": "named capturing group is missing trailing '>' near index 18"
+  },
+  {
+    "pattern": "\\b{g}\\k<b\\e",
+    "problem": "named capturing group is missing trailing '>' near index 9"
+  },
+  {
+    "pattern": "\\k<a",
+    "problem": "named capturing group is missing trailing '>' near index 4"
+  },
+  {
+    "pattern": "\\x{41}\\k<a(?=\\1",
+    "problem": "named capturing group is missing trailing '>' near index 10"
+  },
+  {
+    "pattern": "\\[\\k<a\\-",
+    "problem": "named capturing group is missing trailing '>' near index 6"
+  },
+  {
+    "pattern": "\\k<b[a-z][^\\E",
+    "problem": "named capturing group is missing trailing '>' near index 4"
+  },
+  {
+    "pattern": "9\\k<a(?q)",
+    "problem": "named capturing group is missing trailing '>' near index 5"
+  },
+  {
+    "pattern": "\\k<a*\\w(?:+",
+    "problem": "named capturing group is missing trailing '>' near index 4"
+  },
+  {
+    "pattern": "\\h\\Q\\X(?<a>\\V",
+    "problem": null
+  },
+  {
+    "pattern": "\\h^\\x41",
+    "problem": null
+  },
+  {
+    "pattern": ".(?i)\\Z",
+    "problem": null
+  },
+  {
+    "pattern": "\ud83d\ude00(?-i)#\\c*?",
+    "problem": null
+  },
+  {
+    "pattern": "\\1\\x{41}",
+    "problem": null
+  },
+  {
+    "pattern": "\\[\\b{g}",
+    "problem": null
+  },
+  {
+    "pattern": "[a&&]\\cA||\\v",
+    "problem": null
+  },
+  {
+    "pattern": "[&&a][a&&]",
+    "problem": null
+  },
+  {
+    "pattern": "|\\Z\\v",
+    "problem": null
+  },
+  {
+    "pattern": "[a&&]\\Q",
+    "problem": null
+  },
+  {
+    "pattern": "-(?x)\ud83d\ude000[a-z]a",
+    "problem": null
+  },
+  {
+    "pattern": "\\d[a&&]",
+    "problem": null
+  },
+  {
+    "pattern": "}\\p{L}",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q\\[{2,1}(",
+    "problem": null
+  },
+  {
+    "pattern": "\\x41\\D\\P{Lu}\n(?i)1",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q[a&&b](?!",
+    "problem": null
+  },
+  {
+    "pattern": "\\pL\\w\\cA\\P{Lu}",
+    "problem": null
+  },
+  {
+    "pattern": "\\07\\1\u00e9",
+    "problem": null
+  },
+  {
+    "pattern": "\\x41\\c[:alpha:]\\z\\cA",
+    "problem": null
+  },
+  {
+    "pattern": "\\0400a",
+    "problem": null
+  },
+  {
+    "pattern": "1\\B?\\z\\w\\p{IsEmoji}",
+    "problem": null
+  },
+  {
+    "pattern": "}$?#(?x)",
+    "problem": null
+  },
+  {
+    "pattern": "a\\p{IsEmoji}",
+    "problem": null
+  },
+  {
+    "pattern": "\\c\\h\\s",
+    "problem": null
+  },
+  {
+    "pattern": "\\R(?x)",
+    "problem": null
+  },
+  {
+    "pattern": "(?-i)",
+    "problem": null
+  },
+  {
+    "pattern": "-\\h",
+    "problem": null
+  },
+  {
+    "pattern": "\\R\\[",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{L}\\p{IsLatin}0#\\p{L}",
+    "problem": null
+  },
+  {
+    "pattern": "\\u0041[a&&]",
+    "problem": null
+  },
+  {
+    "pattern": "\n{1,2}",
+    "problem": null
+  },
+  {
+    "pattern": "(?-i)&&",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{InGreek}]\\[0\\p{InGreek}",
+    "problem": null
+  },
+  {
+    "pattern": "]\\V\\u0041\\Q\\08(?<=",
+    "problem": null
+  },
+  {
+    "pattern": "(?x)\\d\\[\\Z(?x)",
+    "problem": null
+  },
+  {
+    "pattern": "\\u0041\\B\\h",
+    "problem": null
+  },
+  {
+    "pattern": "\\R\\Z0",
+    "problem": null
+  },
+  {
+    "pattern": "\\1]\\b",
+    "problem": null
+  },
+  {
+    "pattern": "[&&a]\\X\ud83d\ude000?+1",
+    "problem": null
+  },
+  {
+    "pattern": "\ud83d\ude00{1}\\x{41}",
+    "problem": null
+  },
+  {
+    "pattern": "\\X\\w",
+    "problem": null
+  },
+  {
+    "pattern": " *b#\ud83d\ude00-",
+    "problem": null
+  },
+  {
+    "pattern": "\\R",
+    "problem": null
+  },
+  {
+    "pattern": "\\u0041(?i)[:alpha:]++\\p{L}",
+    "problem": null
+  },
+  {
+    "pattern": "#&&",
+    "problem": null
+  },
+  {
+    "pattern": "[a&&b]\\s",
+    "problem": null
+  },
+  {
+    "pattern": "^\\P{Lu}\\Z ",
+    "problem": null
+  },
+  {
+    "pattern": "\\Z\\Ga+",
+    "problem": null
+  },
+  {
+    "pattern": "&&1",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q\\V&&\\[",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{IsEmoji}[a&&]",
+    "problem": null
+  },
+  {
+    "pattern": "\n(?i)",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{InGreek}\\Q*?\\z\\c",
+    "problem": null
+  },
+  {
+    "pattern": "[:alpha:]b?+",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{InGreek}\\D",
+    "problem": null
+  },
+  {
+    "pattern": "(?-i)\\Bb",
+    "problem": null
+  },
+  {
+    "pattern": "\\b|\\H",
+    "problem": null
+  },
+  {
+    "pattern": "[a&&]\\0400",
+    "problem": null
+  },
+  {
+    "pattern": "[a&&b]\\x{41}\\v",
+    "problem": null
+  },
+  {
+    "pattern": "\\b{g}\\D\\D\u00e9",
+    "problem": null
+  },
+  {
+    "pattern": "\\c\\cA",
+    "problem": null
+  },
+  {
+    "pattern": "\\G\\[",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q{1,9999999999}",
+    "problem": null
+  },
+  {
+    "pattern": "\\z{1,2}\ud83d\ude00",
+    "problem": null
+  },
+  {
+    "pattern": "\\v9",
+    "problem": null
+  },
+  {
+    "pattern": "\\1\\N{LATIN SMALL LETTER A}",
+    "problem": null
+  },
+  {
+    "pattern": "#\\2#\\h\\x{41}\\B",
+    "problem": null
+  },
+  {
+    "pattern": "0\\d",
+    "problem": null
+  },
+  {
+    "pattern": "\\V\\R-\\b{g}&&{1,}",
+    "problem": null
+  },
+  {
+    "pattern": "[a-z]++\\e[\\d-z]",
+    "problem": null
+  },
+  {
+    "pattern": "(?<a>)+",
+    "problem": null
+  },
+  {
+    "pattern": "\\G[\\d-z]\\b [a&&]",
+    "problem": null
+  },
+  {
+    "pattern": "\\?\\cA\\e&&|",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q({2,1}\\p{IsEmoji}\\p{Foo}\\N{FOO}",
+    "problem": null
+  },
+  {
+    "pattern": "\\b\\d&&\\G",
+    "problem": null
+  },
+  {
+    "pattern": "\u00e9{1,}\\N{LATIN SMALL LETTER A}",
+    "problem": null
+  },
+  {
+    "pattern": "\\e\\p{InGreek}",
+    "problem": null
+  },
+  {
+    "pattern": "]\\1]\\G-",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q\\04000(?q)\\x{110000}{1}",
+    "problem": null
+  },
+  {
+    "pattern": " 9\\e\\V",
+    "problem": null
+  },
+  {
+    "pattern": " \\D ",
+    "problem": null
+  },
+  {
+    "pattern": "\\0400\\Q(?<!\\cA\\z",
+    "problem": null
+  },
+  {
+    "pattern": "\\H\\t",
+    "problem": null
+  },
+  {
+    "pattern": "(?x).\\A",
+    "problem": null
+  },
+  {
+    "pattern": "{1,2}\\A\\p{InGreek}",
+    "problem": null
+  },
+  {
+    "pattern": "\\D\\s\\Z",
+    "problem": null
+  },
+  {
+    "pattern": "[\\d-z]\\1\\1\\b[a-z]\\b{g}",
+    "problem": null
+  },
+  {
+    "pattern": "1\\V*",
+    "problem": null
+  },
+  {
+    "pattern": "\\pL\\p{InGreek}]",
+    "problem": null
+  },
+  {
+    "pattern": "\\d}\\cA\u00e9\\A",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{IsLatin}\\t\\s\\N{LATIN SMALL LETTER A}\\p{IsEmoji}+",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q\\p{(\\c[\\d-z]\\x41",
+    "problem": null
+  },
+  {
+    "pattern": "\\V\\X(?-i)\\-\\b{g}",
+    "problem": null
+  },
+  {
+    "pattern": "{1,}\\b{g}",
+    "problem": null
+  },
+  {
+    "pattern": "\\H\\Q|",
+    "problem": null
+  },
+  {
+    "pattern": "(?x)",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{InGreek}\\b",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q?+(?!-\\N{FOO}\\D",
+    "problem": null
+  },
+  {
+    "pattern": "\\A\ud83d\ude00",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{IsEmoji}\\w9",
+    "problem": null
+  },
+  {
+    "pattern": "[&&a]\\c-",
+    "problem": null
+  },
+  {
+    "pattern": "\\v\\P{Lu}.}{1}\\e",
+    "problem": null
+  },
+  {
+    "pattern": "\\G+\\p{L}",
+    "problem": null
+  },
+  {
+    "pattern": "1\\d\\Q\\D",
+    "problem": null
+  },
+  {
+    "pattern": "(?x)[&&a]\ud83d\ude00\\Z$",
+    "problem": null
+  },
+  {
+    "pattern": "\\1\\Q-",
+    "problem": null
+  },
+  {
+    "pattern": "[&&a].\\B",
+    "problem": null
+  },
+  {
+    "pattern": "\\Z\\x{41}*\\t\\w\\0400",
+    "problem": null
+  },
+  {
+    "pattern": "\\2\\x{41}",
+    "problem": null
+  },
+  {
+    "pattern": "0$[&&a]\\D",
+    "problem": null
+  },
+  {
+    "pattern": "\\\\E\\x41",
+    "problem": null
+  },
+  {
+    "pattern": "\\e\\e[\\d-z]\\0400",
+    "problem": null
+  },
+  {
+    "pattern": "\\G\\H",
+    "problem": null
+  },
+  {
+    "pattern": "\\0400\\G\u00e9",
+    "problem": null
+  },
+  {
+    "pattern": "\u00e9\\t",
+    "problem": null
+  },
+  {
+    "pattern": "\\za\\v",
+    "problem": null
+  },
+  {
+    "pattern": "\\X?+\\p{InGreek}",
+    "problem": null
+  },
+  {
+    "pattern": "[&&a]\\v",
+    "problem": null
+  },
+  {
+    "pattern": "-\\v",
+    "problem": null
+  },
+  {
+    "pattern": "\\Z[:alpha:][^a]",
+    "problem": null
+  },
+  {
+    "pattern": "\\pL9",
+    "problem": null
+  },
+  {
+    "pattern": "\\t\\P{Lu}",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{InGreek}\\0400{1,}^",
+    "problem": null
+  },
+  {
+    "pattern": "\\d[&&a]",
+    "problem": null
+  },
+  {
+    "pattern": "\\e\\d\\x41\\x41]\u00e9",
+    "problem": null
+  },
+  {
+    "pattern": "-\\-",
+    "problem": null
+  },
+  {
+    "pattern": "\\b{g}\\X",
+    "problem": null
+  },
+  {
+    "pattern": "{1}\\p{IsEmoji}b",
+    "problem": null
+  },
+  {
+    "pattern": "\\pL\\07\\N{LATIN SMALL LETTER A}",
+    "problem": null
+  },
+  {
+    "pattern": "\\x{41}a",
+    "problem": null
+  },
+  {
+    "pattern": "\\-&&\\d{1,2}\\H(?i)",
+    "problem": null
+  },
+  {
+    "pattern": "\\N{LATIN SMALL LETTER A}*?\\A",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q\\s",
+    "problem": null
+  },
+  {
+    "pattern": "\\cA9(?x)\\Z",
+    "problem": null
+  },
+  {
+    "pattern": "\\v-\\0400",
+    "problem": null
+  },
+  {
+    "pattern": "b^[\\d-z]]\\b{g}+",
+    "problem": null
+  },
+  {
+    "pattern": "(?x)\\(?<1>}",
+    "problem": null
+  },
+  {
+    "pattern": "a(?i)\\b\\v",
+    "problem": null
+  },
+  {
+    "pattern": "[^a]?\\s",
+    "problem": null
+  },
+  {
+    "pattern": "\\b[a&&b]",
+    "problem": null
+  },
+  {
+    "pattern": " \\-",
+    "problem": null
+  },
+  {
+    "pattern": "\\Z\\s",
+    "problem": null
+  },
+  {
+    "pattern": "\\b\\[1",
+    "problem": null
+  },
+  {
+    "pattern": "\\pL\\x41",
+    "problem": null
+  },
+  {
+    "pattern": "}[\\d-z]",
+    "problem": null
+  },
+  {
+    "pattern": "\\pL\\P{Lu}[a&&b]",
+    "problem": null
+  },
+  {
+    "pattern": "]",
+    "problem": null
+  },
+  {
+    "pattern": "\\d1\\pL\\p{L}\\p{L}\\0400",
+    "problem": null
+  },
+  {
+    "pattern": "[a&&]\\z9\\B\\P{Lu}\\2",
+    "problem": null
+  },
+  {
+    "pattern": "9",
+    "problem": null
+  },
+  {
+    "pattern": "\\2[a-z]",
+    "problem": null
+  },
+  {
+    "pattern": "\\e\\[",
+    "problem": null
+  },
+  {
+    "pattern": "\\x{41}\\-\\G+0",
+    "problem": null
+  },
+  {
+    "pattern": "1\\P{Lu}#",
+    "problem": null
+  },
+  {
+    "pattern": "\\1\\Q",
+    "problem": null
+  },
+  {
+    "pattern": "[&&a]\\z",
+    "problem": null
+  },
+  {
+    "pattern": "\\e+\\G*?",
+    "problem": null
+  },
+  {
+    "pattern": "\\h{1,}\\z",
+    "problem": null
+  },
+  {
+    "pattern": "\\w\\R",
+    "problem": null
+  },
+  {
+    "pattern": "]\\Q[]0",
+    "problem": null
+  },
+  {
+    "pattern": "\\1\\2",
+    "problem": null
+  },
+  {
+    "pattern": "\\h*?\\t",
+    "problem": null
+  },
+  {
+    "pattern": "{1}\\G}\\0400{1}a",
+    "problem": null
+  },
+  {
+    "pattern": "(?x)\\t",
+    "problem": null
+  },
+  {
+    "pattern": "\\P{Lu}#\\p{L}",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{L}\\H9",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{IsLatin}\\1",
+    "problem": null
+  },
+  {
+    "pattern": "\n\\v[\\d-z]\\D]",
+    "problem": null
+  },
+  {
+    "pattern": "\\0400\\R",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q[^(",
+    "problem": null
+  },
+  {
+    "pattern": "\\x41\\p{InGreek}",
+    "problem": null
+  },
+  {
+    "pattern": "\\P{Lu}\\p{InGreek}",
+    "problem": null
+  },
+  {
+    "pattern": "\\-\\H",
+    "problem": null
+  },
+  {
+    "pattern": "\\cA++",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q\\0\\p{Foo}\\2",
+    "problem": null
+  },
+  {
+    "pattern": "\\[1",
+    "problem": null
+  },
+  {
+    "pattern": "\\N{LATIN SMALL LETTER A}0",
+    "problem": null
+  },
+  {
+    "pattern": "\\-\\Z\\x41\\B&&[a&&b]",
+    "problem": null
+  },
+  {
+    "pattern": "&&\\p{L}",
+    "problem": null
+  },
+  {
+    "pattern": "\\V\\p{InGreek}\\0400\\s",
+    "problem": null
+  },
+  {
+    "pattern": ".\\R\\0400}\\V",
+    "problem": null
+  },
+  {
+    "pattern": "[^a]\\Q{2,1}[a&&]\\p{InGreek}",
+    "problem": null
+  },
+  {
+    "pattern": "\\B\\N{LATIN SMALL LETTER A}{1,}\\[\\b{g}]",
+    "problem": null
+  },
+  {
+    "pattern": "\\H\\z",
+    "problem": null
+  },
+  {
+    "pattern": "\\Q\\c\\-?+",
+    "problem": null
+  },
+  {
+    "pattern": "\u00e99\\Z\\p{L}",
+    "problem": null
+  },
+  {
+    "pattern": "\\b{g}\\Q",
+    "problem": null
+  },
+  {
+    "pattern": "$0",
+    "problem": null
+  },
+  {
+    "pattern": "\\u0041\u00e9[a&&]",
+    "problem": null
+  },
+  {
+    "pattern": ".\\x41",
+    "problem": null
+  },
+  {
+    "pattern": "\\*?",
+    "problem": null
+  },
+  {
+    "pattern": "|\\X",
+    "problem": null
+  },
+  {
+    "pattern": "\\cA\\u0041",
+    "problem": null
+  },
+  {
+    "pattern": "\\t1[a-z].",
+    "problem": null
+  },
+  {
+    "pattern": "\\p{InGreek}\\Q\\0400",
+    "problem": null
+  },
+  {
+    "pattern": "\\b.\\x{41}\\c[^a]",
+    "problem": null
+  },
+  {
+    "pattern": "\\pL\\V[\\d-z]",
+    "problem": null
+  },
+  {
+    "pattern": "0{1,}\\-$",
+    "problem": null
+  },
+  {
+    "pattern": "#",
+    "problem": null
+  },
+  {
+    "pattern": "\\Hb[&&a]",
+    "problem": null
+  }
+]

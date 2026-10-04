@@ -30,7 +30,7 @@ from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
 
 from vis_lang_clojure import jail
 
-LIBRARY_VERSION = "1.10.0"
+LIBRARY_VERSION = "1.11.0"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"
@@ -48,7 +48,7 @@ STDERR_TAIL_LINES = 40
 SESSION = "vis-lang-clojure"
 """Owner the library files its REPLs under."""
 
-RESTARTABLE = frozenset({"ping", "format", "lint", "check"})
+RESTARTABLE = frozenset({"ping", "format", "lint"})
 """Verbs a fresh process may be asked again when one died before answering.
 
 Each of them reads or rewrites files and runs none of the project's own code,
@@ -352,7 +352,7 @@ class Process:
 
         The process answers one call at a time. A call waits at most `timeout_s`
         for the call before it to finish, and then at most `timeout_s` for its
-        own answer, so a short check never waits out a long test run.
+        own answer, so a short call never waits out a long test run.
 
         Args:
             request: Verb and its argument, without the framing keys.
@@ -403,7 +403,7 @@ def call(verb, arg=None, *, root, op="", timeout_s=DEFAULT_TIMEOUT_S):
     """Run one verb in the process serving `root`.
 
     Args:
-        verb: `format`, `lint`, `check`, `test`, `repl-eval`, `repl` or `ping`.
+        verb: `format`, `lint`, `test`, `repl-eval`, `repl` or `ping`.
         arg: The verb's own argument.
         root: Project directory the call is about.
         op: REPL lifecycle op, for the `repl` verb.

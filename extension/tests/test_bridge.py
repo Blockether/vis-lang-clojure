@@ -58,12 +58,12 @@ def test_a_silent_process_times_out(fake):
 
 
 def test_a_busy_process_turns_a_short_call_away(fake):
-    # A syntax check before a patch must not wait out a long test run.
+    # A short call, such as a format, must not wait out a long test run.
     process = bridge.process_for(fake.cwd)
     process.lock.acquire()
     try:
         with pytest.raises(ToolTimeout, match="busy"):
-            bridge.call("check", {"sources": {}}, root=fake.cwd, timeout_s=0.2)
+            bridge.call("format", {}, root=fake.cwd, timeout_s=0.2)
     finally:
         process.lock.release()
     assert bridge.call("ping", {}, root=fake.cwd) == {"pong": True}
@@ -402,16 +402,6 @@ def test_a_process_that_died_before_answering_is_asked_again(monkeypatch):
     live = Stopping({"files": 1})
     monkeypatch.setattr(bridge, "process_for", lambda root: live)
     assert bridge.call("lint", root="/app") == {"files": 1}
-    assert len(live.asked) == 2
-
-
-def test_a_syntax_check_is_asked_again_after_its_process_died(monkeypatch):
-    live = Stopping({"files": 1, "problems": []})
-    monkeypatch.setattr(bridge, "process_for", lambda root: live)
-    assert bridge.call("check", {"sources": {"a.clj": "(a)"}}, root="/app") == {
-        "files": 1,
-        "problems": [],
-    }
     assert len(live.asked) == 2
 
 
