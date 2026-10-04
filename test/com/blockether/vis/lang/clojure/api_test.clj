@@ -28,11 +28,31 @@
         (expect (str/includes? (get r "text") "(* x 2)"))
         (expect (not= "(defn f [x]\n(* x 2))" (get r "text")))
         (expect (nil? (get r "path")))))
-  (it "completes a delimiter the source omitted, and names what it added"
-      (let [r (result (api/clj-format-fn {:workspace/root "."} {"code" "(defn f [x]\n(* x 2)"}))]
-        (expect (true? (get r "repaired")))
-        (expect (str/ends-with? (str/trim (get r "text")) ")"))
-        (expect (seq (get r "repairs")))))
+  (it "leaves missing delimiters for the repair hook, not the formatter"
+      (let [code
+            "(defn f [x]\n(* x 2)"
+
+            r
+            (result (api/clj-format-fn {:workspace/root "."} {"code" code}))]
+
+        (expect (= code (get r "text")))
+        (expect (false? (get r "changed")))
+        (expect (not (contains? r "repaired")))
+        (expect (not (contains? r "repairs")))))
+  (it "does not repair broken files in a directory"
+      (let [dir
+            (temp-dir)
+
+            file
+            (io/file dir "broken.clj")
+
+            code
+            "(defn f [x]\n  (inc x)\n"]
+
+        (spit file code)
+        (let [r (result (api/clj-format-fn {:workspace/root (str dir)} {"paths" ["."]}))]
+          (expect (= code (slurp file)))
+          (expect (= 0 (get r "changed"))))))
   (it "formats a file in place, reporting the path instead of its text"
       (let [dir
             (temp-dir)

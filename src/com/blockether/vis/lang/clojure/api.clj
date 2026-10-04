@@ -3,10 +3,8 @@
 
    Each one takes the call context `env` — `{:workspace/root <dir> :session-id <id>}` —
    plus the call's own argument, and answers the `{:result :success? :error}` envelope
-   `cli` serializes. `format` runs the ADD-ONLY delimiter repair (`repair/repair-source`)
-   before the formatter: a delimiter you omitted is added back, one you WROTE is never
-   deleted — a lost opening `(` and one `)` too many are the same string, so deleting is
-   a guess that rewrites code."
+   `cli` serializes. Formatting changes layout only. The Python extension owns
+   structural repair and the edit hooks that request it."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
@@ -14,7 +12,6 @@
             [com.blockether.vis.lang.clojure.host :as host]
             [com.blockether.vis.lang.clojure.lint :as lint]
             [com.blockether.vis.lang.clojure.reflection :as reflection]
-            [com.blockether.vis.lang.clojure.repair :as repair]
             [com.blockether.vis.lang.clojure.repl-manager :as repl-manager]
             [com.blockether.vis.lang.clojure.syntax :as syntax]))
 
@@ -314,15 +311,6 @@
 
              (throw e))))))))
 
-(defn clj-repair+format
-  "The combined Clojure tidy behind `format`: the ADD-ONLY delimiter repair
-   (`repair/repair-source`) FIRST, THEN indentation via the config-driven formatter
-   (`fmt/format-source` picks zprint when a `.zprint.edn`/`.zprintrc` is near `path`,
-   else cljfmt). Total — returns `code` unchanged on any failure of either step, and
-   leaves source whose repair was refused exactly as it was written."
-  ([code] (clj-repair+format code nil))
-  ([code path] (fmt/format-source (:code (repair/repair-source code)) path)))
-
 (defn- relativize-path
   "Rewrite an absolute path to one relative to workspace `root` so tool output
    reads `src/foo.clj` instead of the noisy machine-absolute `/Users/…/src/foo.clj`.
@@ -482,15 +470,8 @@
                   (if (seq d) d [(str root)])))))
 
 (defn- clj-format-one-file!
-  "Format a single file at `path` IN PLACE (add-only paren repair + cljfmt), writing
-   back ONLY when the content changes. Returns a per-file result map with the
-   workspace-relative path and, when formatting changed the file, its text
-   `\"before\"` and `\"after\"`, so the caller can count the changed lines.
-
-   Runs the repair ONCE and reuses its verdict for the `\"repaired\"` flag, for the
-   `\"repairs\"` notes naming the lines it completed, and for `\"unbalanced\"` — a repair
-   existed but would have DELETED a delimiter this file already has, so the file is
-   left exactly as it is and the reason is reported instead."
+  "Format one file in place, without structural repair. Report its before and after
+   text only when its layout changed."
   [env path]
   (let [code
         (slurp (str path))
@@ -498,26 +479,16 @@
         for-path
         (or path (:workspace/root env))
 
-        {:keys [repaired? repairs why] fixed :code}
-        (repair/repair-source code)
-
         out
-        (fmt/format-source fixed for-path)]
+        (fmt/format-source code for-path)]
 
     (when (not= out code) (spit (str path) out))
     (cond-> {"path" (relativize-path (io/file (or (:workspace/root env) ".")) path)
              "changed" (not= out code)
-             "repaired" repaired?
              "wrote" (not= out code)
              "formatter" (name (fmt/formatter-for for-path))}
       (not= out code)
-      (merge {"before" code "after" out})
-
-      (seq repairs)
-      (assoc "repairs" repairs)
-
-      why
-      (assoc "unbalanced" why))))
+      (merge {"before" code "after" out}))))
 
 (defn clj-format-fn
   "Format Clojure source for the `format` verb (`clj.format_code`). Accepts:
@@ -586,26 +557,16 @@
           for-path
           (or path (:workspace/root env))
 
-          {:keys [repaired? repairs why] fixed :code}
-          (repair/repair-source code)
-
           out
-          (fmt/format-source fixed for-path)]
+          (fmt/format-source code for-path)]
 
          (when (and path (not= out code)) (spit (str path) out))
          (host/success {:result (cond-> {"op" "clj-format"
                                          "changed" (not= out code)
                                          "chars" (- (count out) (count code))
-                                         "repaired" repaired?
                                          "formatter" (name (fmt/formatter-for for-path))}
                                   (not path)
                                   (assoc "text" out)
-
-                                  (seq repairs)
-                                  (assoc "repairs" repairs)
-
-                                  why
-                                  (assoc "unbalanced" why)
 
                                   path
                                   (assoc "path"

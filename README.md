@@ -1,13 +1,14 @@
 # vis-lang-clojure
 
-Clojure tools for [Vis](https://github.com/Blockether/vis): zprint/cljfmt formatting, clj-kondo
-lint with the reflection and boxed-math pass, Lazytest and clojure.test runs, and nREPL evaluation
-with a managed REPL.
+## When to use
 
-Vis knows nothing about Clojure. This extension does. The work happens in a Clojure library
-published to Clojars, so it runs on the JVM with your project's own classpath, deps.edn aliases,
-`.zprint.edn` and `.clj-kondo` configuration. A small Python package starts that library through
-the `clojure` CLI and speaks to it over stdio.
+Use this extension to [format, lint, test and evaluate Clojure](#tools) from Vis.
+To catch or repair broken source after edits, see [Keep files parseable](#keep-files-parseable).
+For the shared language result types, see [vis-lang-interface](https://github.com/Blockether/vis-lang-interface).
+
+Formatting, lint, tests, evaluation and full reader validation use a Clojure library published to Clojars.
+Structural repair runs locally in Python. It proposes changes without starting a JVM.
+The full Clojure reader must still accept each repair before a hook can use it.
 
 ## Install
 
@@ -41,13 +42,24 @@ The extension checks changed `.clj`, `.cljs`, `.cljc`, `.cljx`, `.bb` and `.edn`
 Clojure reader. The reader only reads: `#=` and record literals are reported, not evaluated.
 Other reader tags stay data, and an alias needs no loaded namespace.
 
-- A `patch` that would make a parseable file unparseable is refused, and nothing is written.
-- After every `python_execution` block, the changed files are read again. A file that a Python
-  write broke reaches the model as `session["clojure_syntax_errors"]` until it parses again.
+- `format_code` changes layout only. It does not repair broken structure.
+- Before a `patch` writes, the guard tries a conservative repair of the complete proposed file.
+  It keeps the edited lines, original text and line endings as evidence.
+  The reader must accept the candidate before one atomic write. The patch reports each correction.
+  If no safe repair exists, a patch that breaks a parseable file is refused.
+- After a Python block, the guard checks changed files and can repair them.
+  These checks happen after writes. They do not make the block transactional or roll back its effects.
+- Repair notes and diffs appear in `session["clojure_syntax_repairs"]`.
+  Unresolved files stay in `session["clojure_syntax_errors"]` until they parse again.
+
+Most repairs only add missing delimiters. The original text can also prove a narrow closer or quote correction.
+A generic deletion, a retyped delimiter or a change to unrelated code is refused.
+The local engine does not replace full reader validation, which still needs a JVM.
+This workflow needs a Vis host that supports repair decisions from operation hooks.
 
 The guard is `SyntaxGuard` from
 [vis-lang-interface](https://github.com/Blockether/vis-lang-interface#keep-source-files-parseable),
-which describes the rules in full.
+which describes the shared rules.
 
 ## How it works
 
@@ -55,7 +67,7 @@ which describes the rules in full.
 of its own —
 
 ```
-clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.2.1"}}}' -Spath
+clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.10.0"}}}' -Spath
 ```
 
 — and then runs
@@ -69,9 +81,9 @@ once per project root, inside that project. Resolving away from the project is d
 on, so a project pinning an older Clojure — or one whose dependencies come from a repository the
 tools cannot reach — still formats, lints and tests. The two sides exchange one JSON object per
 line with each other. The Clojure side
-(`src/com/blockether/vis/lang/clojure/`) does the real work and returns plain data, which the
-Python side turns into the result types from
-[vis-lang-interface](https://github.com/Blockether/vis-lang-interface).
+(`src/com/blockether/vis/lang/clojure/`) runs the language tools and the full reader.
+The Python side maps results to
+[vis-lang-interface](https://github.com/Blockether/vis-lang-interface) types and owns structural repair.
 
 ## Inside a Vis sandbox
 

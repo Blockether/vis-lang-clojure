@@ -1,8 +1,10 @@
-{:paths ["src"]
+{:aliases {:build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.9"}
+                          slipset/deps-deploy {:mvn/version "0.2.5"}}
+                   :ns-default build}
+           :test {:extra-deps {io.github.noahtheduke/lazytest {:mvn/version "2.1.0"}}
+                  :extra-paths ["test"]
+                  :main-opts ["-m" "lazytest.main" "--dir" "test"]}}
  :deps {clj-kondo/clj-kondo {:mvn/version "2026.07.24"}
-        ;; The add-only delimiter repair behind `format`: parinfer proposes, `balance`
-        ;; accepts only a candidate that parses and only ADDS.
-        com.blockether/parinferish {:mvn/version "0.1.2"}
         ;; One JSON object per line is the whole protocol between the Python glue and
         ;; this process.
         com.cnuernber/charred {:mvn/version "1.041"}
@@ -13,9 +15,4 @@
         org.clojure/clojure {:mvn/version "1.12.5"}
         rewrite-clj/rewrite-clj {:mvn/version "1.2.50"}
         zprint/zprint {:mvn/version "1.2.9"}}
- :aliases {:test {:extra-paths ["test"]
-                  :extra-deps {io.github.noahtheduke/lazytest {:mvn/version "2.1.0"}}
-                  :main-opts ["-m" "lazytest.main" "--dir" "test"]}
-           :build {:deps {io.github.clojure/tools.build {:mvn/version "0.10.9"}
-                          slipset/deps-deploy {:mvn/version "0.2.5"}}
-                   :ns-default build}}}
+ :paths ["src"]}

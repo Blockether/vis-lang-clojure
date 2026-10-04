@@ -1,0 +1,1203 @@
+[
+  {
+    "input": {
+      "source": "(a",
+      "spans": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "has-balancer": false,
+    "balanced": {},
+    "reads": {},
+    "expected": null
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f [] (inc 1)\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f [] (inc 1)\n": "(ns a)\n(defn f [] (inc 1))\n"
+    },
+    "reads": {
+      "(ns a)\n(defn f [] (inc 1))\n": "(ns a)\n(defn f [] (inc 1))\n"
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n(defn f [] (inc 1))\n",
+      "notes": [
+        "line 2 added `)` \u2192 `(defn f [] (inc 1))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(defn f [s]\n  -> s str/trim))\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(defn f [s]\n  -> s str/trim))\n": "(defn f [s]\n  -> s str/trim)\n"
+    },
+    "reads": {
+      "(defn f [s]\n  -> s str/trim)\n": "(defn f [s]\n  -> s str/trim)\n"
+    },
+    "expected": {
+      "ok?": false,
+      "why": "the delimiter repair would delete `)` this edit wrote: it closes more than it opens, or an opener was lost"
+    }
+  },
+  {
+    "input": {
+      "source": "(defn f [s]\n  -> s str/trim))\n",
+      "spans": [
+        [
+          1,
+          2
+        ]
+      ],
+      "subject": "this file has"
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(defn f [s]\n  -> s str/trim))\n": "(defn f [s]\n  -> s str/trim)\n"
+    },
+    "reads": {
+      "(defn f [s]\n  -> s str/trim)\n": true
+    },
+    "expected": {
+      "ok?": false,
+      "why": "the delimiter repair would delete `)` this file has: it closes more than it opens, or an opener was lost"
+    }
+  },
+  {
+    "input": {
+      "source": "(println \"a\" (count xs \"b\")\n",
+      "spans": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(println \"a\" (count xs \"b\")\n": "(println \"a\" (count xs \"b\"))\n"
+    },
+    "reads": {
+      "(println \"a\" (count xs \"b\"))\n": "(println \"a\" (count xs \"b\"))\n"
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(println \"a\" (count xs \"b\"))\n",
+      "notes": [
+        "line 1 added `)` \u2192 `(println \"a\" (count xs \"b\"))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f [] (inc 1)\n\n(defn g [] 2)\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f [] (inc 1)\n\n(defn g [] 2)\n": "(ns a)\n(defn f [] (inc 1)\n\n(defn g [] 2))\n"
+    },
+    "reads": {
+      "(ns a)\n(defn f [] (inc 1)\n\n(defn g [] 2))\n": "(ns a)\n(defn f [] (inc 1)\n\n(defn g [] 2))\n",
+      "(ns a)\n(defn f [] (inc 1))\n\n(defn g [] 2)\n": null
+    },
+    "expected": {
+      "ok?": false,
+      "why": "a delimiter repair exists but it changes line 4, outside the lines this call edited"
+    }
+  },
+  {
+    "input": {
+      "source": "(a",
+      "spans": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(a": "(a"
+    },
+    "reads": {
+      "(a)": null
+    },
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair was found"
+    }
+  },
+  {
+    "input": {
+      "source": "(a",
+      "spans": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(a": null
+    },
+    "reads": {
+      "(a)": null
+    },
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair was found"
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(def s \"hi)\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(def s \"hi)\n": null
+    },
+    "reads": {},
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair is possible: line 2 opens a string that is never closed, and a repair only puts back `()[]{}`"
+    }
+  },
+  {
+    "input": {
+      "source": "(def q \\\")\n;; \" not a string\n(def s \"ok\")\n",
+      "spans": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(def q \\\")\n;; \" not a string\n": null
+    },
+    "reads": {},
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair was found"
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f [] (inc 1)\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f [] (inc 1)\n": "(ns a)\n  (defn f [] (inc 1))\n"
+    },
+    "reads": {
+      "(ns a)\n  (defn f [] (inc 1))\n": "(ns a)\n  (defn f [] (inc 1))\n",
+      "(ns a)\n(defn f [] (inc 1))\n": null
+    },
+    "expected": {
+      "ok?": false,
+      "why": "the delimiter repair would change whitespace this edit wrote: it re-indents or re-ends lines instead of only putting back the delimiters that were omitted"
+    }
+  },
+  {
+    "input": {
+      "source": "(a",
+      "spans": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(a": "(a)"
+    },
+    "reads": {
+      "(a)": false
+    },
+    "expected": {
+      "ok?": false,
+      "why": "a delimiter repair was found but it still would not parse"
+    }
+  },
+  {
+    "input": {
+      "source": "(inc 1\n",
+      "spans": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(inc 1\n": "(dec 1)\n"
+    },
+    "reads": {
+      "(dec 1)\n": "(dec 1)\n",
+      "(inc 1)\n": null
+    },
+    "expected": {
+      "ok?": false,
+      "why": "the delimiter repair would rewrite code, not delimiters"
+    }
+  },
+  {
+    "input": {
+      "source": "(a\n",
+      "spans": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(a\n": "(a)"
+    },
+    "reads": {
+      "(a)": "(a)",
+      "(a)\n": null
+    },
+    "expected": {
+      "ok?": false,
+      "why": "the delimiter repair would change the file's final newline"
+    }
+  },
+  {
+    "input": {
+      "source": "(a\n(b)\n",
+      "spans": [
+        [
+          1,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(a\n(b)\n": "(a)(b)\n"
+    },
+    "reads": {
+      "(a)(b)\n": "(a)(b)\n",
+      "(a\n(b))\n": null
+    },
+    "expected": {
+      "ok?": false,
+      "why": "the delimiter repair would add or drop lines"
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f []\n  (inc 1)\n",
+      "spans": [
+        [
+          2,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f []\n  (inc 1)\n": "(ns a)\n(defn f []\n  (inc 1))\n"
+    },
+    "reads": {
+      "(ns a)\n(defn f []\n  (inc 1))\n": "(ns a)\n(defn f []\n  (inc 1))\n"
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n(defn f []\n  (inc 1))\n",
+      "notes": [
+        "line 3 added `)` \u2192 `(inc 1))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(foo (1 2] 3)\n",
+      "spans": [
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(foo (1 2] 3)\n": "(foo (1 2 3))\n"
+    },
+    "reads": {
+      "(foo (1 2 3))\n": "(foo (1 2 3))\n"
+    },
+    "expected": {
+      "ok?": false,
+      "why": "the delimiter repair would move or retype a delimiter this edit wrote"
+    }
+  },
+  {
+    "input": {
+      "source": "(f\n  (g a)\n    (h a))\n",
+      "spans": [
+        [
+          1,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(f\n  (g a)\n    (h a))\n": "(f\n  (g a\n    (h a)))\n"
+    },
+    "reads": {
+      "(f\n  (g a\n    (h a)))\n": "(f\n  (g a\n    (h a)))\n"
+    },
+    "expected": {
+      "ok?": false,
+      "why": "the delimiter repair would move or retype a delimiter this edit wrote"
+    }
+  },
+  {
+    "input": {
+      "source": "(cond\n  a 1)\n  :else 2\n",
+      "spans": [
+        [
+          1,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(cond\n  a 1)\n  :else 2\n": "(cond\n  a 1\n  :else 2)\n"
+    },
+    "reads": {
+      "(cond\n  a 1\n  :else 2)\n": "(cond\n  a 1\n  :else 2)\n"
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(cond\n  a 1\n  :else 2)\n",
+      "notes": [
+        "line 2 removed `)` \u2192 `a 1`",
+        "line 3 added `)` \u2192 `:else 2)`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n\n(defn f []\n  (when x\n    (inc 1))\n",
+      "spans": [
+        [
+          3,
+          5
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n\n(defn f []\n  (when x\n    (inc 1))\n": null
+    },
+    "reads": {
+      "(ns a)\n\n(defn f []\n  (when x\n    (inc 1)))\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n\n(defn f []\n  (when x\n    (inc 1)))\n",
+      "notes": [
+        "line 5 added `)` \u2192 `(inc 1)))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f [] (inc 1)\n\n(defn g [] 2)\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f [] (inc 1)\n\n(defn g [] 2)\n": "(ns a)\n(defn f [] (inc 1)\n\n(defn g [] 2))\n"
+    },
+    "reads": {
+      "(ns a)\n(defn f [] (inc 1)\n\n(defn g [] 2))\n": true,
+      "(ns a)\n(defn f [] (inc 1))\n\n(defn g [] 2)\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n(defn f [] (inc 1))\n\n(defn g [] 2)\n",
+      "notes": [
+        "line 2 added `)` \u2192 `(defn f [] (inc 1))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(defn f [s]\n  -> s str/trim))\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(defn f [s]\n  -> s str/trim))\n": null
+    },
+    "reads": {},
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair was found"
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f [] (inc 1)\n(def x 1)\n(defn g [] 2)\n",
+      "spans": [
+        [
+          2,
+          2
+        ],
+        [
+          4,
+          4
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f [] (inc 1)\n(def x 1)\n(defn g [] 2)\n": null
+    },
+    "reads": {},
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair was found"
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f [] (inc 1)\n(def x 1)\n(defn g [] 2)\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f [] (inc 1)\n(def x 1)\n": null
+    },
+    "reads": {
+      "(ns a)\n(defn f [] (inc 1))\n(def x 1)\n(defn g [] 2)\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n(defn f [] (inc 1))\n(def x 1)\n(defn g [] 2)\n",
+      "notes": [
+        "line 2 added `)` \u2192 `(defn f [] (inc 1))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\r\n(defn f [] (inc 1)\r\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\r\n(defn f [] (inc 1)\r\n": null
+    },
+    "reads": {
+      "(ns a)\r\n(defn f [] (inc 1))\r\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\r\n(defn f [] (inc 1))\r\n",
+      "notes": [
+        "line 2 added `)` \u2192 `(defn f [] (inc 1))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f [] (inc 1)   \n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f [] (inc 1)   \n": null
+    },
+    "reads": {
+      "(ns a)\n(defn f [] (inc 1))   \n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n(defn f [] (inc 1))   \n",
+      "notes": [
+        "line 2 added `)` \u2192 `(defn f [] (inc 1))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f []\n  (inc 1)\n\n",
+      "spans": [
+        [
+          2,
+          4
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f []\n  (inc 1)\n\n": null
+    },
+    "reads": {
+      "(ns a)\n(defn f []\n  (inc 1))\n\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n(defn f []\n  (inc 1))\n\n",
+      "notes": [
+        "line 3 added `)` \u2192 `(inc 1))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(def s \"one\n        two\")\n(defn f [] (inc 1)\n",
+      "spans": [
+        [
+          2,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(def s \"one\n        two\")\n(defn f [] (inc 1)\n": null
+    },
+    "reads": {},
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair was found"
+    }
+  },
+  {
+    "input": {
+      "source": "(def retry-budget\n  \"Rewritten policy line.\"\n   Measured evidence.\"\n  180000)\n",
+      "original": "(def retry-budget\n  \"Old policy line.\n   Measured evidence.\"\n  180000)\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(def retry-budget\n  \"Rewritten policy line.\"\n   Measured evidence.\"\n  180000)\n": null
+    },
+    "reads": {
+      "(def retry-budget\n  \"Old policy line.\n   Measured evidence.\"\n  180000)\n": true,
+      "(def retry-budget\n  \"Rewritten policy line.\"\n   Measured evidence.\"\n  180000)\n": false,
+      "(def retry-budget\n  \"Rewritten policy line.\n   Measured evidence.\"\n  180000)\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(def retry-budget\n  \"Rewritten policy line.\n   Measured evidence.\"\n  180000)\n",
+      "notes": [
+        "line 2 removed `\"` \u2192 `\"Rewritten policy line.`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f\n  \"Doc line one.\n   The rule below it is a slab over the frame.\n  []\n  (inc 1))\n",
+      "original": "(ns a)\n(defn f\n  \"Doc line one.\n   The rule above it stays a border.\"\n  []\n  (inc 1))\n",
+      "spans": [
+        [
+          4,
+          4
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f\n  \"Doc line one.\n   The rule below it is a slab over the frame.\n  []\n  (inc 1))\n": null
+    },
+    "reads": {
+      "(ns a)\n(defn f\n  \"Doc line one.\n   The rule above it stays a border.\"\n  []\n  (inc 1))\n": true,
+      "(ns a)\n(defn f\n  \"Doc line one.\n   The rule below it is a slab over the frame.\n  []\n  (inc 1))\n": false,
+      "(ns a)\n(defn f\n  \"Doc line one.\n   The rule below it is a slab over the frame.\"\n  []\n  (inc 1))\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n(defn f\n  \"Doc line one.\n   The rule below it is a slab over the frame.\"\n  []\n  (inc 1))\n",
+      "notes": [
+        "line 4 added `\"` \u2192 `The rule below it is a slab over the frame.\"`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(def s \"one\"\n       two\")\n",
+      "original": "(ns a)\n(def s \"one\"\n       \"two\")\n",
+      "spans": [
+        [
+          3,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(def s \"one\"\n       two\")\n": null
+    },
+    "reads": {
+      "(ns a)\n(def s \"one\"\n       \"two\")\n": true,
+      "(ns a)\n(def s \"one\"\n       two\")\n": false
+    },
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair is possible: line 3 opens a string that is never closed, and a repair only puts back `()[]{}`"
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f\n  (when x\n  \"doc\n  [] 1)\n",
+      "original": "(ns a)\n(defn f\n  \"doc\"\n  [] 1)\n",
+      "spans": [
+        [
+          3,
+          4
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f\n  (when x\n  \"doc\n  [] 1)\n": null
+    },
+    "reads": {
+      "(ns a)\n(defn f\n  \"doc\"\n  [] 1)\n": true,
+      "(ns a)\n(defn f\n  (when x\n  \"doc\n  [] 1)\n": false,
+      "(ns a)\n(defn f\n  (when x\n  \"doc\"\n  [] 1)\n": false
+    },
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair is possible: line 4 opens a string that is never closed, and a repair only puts back `()[]{}`"
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f\n  \"Doc one.\n   ends there.\n  [] 1)\n",
+      "original": "(ns a)\n(defn f\n  \"Doc one.\n   ends here.\"\n  [] 1)\n",
+      "spans": [
+        [
+          4,
+          5
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f\n  \"Doc one.\n   ends there.\n  [] 1)\n": null
+    },
+    "reads": {
+      "(ns a)\n(defn f\n  \"Doc one.\n   ends here.\"\n  [] 1)\n": true,
+      "(ns a)\n(defn f\n  \"Doc one.\n   ends there.\n  [] 1)\n": false,
+      "(ns a)\n(defn f\n  \"Doc one.\n   ends there.\"\n  [] 1)\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n(defn f\n  \"Doc one.\n   ends there.\"\n  [] 1)\n",
+      "notes": [
+        "line 4 added `\"` \u2192 `ends there.\"`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(defn f0 [x]\n  (let [y (inc x)]\n    (+ y 0)))\n\n(defn f1 [x]\n  (let [y (inc x)]\n    (+ y 1)))\n\n(defn f2 [x]\n  (let [y (inc x)]\n    (+ y 2)))\n\n(defn f3 [x]\n  (let [y (inc x)]\n    (+ y 3)))\n\n(defn f4 [x]\n  (let [y (inc x)]\n    (+ y 4)))\n\n(defn f5 [x]\n  (let [y (inc x)]\n    (+ y 5)))\n\n(defn f6 [x]\n  (let [y (inc x)]\n    (+ y 6)))\n\n(defn f7 [x]\n  (let [y (inc x)]\n    (+ y 7)))\n\n(defn f8 [x]\n  (let [y (inc x)]\n    (+ y 8)))\n\n(defn f9 [x]\n  (let [y (inc x)]\n    (+ y 9)))\n\n(defn f10 [x]\n  (let [y (inc x)]\n    (+ y 10)))\n\n(defn f11 [x]\n  (let [y (inc x)]\n    (+ y 11)))\n\n(defn f12 [x]\n  (let [y (inc x)]\n    (+ y 12)))\n\n(defn f13 [x]\n  (let [y (inc x)]\n    (+ y 13)))\n\n(defn f14 [x]\n  (let [y (inc x)]\n    (+ y 14)))\n\n(defn f15 [x]\n  (let [y (inc x)]\n    (+ y 15)))\n\n(defn f16 [x]\n  (let [y (inc x)]\n    (+ y 16)))\n\n(defn f17 [x]\n  (let [y (inc x)]\n    (+ y 17)))\n\n(defn f18 [x]\n  (let [y (inc x)]\n    (+ y 18)))\n\n(defn f19 [x]\n  (let [y (inc x)]\n    (+ y 19)))\n\n(defn f20 [x]\n  (let [y (inc x)]\n    (+ y 20)))\n\n(defn f21 [x]\n  (let [y (inc x)]\n    (+ y 21)))\n\n(defn f22 [x]\n  (let [y (inc x)]\n    (+ y 22)))\n\n(defn f23 [x]\n  (let [y (inc x)]\n    (+ y 23)))\n\n(defn f24 [x]\n  (let [y (inc x)]\n    (+ y 24)))\n\n(defn f25 [x]\n  (let [y (inc x)]\n    (+ y 25)))\n\n(defn f26 [x]\n  (let [y (inc x)]\n    (+ y 26)))\n\n(defn f27 [x]\n  (let [y (inc x)]\n    (+ y 27)))\n\n(defn f28 [x]\n  (let [y (inc x)]\n    (+ y 28)))\n\n(defn f29 [x]\n  (let [y (inc x)]\n    (+ y 29)))\n\n(defn f30 [x]\n  (let [y (inc x)]\n    (+ y 30)))\n\n(defn f31 [x]\n  (let [y (inc x)]\n    (+ y 31)))\n\n(defn f32 [x]\n  (let [y (inc x)]\n    (+ y 32)))\n\n(defn f33 [x]\n  (let [y (inc x)]\n    (+ y 33)))\n\n(defn f34 [x]\n  (let [y (inc x)]\n    (+ y 34)))\n\n(defn f35 [x]\n  (let [y (inc x)]\n    (+ y 35)))\n\n(defn f36 [x]\n  (let [y (inc x)]\n    (+ y 36)))\n\n(defn f37 [x]\n  (let [y (inc x)]\n    (+ y 37)))\n\n(defn f38 [x]\n  (let [y (inc x)]\n    (+ y 38)))\n\n(defn f39 [x]\n  (let [y (inc x)]\n    (+ y 39)))\n\n",
+      "spans": [
+        [
+          41,
+          41
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(defn f9 [x]\n  (let [y (inc x)]\n    (+ y 9)))\n\n(defn f10 [x]\n  (let [y (inc x)]\n    (+ y 10)))\n\n(defn f11 [x]\n  (let [y (inc x)]\n    (+ y 11)))\n\n": null
+    },
+    "reads": {},
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair was found"
+    }
+  },
+  {
+    "input": {
+      "source": "(defn f0 [x]\n  (let [y (inc x)]\n    (+ y 0)))\n\n(defn f1 [x]\n  (let [y (inc x)]\n    (+ y 1)))\n\n(defn f2 [x]\n  (let [y (inc x)]\n    (+ y 2)))\n\n(defn f3 [x]\n  (let [y (inc x)]\n    (+ y 3)))\n\n(defn f4 [x]\n  (let [y (inc x)]\n    (+ y 4)))\n\n(defn f5 [x]\n  (let [y (inc x)]\n    (+ y 5)))\n\n(defn f6 [x]\n  (let [y (inc x)]\n    (+ y 6)))\n\n(defn f7 [x]\n  (let [y (inc x)]\n    (+ y 7)))\n\n(defn f8 [x]\n  (let [y (inc x)]\n    (+ y 8)))\n\n(defn f9 [x]\n  (let [y (inc x)]\n    (+ y 9)))\n\n(defn f10 [x]\n  (let [y (inc x)]\n    (+ y 10))\n\n(defn f11 [x]\n  (let [y (inc x)]\n    (+ y 11)))\n\n(defn f12 [x]\n  (let [y (inc x)]\n    (+ y 12)))\n\n(defn f13 [x]\n  (let [y (inc x)]\n    (+ y 13)))\n\n(defn f14 [x]\n  (let [y (inc x)]\n    (+ y 14)))\n\n(defn f15 [x]\n  (let [y (inc x)]\n    (+ y 15)))\n\n(defn f16 [x]\n  (let [y (inc x)]\n    (+ y 16)))\n\n(defn f17 [x]\n  (let [y (inc x)]\n    (+ y 17)))\n\n(defn f18 [x]\n  (let [y (inc x)]\n    (+ y 18)))\n\n(defn f19 [x]\n  (let [y (inc x)]\n    (+ y 19)))\n\n(defn f20 [x]\n  (let [y (inc x)]\n    (+ y 20)))\n\n(defn f21 [x]\n  (let [y (inc x)]\n    (+ y 21)))\n\n(defn f22 [x]\n  (let [y (inc x)]\n    (+ y 22)))\n\n(defn f23 [x]\n  (let [y (inc x)]\n    (+ y 23)))\n\n(defn f24 [x]\n  (let [y (inc x)]\n    (+ y 24)))\n\n(defn f25 [x]\n  (let [y (inc x)]\n    (+ y 25)))\n\n(defn f26 [x]\n  (let [y (inc x)]\n    (+ y 26)))\n\n(defn f27 [x]\n  (let [y (inc x)]\n    (+ y 27)))\n\n(defn f28 [x]\n  (let [y (inc x)]\n    (+ y 28)))\n\n(defn f29 [x]\n  (let [y (inc x)]\n    (+ y 29)))\n\n(defn f30 [x]\n  (let [y (inc x)]\n    (+ y 30)))\n\n(defn f31 [x]\n  (let [y (inc x)]\n    (+ y 31)))\n\n(defn f32 [x]\n  (let [y (inc x)]\n    (+ y 32)))\n\n(defn f33 [x]\n  (let [y (inc x)]\n    (+ y 33)))\n\n(defn f34 [x]\n  (let [y (inc x)]\n    (+ y 34)))\n\n(defn f35 [x]\n  (let [y (inc x)]\n    (+ y 35)))\n\n(defn f36 [x]\n  (let [y (inc x)]\n    (+ y 36)))\n\n(defn f37 [x]\n  (let [y (inc x)]\n    (+ y 37)))\n\n(defn f38 [x]\n  (let [y (inc x)]\n    (+ y 38)))\n\n(defn f39 [x]\n  (let [y (inc x)]\n    (+ y 39)))\n\n",
+      "spans": [
+        [
+          43,
+          43
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(defn f9 [x]\n  (let [y (inc x)]\n    (+ y 9)))\n\n(defn f10 [x]\n  (let [y (inc x)]\n    (+ y 10))\n\n(defn f11 [x]\n  (let [y (inc x)]\n    (+ y 11)))\n\n": "(defn f9 [x]\n  (let [y (inc x)]\n    (+ y 9)))\n\n(defn f10 [x]\n  (let [y (inc x)]\n    (+ y 10)))\n\n(defn f11 [x]\n  (let [y (inc x)]\n    (+ y 11)))\n\n"
+    },
+    "reads": {
+      "(defn f0 [x]\n  (let [y (inc x)]\n    (+ y 0)))\n\n(defn f1 [x]\n  (let [y (inc x)]\n    (+ y 1)))\n\n(defn f2 [x]\n  (let [y (inc x)]\n    (+ y 2)))\n\n(defn f3 [x]\n  (let [y (inc x)]\n    (+ y 3)))\n\n(defn f4 [x]\n  (let [y (inc x)]\n    (+ y 4)))\n\n(defn f5 [x]\n  (let [y (inc x)]\n    (+ y 5)))\n\n(defn f6 [x]\n  (let [y (inc x)]\n    (+ y 6)))\n\n(defn f7 [x]\n  (let [y (inc x)]\n    (+ y 7)))\n\n(defn f8 [x]\n  (let [y (inc x)]\n    (+ y 8)))\n\n(defn f9 [x]\n  (let [y (inc x)]\n    (+ y 9)))\n\n(defn f10 [x]\n  (let [y (inc x)]\n    (+ y 10)))\n\n(defn f11 [x]\n  (let [y (inc x)]\n    (+ y 11)))\n\n(defn f12 [x]\n  (let [y (inc x)]\n    (+ y 12)))\n\n(defn f13 [x]\n  (let [y (inc x)]\n    (+ y 13)))\n\n(defn f14 [x]\n  (let [y (inc x)]\n    (+ y 14)))\n\n(defn f15 [x]\n  (let [y (inc x)]\n    (+ y 15)))\n\n(defn f16 [x]\n  (let [y (inc x)]\n    (+ y 16)))\n\n(defn f17 [x]\n  (let [y (inc x)]\n    (+ y 17)))\n\n(defn f18 [x]\n  (let [y (inc x)]\n    (+ y 18)))\n\n(defn f19 [x]\n  (let [y (inc x)]\n    (+ y 19)))\n\n(defn f20 [x]\n  (let [y (inc x)]\n    (+ y 20)))\n\n(defn f21 [x]\n  (let [y (inc x)]\n    (+ y 21)))\n\n(defn f22 [x]\n  (let [y (inc x)]\n    (+ y 22)))\n\n(defn f23 [x]\n  (let [y (inc x)]\n    (+ y 23)))\n\n(defn f24 [x]\n  (let [y (inc x)]\n    (+ y 24)))\n\n(defn f25 [x]\n  (let [y (inc x)]\n    (+ y 25)))\n\n(defn f26 [x]\n  (let [y (inc x)]\n    (+ y 26)))\n\n(defn f27 [x]\n  (let [y (inc x)]\n    (+ y 27)))\n\n(defn f28 [x]\n  (let [y (inc x)]\n    (+ y 28)))\n\n(defn f29 [x]\n  (let [y (inc x)]\n    (+ y 29)))\n\n(defn f30 [x]\n  (let [y (inc x)]\n    (+ y 30)))\n\n(defn f31 [x]\n  (let [y (inc x)]\n    (+ y 31)))\n\n(defn f32 [x]\n  (let [y (inc x)]\n    (+ y 32)))\n\n(defn f33 [x]\n  (let [y (inc x)]\n    (+ y 33)))\n\n(defn f34 [x]\n  (let [y (inc x)]\n    (+ y 34)))\n\n(defn f35 [x]\n  (let [y (inc x)]\n    (+ y 35)))\n\n(defn f36 [x]\n  (let [y (inc x)]\n    (+ y 36)))\n\n(defn f37 [x]\n  (let [y (inc x)]\n    (+ y 37)))\n\n(defn f38 [x]\n  (let [y (inc x)]\n    (+ y 38)))\n\n(defn f39 [x]\n  (let [y (inc x)]\n    (+ y 39)))\n\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(defn f0 [x]\n  (let [y (inc x)]\n    (+ y 0)))\n\n(defn f1 [x]\n  (let [y (inc x)]\n    (+ y 1)))\n\n(defn f2 [x]\n  (let [y (inc x)]\n    (+ y 2)))\n\n(defn f3 [x]\n  (let [y (inc x)]\n    (+ y 3)))\n\n(defn f4 [x]\n  (let [y (inc x)]\n    (+ y 4)))\n\n(defn f5 [x]\n  (let [y (inc x)]\n    (+ y 5)))\n\n(defn f6 [x]\n  (let [y (inc x)]\n    (+ y 6)))\n\n(defn f7 [x]\n  (let [y (inc x)]\n    (+ y 7)))\n\n(defn f8 [x]\n  (let [y (inc x)]\n    (+ y 8)))\n\n(defn f9 [x]\n  (let [y (inc x)]\n    (+ y 9)))\n\n(defn f10 [x]\n  (let [y (inc x)]\n    (+ y 10)))\n\n(defn f11 [x]\n  (let [y (inc x)]\n    (+ y 11)))\n\n(defn f12 [x]\n  (let [y (inc x)]\n    (+ y 12)))\n\n(defn f13 [x]\n  (let [y (inc x)]\n    (+ y 13)))\n\n(defn f14 [x]\n  (let [y (inc x)]\n    (+ y 14)))\n\n(defn f15 [x]\n  (let [y (inc x)]\n    (+ y 15)))\n\n(defn f16 [x]\n  (let [y (inc x)]\n    (+ y 16)))\n\n(defn f17 [x]\n  (let [y (inc x)]\n    (+ y 17)))\n\n(defn f18 [x]\n  (let [y (inc x)]\n    (+ y 18)))\n\n(defn f19 [x]\n  (let [y (inc x)]\n    (+ y 19)))\n\n(defn f20 [x]\n  (let [y (inc x)]\n    (+ y 20)))\n\n(defn f21 [x]\n  (let [y (inc x)]\n    (+ y 21)))\n\n(defn f22 [x]\n  (let [y (inc x)]\n    (+ y 22)))\n\n(defn f23 [x]\n  (let [y (inc x)]\n    (+ y 23)))\n\n(defn f24 [x]\n  (let [y (inc x)]\n    (+ y 24)))\n\n(defn f25 [x]\n  (let [y (inc x)]\n    (+ y 25)))\n\n(defn f26 [x]\n  (let [y (inc x)]\n    (+ y 26)))\n\n(defn f27 [x]\n  (let [y (inc x)]\n    (+ y 27)))\n\n(defn f28 [x]\n  (let [y (inc x)]\n    (+ y 28)))\n\n(defn f29 [x]\n  (let [y (inc x)]\n    (+ y 29)))\n\n(defn f30 [x]\n  (let [y (inc x)]\n    (+ y 30)))\n\n(defn f31 [x]\n  (let [y (inc x)]\n    (+ y 31)))\n\n(defn f32 [x]\n  (let [y (inc x)]\n    (+ y 32)))\n\n(defn f33 [x]\n  (let [y (inc x)]\n    (+ y 33)))\n\n(defn f34 [x]\n  (let [y (inc x)]\n    (+ y 34)))\n\n(defn f35 [x]\n  (let [y (inc x)]\n    (+ y 35)))\n\n(defn f36 [x]\n  (let [y (inc x)]\n    (+ y 36)))\n\n(defn f37 [x]\n  (let [y (inc x)]\n    (+ y 37)))\n\n(defn f38 [x]\n  (let [y (inc x)]\n    (+ y 38)))\n\n(defn f39 [x]\n  (let [y (inc x)]\n    (+ y 39)))\n\n",
+      "notes": [
+        "line 43 added `)` \u2192 `(+ y 10)))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(defn f [x]\n  (let [y 1]\n    (+ y x)\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(defn f [x]\n  (let [y 1]\n    (+ y x)\n": null
+    },
+    "reads": {
+      "(defn f [x]\n  (let [y 1]))\n    (+ y x)\n": false
+    },
+    "expected": {
+      "ok?": false,
+      "why": "no delimiter repair was found"
+    }
+  },
+  {
+    "input": {
+      "source": "(cond\n  (map? x (str \"map\" (count x)))\n",
+      "original": "(cond\n  (map? x) (str \"map\" (count x)))\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {},
+    "reads": {
+      "(cond\n  (map? x) (str \"map\" (count x)))\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(cond\n  (map? x) (str \"map\" (count x)))\n",
+      "notes": [
+        "line 2 added `)` \u2192 `(map? x) (str \"map\" (count x)))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\r\n(defn ok [] (inc 1)\r\n",
+      "original": "(ns a)\r\n(defn ok [] (inc 1))\r\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {},
+    "reads": {
+      "(ns a)\r\n(defn ok [] (inc 1))\r\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\r\n(defn ok [] (inc 1))\r\n",
+      "notes": [
+        "line 2 added `)` \u2192 `(defn ok [] (inc 1))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\ndefn ok [] (inc 1))\n",
+      "original": "(ns a)\n(defn ok [] (inc 1))\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {},
+    "reads": {
+      "(ns a)\n(defn ok [] (inc 1))\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n(defn ok [] (inc 1))\n",
+      "notes": [
+        "line 2 added `(` \u2192 `(defn ok [] (inc 1))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(defn ok []\n  (inc 1)))\n",
+      "original": "(defn ok []\n  (when x (inc 1)))\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(defn ok []\n  (inc 1)))\n": "(defn ok []\n  (inc 1))\n"
+    },
+    "reads": {
+      "(defn ok []\n  (when x (inc 1)))\n": true,
+      "(defn ok []\n  (inc 1)))\n": true,
+      "(defn ok []\n  (inc 1))\n": true
+    },
+    "expected": {
+      "ok?": false,
+      "why": "the delimiter repair would delete `)` this edit wrote: it closes more than it opens, or an opener was lost"
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn g [] (inc 1)\n(defn f [] 1)\n",
+      "original": "(ns a)\n(defn f [] 1)\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn g [] (inc 1)\n(defn f [] 1)\n": "(ns a)\n(defn g [] (inc 1))\n(defn f [] 1)\n"
+    },
+    "reads": {
+      "(ns a)\n(defn f [] 1)\n": true,
+      "(ns a)\n(defn g [] (inc 1)\n(defn f [] 1)\n": true,
+      "(ns a)\n(defn g [] (inc 1))\n(defn f [] 1)\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(ns a)\n(defn g [] (inc 1))\n(defn f [] 1)\n",
+      "notes": [
+        "line 2 added `)` \u2192 `(defn g [] (inc 1))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(ns a)\n(defn f [x] ((inc x))\n",
+      "original": "(ns a)\n(defn f [x] (inc x))\n",
+      "spans": [
+        [
+          2,
+          2
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(ns a)\n(defn f [x] ((inc x))\n": "(ns a)\n(defn f [x] ((inc x)))\n"
+    },
+    "reads": {
+      "(ns a)\n(defn f [x] (inc x))\n": true,
+      "(ns a)\n(defn f [x] ((inc x))\n": true,
+      "(ns a)\n(defn f [x] ((inc x)))\n": true
+    },
+    "expected": {
+      "ok?": false,
+      "why": "the delimiter repair would close `(` this edit wrote on line 2, where the text it replaced had `)`: that delimiter was retyped or added, not omitted, and closing it regroups the line into `(defn f [x] ((inc x)))`"
+    }
+  },
+  {
+    "input": {
+      "source": "(defn f []\n  (let a 1 b 2]\n    (+ a b)))\n",
+      "original": "(defn f []\n  (let [a 1]\n    a))\n",
+      "spans": [
+        [
+          2,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {},
+    "reads": {
+      "(defn f []\n  (let [a 1 b 2]\n    (+ a b)))\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(defn f []\n  (let [a 1 b 2]\n    (+ a b)))\n",
+      "notes": [
+        "line 2 added `[` \u2192 `(let [a 1 b 2]`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(defn f [xs]\n    (println \"a\")\n  (if (seq xs\n    (println \"b\")))\n",
+      "original": "(defn f [xs]\n  (if (seq xs)\n    (println \"a\")\n    (println \"b\")))\n",
+      "spans": [
+        [
+          2,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(defn f [xs]\n    (println \"a\")\n  (if (seq xs\n    (println \"b\")))\n": "(defn f [xs]\n    (println \"a\"))\n  (if (seq xs\n    (println \"b\")))\n"
+    },
+    "reads": {
+      "(defn f [xs]\n  (if (seq xs)\n    (println \"a\")\n    (println \"b\")))\n": null,
+      "(defn f [xs]\n    (println \"a\"))\n  (if (seq xs\n    (println \"b\")))\n": "(defn f [xs]\n    (println \"a\"))\n  (if (seq xs\n    (println \"b\")))\n",
+      "(defn f [xs]\n    (println \"a\")\n  (if (seq xs)\n    (println \"b\")))\n": null
+    },
+    "expected": {
+      "ok?": false,
+      "why": "a delimiter repair exists but it adds `)` to line 2, whose code this edit did not change \u2014 the text it replaced was `(println \"a\")` and never had that delimiter, so what this call omitted is on another line"
+    }
+  },
+  {
+    "input": {
+      "source": "(defn f [xs]\n    (println \"a\")\n  (if (seq xs\n    (println \"b\")))\n",
+      "original": "(defn f [xs]\n  (if (seq xs)\n    (println \"a\")\n    (println \"b\")))\n",
+      "spans": [
+        [
+          2,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(defn f [xs]\n    (println \"a\")\n  (if (seq xs\n    (println \"b\")))\n": "(defn f [xs]\n    (println \"a\"))\n  (if (seq xs\n    (println \"b\")))\n"
+    },
+    "reads": {
+      "(defn f [xs]\n  (if (seq xs)\n    (println \"a\")\n    (println \"b\")))\n": true,
+      "(defn f [xs]\n    (println \"a\")\n  (if (seq xs\n    (println \"b\")))\n": false,
+      "(defn f [xs]\n    (println \"a\"))\n  (if (seq xs\n    (println \"b\")))\n": true,
+      "(defn f [xs]\n    (println \"a\")\n  (if (seq xs)\n    (println \"b\")))\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(defn f [xs]\n    (println \"a\")\n  (if (seq xs)\n    (println \"b\")))\n",
+      "notes": [
+        "line 3 added `)` \u2192 `(if (seq xs)`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(defn f []\n  (if x\n  (inc 1))\n",
+      "original": "(defn f []\n  (when (pos? y))\n  (inc 1))\n",
+      "spans": [
+        [
+          2,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {
+      "(defn f []\n  (if x\n  (inc 1))\n": null
+    },
+    "reads": {
+      "(defn f []\n  (when (pos? y))\n  (inc 1))\n": true,
+      "(defn f []\n  (if x\n  (inc 1))\n": false,
+      "(defn f []\n  (if x)\n  (inc 1))\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(defn f []\n  (if x)\n  (inc 1))\n",
+      "notes": [
+        "line 2 added `)` \u2192 `(if x)`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(deftest first-test\n  (testing \"first\"\n    (is true)))\n\n  (deftest second-test\n    (testing \"second\"\n      (is true))))\n",
+      "original": "(deftest first-test\n  (testing \"first\"\n    (is true))\n\n  (deftest second-test\n    (testing \"second\"\n      (is true))))\n",
+      "spans": [
+        [
+          3,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {},
+    "reads": {
+      "(deftest first-test\n  (testing \"first\"\n    (is true))\n\n  (deftest second-test\n    (testing \"second\"\n      (is true))))\n": true,
+      "(deftest first-test\n  (testing \"first\"\n    (is true)))\n\n  (deftest second-test\n    (testing \"second\"\n      (is true))))\n": false,
+      "(deftest first-test\n  (testing \"first\"\n    (is true)))\n\n  (deftest second-test\n    (testing \"second\"\n      (is true)))\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(deftest first-test\n  (testing \"first\"\n    (is true)))\n\n  (deftest second-test\n    (testing \"second\"\n      (is true)))\n",
+      "notes": [
+        "line 7 removed `)` \u2192 `(is true)))`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(def x\n  [(foo\n    1)\n    (bar\n      2))])\n",
+      "original": "(def x\n  [(foo\n    1\n    (bar\n      2))])\n",
+      "spans": [
+        [
+          3,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {},
+    "reads": {
+      "(def x\n  [(foo\n    1\n    (bar\n      2))])\n": true,
+      "(def x\n  [(foo\n    1)\n    (bar\n      2))])\n": false,
+      "(def x\n  [(foo\n    1)\n    (bar\n      2)])\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(def x\n  [(foo\n    1)\n    (bar\n      2)])\n",
+      "notes": [
+        "line 5 removed `)` \u2192 `2)])`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(def x\n  [[:a\n    :b]\n    [:c\n      :d]]])\n",
+      "original": "(def x\n  [[:a\n    :b\n    [:c\n      :d]]])\n",
+      "spans": [
+        [
+          3,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {},
+    "reads": {
+      "(def x\n  [[:a\n    :b\n    [:c\n      :d]]])\n": true,
+      "(def x\n  [[:a\n    :b]\n    [:c\n      :d]]])\n": false,
+      "(def x\n  [[:a\n    :b]\n    [:c\n      :d]])\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(def x\n  [[:a\n    :b]\n    [:c\n      :d]])\n",
+      "notes": [
+        "line 5 removed `]` \u2192 `:d]])`"
+      ]
+    }
+  },
+  {
+    "input": {
+      "source": "(def x\n  {:a {:b 1\n       :c 2}\n       :d {:e 3\n           :f 4}}})\n",
+      "original": "(def x\n  {:a {:b 1\n       :c 2\n       :d {:e 3\n           :f 4}}})\n",
+      "spans": [
+        [
+          3,
+          3
+        ]
+      ]
+    },
+    "has-balancer": true,
+    "balanced": {},
+    "reads": {
+      "(def x\n  {:a {:b 1\n       :c 2\n       :d {:e 3\n           :f 4}}})\n": true,
+      "(def x\n  {:a {:b 1\n       :c 2}\n       :d {:e 3\n           :f 4}}})\n": false,
+      "(def x\n  {:a {:b 1\n       :c 2}\n       :d {:e 3\n           :f 4}})\n": true
+    },
+    "expected": {
+      "ok?": true,
+      "content": "(def x\n  {:a {:b 1\n       :c 2}\n       :d {:e 3\n           :f 4}})\n",
+      "notes": [
+        "line 5 removed `}` \u2192 `:f 4}})`"
+      ]
+    }
+  }
+]

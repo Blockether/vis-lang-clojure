@@ -41,8 +41,7 @@
 
 (defn- pom-data
   []
-  [[:description
-    "Clojure tools for Vis: format, lint, tests, managed nREPL and an add-only delimiter repair."]
+  [[:description "Clojure tools for Vis: format, lint, tests, managed nREPL and reader validation."]
    [:url "https://github.com/Blockether/vis-lang-clojure"]
    [:licenses
     [:license [:name "Apache License 2.0"] [:url "https://www.apache.org/licenses/LICENSE-2.0"]]]

@@ -4,6 +4,7 @@ import blockether.vis.extension as vis
 from vis_lang_interface import presentation, prompt
 from vis_lang_interface.syntax import SyntaxGuard
 
+from vis_lang_clojure.repair import repair_source
 from vis_lang_clojure.tools import (
     LANGUAGE,
     SYNTAX_SUFFIXES,
@@ -111,21 +112,23 @@ PROMPT = prompt.routing(
         " starts a clean JVM. With a live REPL, first reload changed namespaces with"
         " `(require ... :reload)` or stop the REPL.",
         "`clj.lint_code` runs clj-kondo and also reports compiler reflection warnings as failures.",
-        "`patch` refuses an edit that makes a parseable Clojure or EDN file unparseable; it writes"
-        " nothing. If a Python block leaves a file unparseable, the file stays in"
-        " `clojure_syntax_errors` in the session context until it parses again.",
+        "`clj.format_code` changes layout only. Structural repair runs through operation hooks.",
+        "`patch` validates repairs before one atomic write and reports each correction.",
+        "The repair engine is local Python. Full validation still uses the Clojure reader.",
+        "Python file writes are checked after the block, without a transaction or rollback.",
+        "Repairs appear in `clojure_syntax_repairs`; unresolved files stay in `clojure_syntax_errors`.",
     ),
 )
 
 # Keeps the files the Clojure reader reads parseable, across patches and Python writes.
-GUARD = SyntaxGuard(LANGUAGE, SYNTAX_SUFFIXES, _check_syntax)
+GUARD = SyntaxGuard(LANGUAGE, SYNTAX_SUFFIXES, _check_syntax, repair=repair_source)
 
 
 vis.register_extension(
     vis.Extension(
         name="vis-lang-clojure",
         description="Clojure tools: zprint and cljfmt formatting, clj-kondo lint, reader syntax checks, test runs and an nREPL.",
-        version="1.9.2",
+        version="1.10.0",
         alias="clj",
         symbols=[
             vis.Symbol(ClojureTools(workspace_root=vis.workspace_root), name="clj")

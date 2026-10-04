@@ -155,10 +155,10 @@ class ClojureTools:
     ) -> FormatResult:
         """Format Clojure with zprint, or cljfmt when the project has no zprint config.
 
-        First, a delimiter you left out is added back. A delimiter you wrote is
-        never deleted. With source, the formatted text comes back and nothing is
-        written. With paths, those files are rewritten where they differ, and a
-        directory is walked. With neither, the whole project is formatted.
+        This changes layout only, not syntax. With source, the formatted text
+        comes back and nothing is written. With paths, changed files are
+        rewritten and directories are walked. With neither, the whole project
+        is formatted.
         """
         root = self._root(cwd, tuple(paths))
         if source:
