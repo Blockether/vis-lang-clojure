@@ -217,6 +217,12 @@
 
 (defn- ok "A successful tool envelope." [result] {:success? true :result result})
 
+(defn- by-id
+  "The answers keyed by the id of their request. Two lanes can write their answers in
+   either order."
+  [answers]
+  (into {} (map (juxt #(get % "id") identity)) answers))
+
 ;; A test run must not hold up a lint or a format. It must not share the managed
 ;; nREPL with a REPL eval either.
 (defdescribe lanes-test
@@ -236,8 +242,8 @@
 
                          (serve (request "test" "id" "t") (request "lint" "id" "l")))]
 
-                   (expect (= ["l" "t"] (mapv #(get % "id") answers)))
-                   (expect (true? (get-in answers [1 "result" "saw_lint"])))))
+                   (expect (= #{"l" "t"} (set (keys (by-id answers)))))
+                   (expect (true? (get-in (by-id answers) ["t" "result" "saw_lint"])))))
              (it "answers a format while a test run is still running"
                  (let [formatted
                        (promise)
@@ -254,8 +260,8 @@
 
                          (serve (request "test" "id" "t") (request "format" "id" "f")))]
 
-                   (expect (= ["f" "t"] (mapv #(get % "id") answers)))
-                   (expect (true? (get-in answers [1 "result" "saw_format"])))))
+                   (expect (= #{"f" "t"} (set (keys (by-id answers)))))
+                   (expect (true? (get-in (by-id answers) ["t" "result" "saw_format"])))))
              (it "starts a REPL eval only after the test run before it has finished"
                  (let [evaluated
                        (promise)
