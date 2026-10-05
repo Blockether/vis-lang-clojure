@@ -59,7 +59,7 @@ jobs:
       - name: Lint
         run: uv run --with ruff ruff check .
       - name: Run the tests
-        run: uv run --with pytest pytest tests -q
+        run: uv run --with pytest --with pyright==1.1.414 pytest tests -q
 
   versions:
     name: One version everywhere

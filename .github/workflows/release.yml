@@ -47,7 +47,7 @@ jobs:
           uv sync
           uv run --with ruff ruff format --check .
           uv run --with ruff ruff check .
-          uv run --with pytest pytest tests -q
+          uv run --with pytest --with pyright==1.1.414 pytest tests -q
 
   clojars:
     name: Deploy the library jar to Clojars

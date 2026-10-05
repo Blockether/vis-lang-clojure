@@ -9,6 +9,7 @@ syntax check is the exception: `reader` reads source in Python, without a JVM.
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated
 
@@ -127,7 +128,9 @@ class ClojureTools:
 
     def format_code(
         self,
-        paths: Annotated[list[str], "Files or directories to format in place."] = (),
+        paths: Annotated[
+            Sequence[str], "Files or directories to format in place."
+        ] = (),
         *,
         source: Annotated[str, "Format this text instead of files."] = "",
         cwd: Annotated[str, "Project directory; inferred from paths when empty."] = "",
@@ -163,7 +166,7 @@ class ClojureTools:
 
     def lint_code(
         self,
-        paths: Annotated[list[str], "Files or directories to lint."] = (),
+        paths: Annotated[Sequence[str], "Files or directories to lint."] = (),
         *,
         source: Annotated[str, "Lint this text instead of files."] = "",
         cwd: Annotated[str, "Project directory; inferred from paths when empty."] = "",
@@ -183,16 +186,18 @@ class ClojureTools:
 
     def run_tests(
         self,
-        paths: Annotated[list[str], "Test files, directories or namespaces."] = (),
+        paths: Annotated[Sequence[str], "Test files, directories or namespaces."] = (),
         *,
         cwd: Annotated[str, "Project directory; inferred from paths when empty."] = "",
         include: Annotated[
-            list[str], "Run only tests carrying these metadata keys."
+            Sequence[str], "Run only tests carrying these metadata keys."
         ] = (),
-        exclude: Annotated[list[str], "Skip tests carrying these metadata keys."] = (),
-        namespaces: Annotated[list[str], "Test namespaces to run."] = (),
-        vars: Annotated[list[str], "Individual test names to run."] = (),
-        aliases: Annotated[list[str], "deps.edn aliases to run under."] = (),
+        exclude: Annotated[
+            Sequence[str], "Skip tests carrying these metadata keys."
+        ] = (),
+        namespaces: Annotated[Sequence[str], "Test namespaces to run."] = (),
+        vars: Annotated[Sequence[str], "Individual test names to run."] = (),
+        aliases: Annotated[Sequence[str], "deps.edn aliases to run under."] = (),
         build: Annotated[str, "shadow-cljs build, for ClojureScript tests."] = "",
         timeout_s: Annotated[int, "Seconds before the run is abandoned."] = 900,
     ) -> TestResult:
@@ -254,7 +259,7 @@ class ClojureTools:
         cwd: Annotated[str, "Project directory to run the REPL in."] = "",
         *,
         aliases: Annotated[
-            list[str], "deps.edn aliases; dev and test by default."
+            Sequence[str], "deps.edn aliases; dev and test by default."
         ] = (),
     ) -> ReplSession:
         """Start a project nREPL, or keep the live one.

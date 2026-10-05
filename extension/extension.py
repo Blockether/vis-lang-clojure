@@ -1,5 +1,7 @@
 """Vis entrypoint. The tools themselves live in vis_lang_clojure."""
 
+from typing import Literal
+
 import blockether.vis.extension as vis
 from vis_lang_interface import presentation, prompt
 from vis_lang_interface.syntax import SyntaxGuard
@@ -12,8 +14,14 @@ from vis_lang_clojure.tools import (
     _check_syntax,
 )
 
+# The tags that this extension binds. Older SDKs do not export `vis.SymbolTag`,
+# so this module keeps its own tag type.
+_Tag = Literal["observation", "mutation", "verification"]
 
-def _bind(name, label, build, *, tag="observation", show_start=True, describe=None):
+
+def _bind(
+    name, label, build, *, tag: _Tag = "observation", show_start=True, describe=None
+):
     """Attach one Activity presentation to a method of ClojureTools."""
     setattr(
         ClojureTools,
@@ -27,7 +35,7 @@ def _bind(name, label, build, *, tag="observation", show_start=True, describe=No
     )
 
 
-def _knows(tag):
+def _knows(tag: _Tag) -> bool:
     """Whether this Vis host accepts `tag`. Older hosts refuse `verification`."""
     try:
         vis.method(tag=tag)
@@ -37,7 +45,7 @@ def _knows(tag):
 
 
 # Lint and test runs check work; a host that lacks the tag records them as reads.
-_CHECK = "verification" if _knows("verification") else "observation"
+_CHECK: _Tag = "verification" if _knows("verification") else "observation"
 
 
 _bind(
