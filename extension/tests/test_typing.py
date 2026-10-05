@@ -1,4 +1,4 @@
-"""Pyright standard checks for the tool modules of this extension."""
+"""Pyright standard checks for the sources and tests of this extension."""
 
 import json
 import os
@@ -13,7 +13,8 @@ pytest.importorskip("pyright")
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = (
     ROOT / "extension.py",
-    ROOT / "src" / "vis_lang_clojure" / "tools.py",
+    ROOT / "src",
+    ROOT / "tests",
 )
 
 
@@ -22,9 +23,9 @@ def _where(item):
     return f"{os.path.relpath(item['file'], ROOT)}:{line}: {item['message']}"
 
 
-def test_tool_modules_pass_pyright_standard(tmp_path):
+def test_sources_and_tests_pass_pyright_standard(tmp_path):
     # Regression, issue Blockether/vis#313: a tag in a helper parameter was a `str`,
-    # and `()` defaults did not match `list[str]`. Add a module when it passes.
+    # and `()` defaults did not match `list[str]`.
     config = tmp_path / "pyrightconfig.json"
     config.write_text(
         json.dumps(

@@ -40,7 +40,7 @@ LIBRARY_VERSION = "1.13.0"
 MAIN = "com.blockether.vis.lang.clojure.cli"
 """Namespace the Clojure CLI runs."""
 
-BOOT_TIMEOUT_S = 300.0
+BOOT_TIMEOUT_S = 300
 """Seconds the first call waits: a cold Maven cache downloads the library."""
 
 DEFAULT_TIMEOUT_S = 900.0

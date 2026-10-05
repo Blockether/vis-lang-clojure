@@ -77,6 +77,7 @@ def test_prints_a_tagged_literal_with_its_java_hash():
 def test_reads_an_inst_before_the_gregorian_change_as_a_julian_date():
     # GregorianCalendar reads 1582-10-05 as a Julian date, which is 1582-10-15.
     found = reader.problem('#{#inst "1582-10-05" #inst "1582-10-15"}')
+    assert found is not None
     assert (found.line, found.column) == (1, 41)
     # The text of the date depends on the time zone.
     assert found.message.startswith("Duplicate key: ")

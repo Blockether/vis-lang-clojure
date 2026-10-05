@@ -672,7 +672,7 @@ def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch, tmp_path):
         (("patch", "python_execution"), "after"),
     ]
     assert callable(extension.ctx)
-    guard = extension.ctx.__self__
+    guard = getattr(extension.ctx, "__self__")
     assert guard.key == "clojure_syntax_errors"
     assert all(
         guard.covers(f"src/a{suffix}") for suffix in (".clj", ".cljs", ".cljc", ".edn")
@@ -700,7 +700,7 @@ def test_every_tool_owns_an_activity_and_an_evaluation_shows_its_code(monkeypatc
         label = getattr(ClojureTools, name).__vis_symbol_activity__.label
         assert label[:1].isupper() and "_" not in label, name
 
-    activity = ClojureTools.repl_eval.__vis_symbol_activity__
+    activity = getattr(ClojureTools.repl_eval, "__vis_symbol_activity__")
     running = activity.render(phase="start", args=(), kwargs={"code": "(+ 1 2)"})
     assert (running.headline, running.summary) == (
         "Evaluate in Clojure REPL",

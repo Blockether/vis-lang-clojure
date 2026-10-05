@@ -172,9 +172,16 @@ class _Parser:
         self.error = None
         # Each operation has kind, first value, second value, action and token index.
         self.ops = []
-        self.node = None
+        self.node: _Token | None = None
         self.collection = False
         self.token_index = -1
+
+    @property
+    def current(self) -> _Token:
+        """The token that the last successful `structured` call read."""
+        if self.node is None:
+            raise RuntimeError("The parser has not read a token yet.")
+        return self.node
 
     def copy(self, index, action=None):
         token = self.tokens[index]
@@ -231,15 +238,15 @@ class _Parser:
                 self.rewind(last_index, last_ops)
                 self.insert_closer(closer, opener)
                 return
-            if not self.collection and self.node.kind in WHITESPACE:
+            if not self.collection and self.current.kind in WHITESPACE:
                 self.copy(self.token_index)
                 continue
-            if self.node.indent < indent:
+            if self.current.indent < indent:
                 self.rewind(last_index, last_ops)
                 self.insert_closer(closer, opener)
                 return
-            if not self.collection and self.node.kind == DELIMITER:
-                if self.source[self.node.start] == closer:
+            if not self.collection and self.current.kind == DELIMITER:
+                if self.source[self.current.start] == closer:
                     slot = len(self.ops)
                     closer_index = self.token_index
                     self.copy(closer_index)
@@ -258,12 +265,12 @@ class _Parser:
         last_index, last_ops = self.index, len(self.ops)
         newline = found = False
         while self.structured(indent):
-            if not self.collection and self.node.kind == DELIMITER:
+            if not self.collection and self.current.kind == DELIMITER:
                 self.copy(self.token_index, "remove")
                 continue
-            if not self.collection and self.node.kind in WHITESPACE:
+            if not self.collection and self.current.kind in WHITESPACE:
                 self.copy(self.token_index)
-                newline = newline or self.node.kind == NEWLINE
+                newline = newline or self.current.kind == NEWLINE
                 continue
             if not self.collection:
                 self.copy(self.token_index)
@@ -283,7 +290,7 @@ class _Parser:
             if not self.structured(indent_change=indent_change):
                 self.error = "EOF while reading"
                 return
-            token = self.node
+            token = self.current
             if not self.collection and token.kind == NEWLINE:
                 current = token.indent
                 change = (
@@ -344,8 +351,8 @@ class _Parser:
             if self.collection:
                 continue
             self.copy(self.token_index)
-            if self.node.kind == DELIMITER:
-                if self.source[self.node.start] != closer:
+            if self.current.kind == DELIMITER:
+                if self.source[self.current.start] != closer:
                     self.error = "Unmatched delimiter"
                 return
 
@@ -354,7 +361,8 @@ class _Parser:
             if self.collection:
                 continue
             stray = (
-                self.node.kind == DELIMITER and self.source[self.node.start] in ")]}"
+                self.current.kind == DELIMITER
+                and self.source[self.current.start] in ")]}"
             )
             if stray and self.mode in ("indent", "smart"):
                 self.copy(self.token_index, "remove")

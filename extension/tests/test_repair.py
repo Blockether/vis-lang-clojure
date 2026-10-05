@@ -21,6 +21,7 @@ def test_repair_matches_the_full_reader_reference(case):
     if case["expected"] is None:
         assert result is None
     else:
+        assert result is not None
         assert result.source == case["expected"]["content"]
         assert list(result.notes) == case["expected"]["notes"]
 
@@ -43,6 +44,7 @@ def test_a_reader_failure_does_not_authorize_a_repair():
 def test_code_to_evaluate_gets_the_closers_its_indentation_shows():
     code = "(defn twice [x]\n  (let [y (inc x)]\n    (* y 2))\n(twice 1)"
     repaired, why = repair_code(code, parses_clean=reader.parses_clean)
+    assert repaired is not None
     assert repaired.source == code.replace("2))", "2)))")
     assert (repaired.notes, why) == (("line 3 added `)` → `(* y 2)))`",), "")
 

@@ -43,6 +43,8 @@ def _rebalanced(source, original, spans, parses_clean, subject):
         balancer=lambda text: parse(text, mode="indent").text,
         subject=subject,
     )
-    if result and result["ok?"] and result["content"] != source and result["notes"]:
-        return RepairResult(result["content"], tuple(result["notes"])), ""
+    if result and result["ok?"] and result["notes"]:
+        content = result["content"]
+        if isinstance(content, str) and content != source:
+            return RepairResult(content, tuple(result["notes"])), ""
     return None, (result or {}).get("why") or "no delimiter repair was found"

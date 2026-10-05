@@ -887,7 +887,8 @@ def _leap(year):
     return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
 
 
-_MONTH_DAYS = (None, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+# Days in each month of a common year, by month number. Index 0 is not a month.
+_MONTH_DAYS = (0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
 _GREGORIAN_START = _days_from_civil(1582, 10, 15)
 
 
@@ -1313,10 +1314,13 @@ class _Reader:
             quoted = _list(_QUOTE, form)
         elif isinstance(form, Sym):
             if form.ns is None and form.name.endswith("#"):
-                sym = self.gensyms.get(form.name)
+                gensyms = self.gensyms
+                if gensyms is None:
+                    raise _Thrown(_ILLEGAL_STATE, "Gensym literal not in syntax-quote")
+                sym = gensyms.get(form.name)
                 if sym is None:
                     sym = Sym(None, f"{form.name[:-1]}__{next(self.ids)}__auto__")
-                    self.gensyms[form.name] = sym
+                    gensyms[form.name] = sym
             elif (
                 form.ns is None
                 and form.name.startswith(".")
@@ -1465,9 +1469,12 @@ class _Reader:
         return Sym(None, f"{prefix}__{next(self.ids)}#")
 
     def register_arg(self, n):
-        sym = self.arg_env.get(n)
+        arg_env = self.arg_env
+        if arg_env is None:
+            raise _Thrown(_ILLEGAL_STATE, "arg literal not in #()")
+        sym = arg_env.get(n)
         if sym is None:
-            sym = self.arg_env[n] = self.garg(n)
+            sym = arg_env[n] = self.garg(n)
         return sym
 
     def fn(self, _ch, pending):
@@ -1754,7 +1761,9 @@ def problem(source):
         except (RecursionError, _NoVerdict):
             return None
         except _Thrown as thrown:
-            line, column = thrown.line, thrown.column
+            # The outermost read records where it stopped. Without it, report 1:1.
+            line = 1 if thrown.line is None else thrown.line
+            column = 1 if thrown.column is None else thrown.column
             lines = _java_lines(text)
             if lines and line > len(lines):
                 line, column = len(lines), len(_units(lines[-1])) + 1
