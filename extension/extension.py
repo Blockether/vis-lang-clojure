@@ -116,6 +116,9 @@ PROMPT = prompt.routing(
     notes=(
         "`clj.repl_eval` needs a REPL from `clj.repl_start`, or an nREPL elsewhere that"
         " `clj.repl_connect` attached.",
+        "`clj.repl_eval` puts back missing closers that the indentation shows and lists them in"
+        " `repairs`. With no safe repair, it evaluates nothing and reports where the code stops"
+        " reading.",
         "If this session's REPL is live, `clj.run_tests` uses the code that REPL loaded; else it"
         " starts a clean JVM. With a live REPL, first reload changed namespaces with"
         " `(require ... :reload)` or stop the REPL.",

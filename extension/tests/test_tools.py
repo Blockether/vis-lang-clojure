@@ -465,6 +465,68 @@ def test_evaluating_without_a_repl_says_which_project_has_none(tools):
         clj.repl_eval("(+ 1 1)", cwd=fake.cwd)
 
 
+def test_an_evaluation_puts_back_the_closers_its_indentation_shows(tools):
+    # An agent that loses count of closing delimiters must not fight the REPL reader.
+    clj, fake = tools
+    fake.answer("repl-eval", {"value": "#'user/twice", "ms": 2})
+    result = clj.repl_eval(
+        "(defn twice [x]\n  (let [y (inc x)]\n    (* y 2))\n", cwd=fake.cwd
+    )
+    repaired = "(defn twice [x]\n  (let [y (inc x)]\n    (* y 2)))\n"
+    assert fake.sent("repl-eval")["arg"]["code"] == repaired
+    assert result.repairs == ("line 3 added `)` → `(* y 2)))`",)
+    assert (result.code, result.value, result.error) == (repaired, "#'user/twice", "")
+
+
+def test_unbalanced_code_without_a_safe_repair_is_not_evaluated(tools):
+    # A REPL evaluates the forms before a surplus closer, then fails on it.
+    clj, fake = tools
+    code = "(defn add2 [x]\n  (+ x 2)))\n(add2 1)"
+    result = clj.repl_eval(code, cwd=fake.cwd)
+    assert fake.requests() == []
+    lines = result.error.splitlines()
+    assert lines[0] == (
+        "Line 2, column 12: Unmatched delimiter: ). The code was not evaluated."
+    )
+    assert "it closes more than it opens, or an opener was lost" in lines[1]
+    assert lines[2] == "Balance the delimiters, then evaluate again."
+    assert (result.code, result.value, result.output, result.repairs) == (
+        code,
+        "",
+        "",
+        (),
+    )
+    assert (result.id, result.is_running, result.duration_ms) == (fake.cwd, False, 0)
+
+
+def test_a_refused_evaluation_reports_the_live_repl(tools):
+    clj, fake = tools
+    live = {"result": "status", "id": "nrepl:~/project", "status": "up"}
+    fake.script(
+        {
+            "repl:start": {"ok": True, "result": dict(live, result="started")},
+            "repl:status": {"ok": True, "result": live},
+        }
+    )
+    clj.repl_start(cwd=fake.cwd)
+    result = clj.repl_eval('(println "hi)', cwd=fake.cwd)
+    assert fake.requests("repl-eval") == []
+    assert fake.sent("repl")["op"] == "status"
+    assert result.error.splitlines()[0] == (
+        "Line 1, column 14: EOF while reading string. The code was not evaluated."
+    )
+    assert (result.id, result.is_running) == ("nrepl:~/project", True)
+
+
+def test_other_reader_errors_are_left_to_the_repl(tools):
+    # A REPL reads with *read-eval* on, so it decides about `#=` itself.
+    clj, fake = tools
+    fake.answer("repl-eval", {"value": "3", "ms": 1})
+    result = clj.repl_eval("#=(+ 1 2)", cwd=fake.cwd)
+    assert fake.sent("repl-eval")["arg"]["code"] == "#=(+ 1 2)"
+    assert (result.value, result.repairs) == ("3", ())
+
+
 def test_draft_switch_targets_live_clojure_project_for_every_tool(
     fake, tmp_path, monkeypatch
 ):

@@ -18,6 +18,23 @@ def repair_source(
     """Repair invalid source within edited lines, without formatting or writing it."""
     if parses_clean(source):
         return None
+    repaired, _ = _rebalanced(source, original, spans, parses_clean, subject)
+    return repaired
+
+
+def repair_code(source, *, parses_clean):
+    """Repair the delimiters of code to evaluate, or say why no repair is safe.
+
+    Every line can change: no earlier version shows which lines the author wrote.
+
+    Returns:
+        The `RepairResult` and "", or None and the reason that no repair is safe.
+    """
+    lines = ((1, source.count("\n") + 1),)
+    return _rebalanced(source, None, lines, parses_clean, "in this code")
+
+
+def _rebalanced(source, original, spans, parses_clean, subject):
     result = rebalance(
         source=source,
         original=original,
@@ -27,5 +44,5 @@ def repair_source(
         subject=subject,
     )
     if result and result["ok?"] and result["content"] != source and result["notes"]:
-        return RepairResult(result["content"], tuple(result["notes"]))
-    return None
+        return RepairResult(result["content"], tuple(result["notes"])), ""
+    return None, (result or {}).get("why") or "no delimiter repair was found"

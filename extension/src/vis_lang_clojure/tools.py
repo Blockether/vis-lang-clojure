@@ -4,6 +4,7 @@ Ordinary Python: every method takes plain arguments and returns a contract
 result from `vis_lang_interface`. The same calls work in a script, in a test and
 from Vis. The Clojure library does the work itself, one JSON request away. The
 syntax check is the exception: `reader` reads source in Python, without a JVM.
+The same reader checks the delimiters of code before the REPL evaluates it.
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ from vis_lang_interface import (
     project_root,
 )
 
-from vis_lang_clojure import bridge, reader
+from vis_lang_clojure import bridge, reader, repair
 
 LANGUAGE = "clojure"
 
@@ -38,6 +39,10 @@ MARKERS = (
     "build.boot",
     ".git",
 )
+
+# The reader names unbalanced delimiters with these messages. The REPL decides
+# about other problems itself: it reads `#=` and record literals.
+UNBALANCED = ("EOF while reading", "Unmatched delimiter")
 
 LEVELS = ("error", "warning", "info")
 
@@ -113,6 +118,27 @@ def _session(result, directory):
         tuple(str(part) for part in result.get("cmd") or ()),
         is_running,
         " · ".join(part for part in detail if part),
+    )
+
+
+def _refused(code, problem, why, root):
+    """The answer for code the REPL did not get: where it stops reading, and why."""
+    status = {}
+    if bridge.serves(root):
+        status = bridge.call("repl", {}, root=root, op="status")
+    session = _session(status, root)
+    return ReplResult(
+        LANGUAGE,
+        session.id,
+        "",
+        "",
+        f"Line {problem.line}, column {problem.column}: {problem.message}. "
+        "The code was not evaluated.\n"
+        f"No safe repair exists: {why}.\n"
+        "Balance the delimiters, then evaluate again.",
+        0,
+        session.is_running,
+        code,
     )
 
 
@@ -331,9 +357,18 @@ class ClojureTools:
 
         Start the REPL first: evaluating without one is an error naming the
         project that has none. Reload a changed namespace yourself — a REPL
-        serves the code it has loaded.
+        serves the code it has loaded. Code with unbalanced delimiters is
+        repaired first when its indentation shows the missing closers. When no
+        repair is safe, the code is not evaluated and the error says why.
         """
         root = self._root(cwd)
+        repairs = ()
+        problem = reader.problem(code)
+        if problem and problem.message.startswith(UNBALANCED):
+            repaired, why = repair.repair_code(code, parses_clean=reader.parses_clean)
+            if repaired is None:
+                return _refused(code, problem, why, root)
+            code, repairs = repaired.source, repaired.notes
         arg = {"code": code, "timeout_ms": int(timeout_ms)}
         if ns:
             arg["ns"] = ns
@@ -369,4 +404,5 @@ class ClojureTools:
             int(result.get("ms") or 0),
             not timed_out,
             str(result.get("code") or code),
+            repairs,
         )

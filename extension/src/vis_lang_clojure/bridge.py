@@ -488,6 +488,13 @@ def process_for(root):
     return started
 
 
+def serves(root):
+    """True when a live process serves `root`. It never starts one."""
+    with _PROCESSES_LOCK:
+        live = _PROCESSES.get(str(root))
+    return bool(live and live.is_running)
+
+
 def stop(root):
     """Stop the process serving `root`. Safe when there is none."""
     with _PROCESSES_LOCK:

@@ -7,8 +7,8 @@ from pathlib import Path
 import blockether.vis.extension as vis
 import pytest
 
-from vis_lang_clojure import bridge
-from vis_lang_clojure.repair import repair_source
+from vis_lang_clojure import bridge, reader
+from vis_lang_clojure.repair import repair_code, repair_source
 
 CASES = json.loads((Path(__file__).parent / "fixtures/reader_repairs.json").read_text())
 
@@ -38,6 +38,22 @@ def test_a_reader_failure_does_not_authorize_a_repair():
 
     with pytest.raises(RuntimeError, match="Reader unavailable"):
         repair_source("(a", spans=((1, 1),), parses_clean=unavailable)
+
+
+def test_code_to_evaluate_gets_the_closers_its_indentation_shows():
+    code = "(defn twice [x]\n  (let [y (inc x)]\n    (* y 2))\n(twice 1)"
+    repaired, why = repair_code(code, parses_clean=reader.parses_clean)
+    assert repaired.source == code.replace("2))", "2)))")
+    assert (repaired.notes, why) == (("line 3 added `)` → `(* y 2)))`",), "")
+
+
+def test_code_to_evaluate_with_a_surplus_closer_gets_only_a_reason():
+    repaired, why = repair_code("(+ 1 2))", parses_clean=reader.parses_clean)
+    assert repaired is None
+    assert why == (
+        "the delimiter repair would delete `)` in this code: "
+        "it closes more than it opens, or an opener was lost"
+    )
 
 
 @pytest.fixture

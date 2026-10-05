@@ -51,6 +51,11 @@ A few extreme inputs, such as very deep nesting, get no verdict and count as rea
   If no safe repair exists, a patch that breaks a parseable file is refused.
 - After a Python block, the guard checks changed files and can repair them.
   These checks happen after writes. They do not make the block transactional or roll back its effects.
+- Before `repl_eval` sends code to the REPL, the reader checks its delimiters.
+  If they do not balance, the same conservative repair can change any line of that code.
+  The result lists each correction in `repairs`.
+  If no safe repair exists, the REPL does not get the code. The error gives the line, the column and the reason.
+  Other reader problems go to the REPL unchanged, because the REPL reads `#=` and record literals itself.
 - Repair notes and diffs appear in `session["clojure_syntax_repairs"]`.
   Unresolved files stay in `session["clojure_syntax_errors"]` until they parse again.
 
