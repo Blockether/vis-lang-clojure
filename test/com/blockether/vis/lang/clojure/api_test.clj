@@ -3,8 +3,8 @@
             [clojure.string :as str]
             [com.blockether.vis.lang.clojure.api :as api]
             [lazytest.core :refer [defdescribe expect it]])
-  (:import (java.nio.file Files)
-           (java.nio.file.attribute FileAttribute)))
+  (:import (java.nio.file Files LinkOption)
+           (java.nio.file.attribute FileAttribute PosixFilePermissions)))
 
 (defn- temp-dir
   "A fresh empty directory, so a file test never touches the repository."
@@ -77,6 +77,46 @@
           (expect (= "(defn f [x]\n(* x 2))\n" (get-in files ["a.clj" "before"])))
           (expect (= (slurp (io/file dir "a.clj")) (get-in files ["a.clj" "after"])))
           (expect (not-any? #(contains? (get files "b.clj") %) ["before" "after"]))))))
+
+;; A format replaces a file in one step, because a lint or a test run can read the
+;; file at the same time.
+(defdescribe
+  format-write-test
+  (it "writes the file that a symbolic link points to, and keeps the link"
+      (let [dir
+            (temp-dir)
+
+            file
+            (io/file dir "sample.clj")
+
+            link
+            (io/file dir "link.clj")]
+
+        (spit file "(defn f [x]\n(* x 2))")
+        (Files/createSymbolicLink (.toPath link) (.toPath file) (into-array FileAttribute []))
+        (result (api/clj-format-fn {:workspace/root (str dir)} {"path" "link.clj"}))
+        (expect (Files/isSymbolicLink (.toPath link)))
+        (expect (str/includes? (slurp file) "\n  (* x 2))"))))
+  (it "keeps the permissions of the file"
+      (let [dir
+            (temp-dir)
+
+            file
+            (io/file dir "sample.clj")
+
+            permissions
+            (PosixFilePermissions/fromString "rwxr-x---")]
+
+        (spit file "(defn f [x]\n(* x 2))")
+        (Files/setPosixFilePermissions (.toPath file) permissions)
+        (result (api/clj-format-fn {:workspace/root (str dir)} {"path" "sample.clj"}))
+        (expect (= permissions
+                   (Files/getPosixFilePermissions (.toPath file) (make-array LinkOption 0))))))
+  (it "leaves no temporary file in the directory"
+      (let [dir (temp-dir)]
+        (spit (io/file dir "sample.clj") "(defn f [x]\n(* x 2))")
+        (result (api/clj-format-fn {:workspace/root (str dir)} {"paths" ["."]}))
+        (expect (= ["sample.clj"] (sort (.list dir)))))))
 
 (defdescribe clj-lint-fn-test
              (it "reports a finding with its level, location and provider"

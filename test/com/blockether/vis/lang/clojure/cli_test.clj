@@ -29,7 +29,7 @@
 
 (defdescribe ping-test
              (it "answers a ping, so a client can wait for the process to be ready"
-                 (expect (= {"id" "1" "ok" true "result" {"pong" true}}
+                 (expect (= {"id" "1" "ok" true "result" {"pong" true "lanes" cli/lanes}}
                             (cli/handle (request "ping")))))
              (it "answers with the id it was asked under"
                  (expect (= "42" (get (cli/handle (request "ping" "id" "42")) "id")))))
@@ -177,36 +177,103 @@
                                                             (throw (ex-info "gone" {})))]
                    (expect (nil? (cli/stop-repls!))))))
 
-(defdescribe stdio-loop-test
-             (it "answers one line per request, in order, and ends at EOF"
-                 (let [out
-                       (with-in-str (str (json/write-json-str {"id" "a" "verb" "ping"})
-                                         "\n"
-                                         "\n"
-                                         (json/write-json-str {"id" "b" "verb" "nope"})
-                                         "\n")
-                                    (with-out-str (cli/-main)))
-
-                       answers
-                       (mapv json/read-json (str/split-lines (str/trim out)))]
-
-                   (expect (= 2 (count answers)))
-                   (expect (= {"id" "a" "ok" true "result" {"pong" true}} (first answers)))
-                   (expect (= "b" (get (second answers) "id")))
-                   (expect (false? (get (second answers) "ok")))))
-             (it "answers a line that is not a request at all, and keeps serving"
-                 (let [out
-                       (with-in-str
-                         (str "not json\n" (json/write-json-str {"id" "c" "verb" "ping"}) "\n")
+(defdescribe
+  stdio-loop-test
+  (it "answers one line per request, in order, and ends at EOF"
+      (let [out
+            (with-in-str (str (json/write-json-str {"id" "a" "verb" "ping"})
+                              "\n"
+                              "\n"
+                              (json/write-json-str {"id" "b" "verb" "nope"})
+                              "\n")
                          (with-out-str (cli/-main)))
 
-                       answers
-                       (mapv json/read-json (str/split-lines (str/trim out)))]
+            answers
+            (mapv json/read-json (str/split-lines (str/trim out)))]
 
-                   (expect (= 2 (count answers)))
-                   (expect (false? (get (first answers) "ok")))
-                   (expect (string? (get-in (first answers) ["error" "message"])))
-                   (expect (= {"id" "c" "ok" true "result" {"pong" true}} (second answers))))))
+        (expect (= 2 (count answers)))
+        (expect (= {"id" "a" "ok" true "result" {"pong" true "lanes" cli/lanes}} (first answers)))
+        (expect (= "b" (get (second answers) "id")))
+        (expect (false? (get (second answers) "ok")))))
+  (it "answers a line that is not a request at all, and keeps serving"
+      (let [out
+            (with-in-str (str "not json\n" (json/write-json-str {"id" "c" "verb" "ping"}) "\n")
+                         (with-out-str (cli/-main)))
+
+            answers
+            (mapv json/read-json (str/split-lines (str/trim out)))]
+
+        (expect (= 2 (count answers)))
+        (expect (false? (get (first answers) "ok")))
+        (expect (string? (get-in (first answers) ["error" "message"])))
+        (expect (= {"id" "c" "ok" true "result" {"pong" true "lanes" cli/lanes}}
+                   (second answers))))))
+
+(defn- serve
+  "Run `cli/-main` over `requests`, and answer what it wrote, in the order it wrote it."
+  [& requests]
+  (let [in (apply str (map #(str (json/write-json-str %) "\n") requests))]
+    (mapv json/read-json (str/split-lines (str/trim (with-in-str in (with-out-str (cli/-main))))))))
+
+(defn- ok "A successful tool envelope." [result] {:success? true :result result})
+
+;; A test run must not hold up a lint or a format. It must not share the managed
+;; nREPL with a REPL eval either.
+(defdescribe lanes-test
+             (it "answers a lint while a test run is still running"
+                 (let [linted
+                       (promise)
+
+                       answers
+                       (with-redefs [test-runner/clj-test-fn
+                                     (fn [_ _]
+                                       (ok {"saw_lint" (deref linted 5000 false)}))
+
+                                     api/clj-lint-fn
+                                     (fn [_ _]
+                                       (deliver linted true)
+                                       (ok {}))]
+
+                         (serve (request "test" "id" "t") (request "lint" "id" "l")))]
+
+                   (expect (= ["l" "t"] (mapv #(get % "id") answers)))
+                   (expect (true? (get-in answers [1 "result" "saw_lint"])))))
+             (it "answers a format while a test run is still running"
+                 (let [formatted
+                       (promise)
+
+                       answers
+                       (with-redefs [test-runner/clj-test-fn
+                                     (fn [_ _]
+                                       (ok {"saw_format" (deref formatted 5000 false)}))
+
+                                     api/clj-format-fn
+                                     (fn [_ _]
+                                       (deliver formatted true)
+                                       (ok {}))]
+
+                         (serve (request "test" "id" "t") (request "format" "id" "f")))]
+
+                   (expect (= ["f" "t"] (mapv #(get % "id") answers)))
+                   (expect (true? (get-in answers [1 "result" "saw_format"])))))
+             (it "starts a REPL eval only after the test run before it has finished"
+                 (let [evaluated
+                       (promise)
+
+                       answers
+                       (with-redefs [test-runner/clj-test-fn
+                                     (fn [_ _]
+                                       (ok {"saw_eval" (deref evaluated 500 false)}))
+
+                                     api/clj-eval-fn
+                                     (fn [_ _]
+                                       (deliver evaluated true)
+                                       (ok {}))]
+
+                         (serve (request "test" "id" "t") (request "repl-eval" "id" "e")))]
+
+                   (expect (= ["t" "e"] (mapv #(get % "id") answers)))
+                   (expect (false? (get-in answers [0 "result" "saw_eval"]))))))
 
 (defdescribe
   test-verb-test

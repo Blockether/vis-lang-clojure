@@ -8,6 +8,10 @@ One process serves one project directory, and it stays alive. Each nREPL it
 starts is its child, so a REPL from one call is still there for the next call.
 Closing its stdin ends the process, and every REPL it owns stops with it.
 
+The process gives each verb a lane. Calls in one lane wait for each other, and
+calls in different lanes run at the same time: a lint or a format does not wait
+for a test run.
+
 The library's classpath is resolved outside the project. A project's own
 `deps.edn` cannot choose what the tools run on or stop them from starting. This
 holds for an older Clojure, a pinned older clj-kondo, or a dependency that only
@@ -325,7 +329,10 @@ class Process:
         self.root = str(root)
         self.command = tuple(command)
         self.ids = itertools.count(1)
+        # Calls in one lane wait for each other. Until the greeting names the
+        # lanes, and for a library that names none, every verb shares one lock.
         self.lock = threading.Lock()
+        self.lanes = {}
         # The process serves ONE project, and it resolves that project's own
         # dependencies for the test runs and REPLs it starts: it needs the same
         # shared caches the boot resolution used, the person's own Clojure
@@ -350,9 +357,11 @@ class Process:
     def call(self, request, timeout_s=DEFAULT_TIMEOUT_S):
         """Send one request and wait for the answer to that request.
 
-        The process answers one call at a time. A call waits at most `timeout_s`
-        for the call before it to finish, and then at most `timeout_s` for its
-        own answer, so a short call never waits out a long test run.
+        Calls in one lane run one at a time, and calls in different lanes run at
+        the same time, so a lint or a format does not wait for a test run. A call
+        waits at most `timeout_s` for the call before it in its lane to finish,
+        and then at most `timeout_s` for its own answer, so a short call never
+        waits out a long test run.
 
         Args:
             request: Verb and its argument, without the framing keys.
@@ -363,9 +372,10 @@ class Process:
 
         Raises:
             ClojureError: The process stopped before answering.
-            ToolTimeout: The process stayed busy, or no answer came in time.
+            ToolTimeout: The lane stayed busy, or no answer came in time.
         """
-        if not self.lock.acquire(timeout=timeout_s):
+        lock = self.lanes.get(str(request.get("verb")), self.lock)
+        if not lock.acquire(timeout=timeout_s):
             raise ToolTimeout(
                 f"{MAIN} stayed busy with another call for {timeout_s:g}s"
             )
@@ -383,7 +393,28 @@ class Process:
                     f"{MAIN} did not answer within {timeout_s:g}s"
                 ) from exc
         finally:
-            self.lock.release()
+            lock.release()
+
+    def greet(self):
+        """Ping the process, and learn the lane of each verb.
+
+        Each lane gets its own lock. A library that names no lanes keeps one
+        shared lock, so it answers one call at a time.
+
+        Raises:
+            ClojureError: The process stopped before answering.
+            ToolTimeout: No answer came within `BOOT_TIMEOUT_S`.
+        """
+        answer = self.call({"verb": "ping", "arg": {}}, BOOT_TIMEOUT_S)
+        result = answer.get("result")
+        named = result.get("lanes") if isinstance(result, dict) else None
+        if not isinstance(named, dict):
+            return
+        locks = {}
+        self.lanes = {
+            str(verb): locks.setdefault(str(lane), threading.Lock())
+            for verb, lane in named.items()
+        }
 
     def stop(self):
         """End the process, and with it every REPL it owns."""
@@ -448,7 +479,7 @@ def process_for(root):
         started = Process(directory, boot_command())
         _PROCESSES[directory] = started
     try:
-        started.call({"verb": "ping", "arg": {}}, BOOT_TIMEOUT_S)
+        started.greet()
     except (ClojureError, ToolTimeout) as exc:
         stop(directory)
         raise ClojureError(

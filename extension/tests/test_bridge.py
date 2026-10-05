@@ -58,7 +58,8 @@ def test_a_silent_process_times_out(fake):
 
 
 def test_a_busy_process_turns_a_short_call_away(fake):
-    # A short call, such as a format, must not wait out a long test run.
+    # A library that names no lanes answers one call at a time. A short call,
+    # such as a format, must still not wait out a long test run.
     process = bridge.process_for(fake.cwd)
     process.lock.acquire()
     try:
@@ -67,6 +68,50 @@ def test_a_busy_process_turns_a_short_call_away(fake):
     finally:
         process.lock.release()
     assert bridge.call("ping", {}, root=fake.cwd) == {"pong": True}
+
+
+LANES = {
+    "format": "format",
+    "lint": "lint",
+    "test": "repl",
+    "repl-eval": "repl",
+    "repl": "repl",
+}
+"""The lanes the library names in its greeting."""
+
+
+def process_with_lanes(fake):
+    """Start a process for a library that names its lanes."""
+    fake.script(
+        {
+            "ping": {"ok": True, "result": {"pong": True, "lanes": LANES}},
+            "lint": {"ok": True, "result": {"files": 1, "findings": []}},
+            "format": {"ok": True, "result": {"changed": 0}},
+        }
+    )
+    return bridge.process_for(fake.cwd)
+
+
+def test_a_test_run_does_not_hold_up_a_lint_or_a_format(fake):
+    process = process_with_lanes(fake)
+    process.lanes["test"].acquire()
+    try:
+        lint = bridge.call("lint", {}, root=fake.cwd, timeout_s=0.5)
+        assert lint == {"files": 1, "findings": []}
+        assert bridge.call("format", {}, root=fake.cwd, timeout_s=0.5) == {"changed": 0}
+    finally:
+        process.lanes["test"].release()
+
+
+def test_a_repl_eval_waits_for_a_test_run(fake):
+    # Both can use the same managed nREPL.
+    process = process_with_lanes(fake)
+    process.lanes["test"].acquire()
+    try:
+        with pytest.raises(ToolTimeout, match="busy"):
+            bridge.call("repl-eval", {}, root=fake.cwd, timeout_s=0.2)
+    finally:
+        process.lanes["test"].release()
 
 
 def test_a_late_answer_is_not_mistaken_for_the_next_one(fake):

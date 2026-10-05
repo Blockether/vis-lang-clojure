@@ -12,7 +12,10 @@
             [com.blockether.vis.lang.clojure.host :as host]
             [com.blockether.vis.lang.clojure.lint :as lint]
             [com.blockether.vis.lang.clojure.reflection :as reflection]
-            [com.blockether.vis.lang.clojure.repl-manager :as repl-manager]))
+            [com.blockether.vis.lang.clojure.repl-manager :as repl-manager])
+  (:import
+    (java.nio.file AtomicMoveNotSupportedException CopyOption Files LinkOption StandardCopyOption)
+    (java.nio.file.attribute FileAttribute)))
 
 ;; Tool fns
 
@@ -461,6 +464,33 @@
                              (mapv str))]
                   (if (seq d) d [(str root)])))))
 
+(defn- write-file!
+  "Write `text` to the file at `path` in one step. A lint or a test run can read the
+   file at the same time, and it gets the old text or the new text, never a part.
+   The text goes to a temporary file in the same directory, and a move puts it in
+   place. A symbolic link stays a link, and the file keeps its permissions."
+  [path ^String text]
+  (let [target
+        (.toRealPath (.toPath (io/file (str path))) (make-array LinkOption 0))
+
+        temp
+        (Files/createTempFile (.getParent target)
+                              (str "." (.getFileName target) ".")
+                              ".tmp"
+                              (make-array FileAttribute 0))]
+
+    (try (spit (.toFile temp) text)
+         (try (Files/setPosixFilePermissions
+                temp
+                (Files/getPosixFilePermissions target (make-array LinkOption 0)))
+              (catch UnsupportedOperationException _ nil))
+         (try (Files/move temp target (into-array CopyOption [StandardCopyOption/ATOMIC_MOVE]))
+              (catch AtomicMoveNotSupportedException _
+                (Files/move temp
+                            target
+                            (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))))
+         (finally (Files/deleteIfExists temp)))))
+
 (defn- clj-format-one-file!
   "Format one file in place, without structural repair. Report its before and after
    text only when its layout changed."
@@ -474,7 +504,7 @@
         out
         (fmt/format-source code for-path)]
 
-    (when (not= out code) (spit (str path) out))
+    (when (not= out code) (write-file! path out))
     (cond-> {"path" (relativize-path (io/file (or (:workspace/root env) ".")) path)
              "changed" (not= out code)
              "wrote" (not= out code)
@@ -552,7 +582,7 @@
           out
           (fmt/format-source code for-path)]
 
-         (when (and path (not= out code)) (spit (str path) out))
+         (when (and path (not= out code)) (write-file! path out))
          (host/success {:result (cond-> {"op" "clj-format"
                                          "changed" (not= out code)
                                          "chars" (- (count out) (count code))
