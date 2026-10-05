@@ -614,6 +614,83 @@
         (expect (= 0 (get r "errored")))
         (expect (true? (get r "is_pass"))))))
 
+(def ^:private cognitect-report
+  "cognitect.test-runner v0.5.1 output for one passing test, one test with two
+   failed assertions and one test that throws. The stack trace is cut short."
+  (str
+    "\nRunning tests in #{\"test\"}\n\nTesting sample.core-test\n\n"
+    "ERROR in (errors) (core_test.clj:13)\nUncaught exception, not in assertion.\n"
+    "expected: nil\n  actual: clojure.lang.ExceptionInfo: boom\n{}\n"
+    " at sample.core_test$fn__1961.invokeStatic (core_test.clj:13)\n"
+    "    sample.core_test/fn (core_test.clj:12)\n\n"
+    "FAIL in (fails-twice) (core_test.clj:8)\nexpected: (= 1 2)\n  actual: (not (= 1 2))\n\n"
+    "FAIL in (fails-twice) (core_test.clj:10)\ninner\nexpected: (= 3 4)\n  actual: (not (= 3 4))\n\n"
+    "Ran 3 tests containing 4 assertions.\n2 failures, 1 errors.\n"))
+
+(defdescribe
+  cli-test-counts-test
+  ;; Regression: clojure.test counts failed ASSERTIONS. A cognitect.test-runner test
+  ;; with four failed assertions read as four failed tests.
+  (it "counts each failing test once, from the cognitect.test-runner report"
+      (with-project {"test/sample/core_test.clj" "(ns sample.core-test)\n"}
+                    (fn [root]
+                      (with-redefs [tr/cli-command-for
+                                    (fn [_root _sel _aliases]
+                                      {:tool :clj :cmd ["clojure" "-M:test"]})
+
+                                    tr/run-command
+                                    (fn [& _]
+                                      {:exit 1 :out cognitect-report :err ""})]
+
+                        (let [r (run-via-cli root {})]
+                          (expect (= [3 2 1] (mapv #(get r %) ["total" "fail" "errored"])))
+                          (expect (false? (get r "is_pass")))
+                          (expect (= ["errors" "fails-twice" "fails-twice"]
+                                     (mapv #(get % "test") (get r "failures"))))
+                          (expect (= #{"test/sample/core_test.clj"}
+                                     (set (map #(get % "file") (get r "failures"))))))))))
+  (it "keeps a summary without FAIL blocks red, with at most one failure for each test"
+      (doseq [[out counts] [["Ran 1 tests containing 4 assertions.\n4 failures, 0 errors.\n"
+                             [1 1 0]]
+                            ["Ran 3 tests containing 5 assertions.\n2 failures, 1 errors.\n"
+                             [3 3 1]] ["3 tests, 6 assertions, 2 errors, 4 failures.\n" [3 3 2]]]]
+        (let [r (with-cli-run {:exit 1 :out out})]
+          (expect (= counts (mapv #(get r %) ["total" "fail" "errored"])))
+          (expect (false? (get r "is_pass"))))))
+  (it "keeps Lazytest's own count of failing test cases"
+      (let [r (with-cli-run {:exit 1 :out "Ran 4 test cases in 0.1 seconds.\n3 failures.\n"})]
+        (expect (= [4 3 0] (mapv #(get r %) ["total" "fail" "errored"]))))))
+
+(defdescribe
+  normalize-faults-file-test
+  ;; Regression: clojure.test names the file of an assertion without its directory,
+  ;; so a cognitect.test-runner failure pointed at `core_test.clj`.
+  (it "names the project file that the fault's namespace maps to"
+      (with-project
+        {"test/sample/core_test.clj" "(ns sample.core-test)\n"
+         "src/sample/core.clj" "(ns sample.core)\n"}
+        (fn [root]
+          (let [file-of (fn [file]
+                          (get-in (normalize-faults
+                                    root
+                                    {"failures" [{"ns" "sample.core-test" "file" file "line" 8}]})
+                                  ["failures" 0 "file"]))]
+            (expect (= "test/sample/core_test.clj" (file-of "core_test.clj")))
+            (expect (= "test/sample/core_test.clj" (file-of "sample/core_test.clj")))
+            (expect (= "test/sample/core_test.clj" (file-of "test/sample/core_test.clj")))
+            ;; A frame in the code under test keeps the runner's own name.
+            (expect (= "core.clj" (file-of "core.clj")))))))
+  (it "keeps the runner's file name when two project files can hold it"
+      (with-project {"a/test/sample/core_test.clj" "(ns sample.core-test)\n"
+                     "b/test/sample/core_test.clj" "(ns sample.core-test)\n"}
+                    (fn [root]
+                      (expect (= "core_test.clj"
+                                 (get-in (normalize-faults root
+                                                           {"failures" [{"ns" "sample.core-test"
+                                                                         "file" "core_test.clj"
+                                                                         "line" 8}]})
+                                         ["failures" 0 "file"])))))))
+
 (defdescribe
   cli-failure-diagnostics-test
   ;; Regression #184: retain the full report and every fault before any display
@@ -658,7 +735,7 @@
       (expect (= (str out "\n" err) (get r "output")))
       (expect (= "broken" (get-in r ["failures" 0 "test"])))
       (expect (= "2" (get-in r ["failures" 0 "actual"])))))
-  (it "collects multiple assertions and thrown errors without deduplicating tests"
+  (it "keeps every failed assertion and error, but counts each failing test once"
       (let [trace
             (apply str (repeat 80 "    at sample.core_test.invoke(core_test.clj:19)\n"))
 
@@ -680,7 +757,9 @@
             (get r "failures")]
 
         (expect (= report (get r "output")))
-        (expect (= 3 (get r "fail")))
+        (expect (= 2 (get r "total")))
+        ;; clojure.test counts failed assertions; the result counts tests.
+        (expect (= 2 (get r "fail")))
         (expect (= 1 (get r "errored")))
         (expect (= ["broken" "broken" "throws"] (mapv #(get % "test") faults)))
         (expect (= ["fail" "fail" "error"] (mapv #(get % "type") faults)))
@@ -796,6 +875,45 @@
                             (expect (= 1 (get r "errored")))
                             (expect (= ["error"] (mapv #(get % "type") (get r "failures"))))))
                         (finally (remove-ns fixture-ns))))))
+
+(defdescribe repl-test-counts-test
+             ;; Regression: the REPL path counted clojure.test ASSERTIONS as tests. A test with
+             ;; two failed assertions read as two failed tests.
+             (it
+               "counts tests, not assertions, as `Ran N tests` does"
+               (let [fixture-ns
+                     'vis.test-runner-counts-fixture
+
+                     n
+                     (create-ns fixture-ns)
+
+                     run-form
+                     @#'com.blockether.vis.lang.clojure.test-runner/run-form
+
+                     deftest!
+                     (fn [sym f]
+                       (alter-meta! (intern n
+                                            sym
+                                            (fn []))
+                                    assoc
+                                    :test
+                                    f))]
+
+                 (try (deftest! 'passes-test
+                                (fn []
+                                  (ct/is (= 1 1))))
+                      (deftest! 'fails-twice-test
+                                (fn []
+                                  (ct/is (= 1 2))
+                                  (ct/is (= 3 4))))
+                      (deftest! 'throws-test
+                                (fn []
+                                  (throw (ex-info "boom" {}))))
+                      (with-redefs [clojure.core/require (fn [& _])]
+                        (let [r ((eval run-form) [fixture-ns] {} {})]
+                          (expect (= [3 1 2 1] (mapv #(get r %) ["total" "pass" "fail" "errored"])))
+                          (expect (= 3 (count (get r "failures"))))))
+                      (finally (remove-ns fixture-ns))))))
 
 (defn- run-fixture
   "Define `forms` in a fresh namespace, run them through the REPL run-form and
@@ -1110,7 +1228,7 @@
                            (expect (= (str compile-out test-out err) (get r "output")))
                            (expect (= "repro.core-test" (get-in r ["failures" 0 "ns"])))
                            (expect (= "broken" (get-in r ["failures" 0 "test"])))
-                           (expect (= "core_test.cljs" (get-in r ["failures" 0 "file"])))
+                           (expect (= "test/repro/core_test.cljs" (get-in r ["failures" 0 "file"])))
                            (expect (= 7 (get-in r ["failures" 0 "line"]))))))))))
 
 (defdescribe

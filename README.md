@@ -25,7 +25,7 @@ not need them.
 clj.format_code(["src"])                         # zprint, or cljfmt when that is the project's config
 clj.format_code(source="(defn f [x](* x 2))")    # format a snippet, nothing written
 clj.lint_code(["src"])                           # clj-kondo + reflection warnings
-clj.run_tests(["test"])                          # Lazytest and clojure.test
+clj.run_tests(["test"])                          # Lazytest, clojure.test, Cognitect test-runner, Kaocha
 clj.run_tests(["test/app/core_test.clj::adds"])  # one test
 clj.repl_start(cwd="~/app", aliases=["dev"])     # a project nREPL for this session
 clj.repl_eval("(+ 1 1)", cwd="~/app")            # evaluate in that REPL

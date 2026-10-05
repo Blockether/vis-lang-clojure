@@ -200,7 +200,7 @@ def test_a_failing_run_lists_its_failures(tools):
         },
     )
     result = clj.run_tests(cwd=fake.cwd)
-    assert (result.total, result.passed, result.failed, result.skipped) == (4, 2, 1, 1)
+    assert (result.total, result.passed, result.failed, result.skipped) == (4, 3, 1, 1)
     assert result.is_passed is False
     failure = result.failures[0]
     assert (failure.test, failure.path, failure.line) == (
@@ -209,6 +209,18 @@ def test_a_failing_run_lists_its_failures(tools):
         12,
     )
     assert failure.message == "expected 2 actual 3"
+
+
+def test_a_focused_run_counts_only_the_tests_that_ran(tools):
+    # The REPL reports unselected tests as skipped, outside the total.
+    clj, fake = tools
+    fake.answer(
+        "test",
+        {"total": 1, "selected": 1, "fail": 0, "skipped": 2, "is_pass": True},
+    )
+    result = clj.run_tests(vars=["a.core-test/adds"], cwd=fake.cwd)
+    assert (result.total, result.passed, result.failed, result.skipped) == (1, 1, 0, 2)
+    assert result.is_passed is True
 
 
 def test_a_run_that_broke_without_counts_never_reads_green(tools):

@@ -199,9 +199,10 @@ class ClojureTools:
         """Run the project's own tests, Lazytest or clojure.test, JVM or ClojureScript.
 
         The project's test command runs in a clean JVM, unless this session
-        already has a REPL for the project, which is reused. Selecting a source
+        already has a REPL for the project, which is reused. The command can
+        use the Cognitect test-runner, Kaocha or Lazytest. Selecting a source
         file runs its test namespace. A selection that spans both runtimes is
-        refused rather than silently trimmed.
+        refused rather than silently trimmed. Counts are tests, not assertions.
         """
         root = self._root(cwd, tuple(paths))
         arg = {}
@@ -239,7 +240,8 @@ class ClojureTools:
         return TestResult.of(
             LANGUAGE,
             total=max(total, failed),
-            passed=max(max(total, failed) - failed - skipped, 0),
+            # Skipped tests never ran, so `total` already leaves them out.
+            passed=max(total, failed) - failed,
             failed=failed,
             skipped=skipped,
             duration_ms=elapsed,

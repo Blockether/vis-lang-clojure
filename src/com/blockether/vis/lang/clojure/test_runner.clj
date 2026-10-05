@@ -188,13 +188,22 @@
                         fails
                         (atom [])
 
-                        cnt
-                        (atom {:pass 0 :fail 0 :error 0})]
+                        ran
+                        (atom 0)
 
+                        faulted
+                        (atom {})]
+
+                    ;; Count tests, as `Ran N tests` does, not assertions: a test fails once,
+                    ;; however many of its assertions fail.
                     (with-redefs [clojure.test/report
                                   (fn [m]
-                                    (when (#{:fail :error :pass} (:type m))
-                                      (swap! cnt update (:type m) (fnil inc 0)))
+                                    (when (= :begin-test-var (:type m)) (swap! ran inc))
+                                    (when (#{:fail :error} (:type m))
+                                      (swap! faulted update
+                                        clojure.test/*testing-vars*
+                                        (fnil conj #{})
+                                        (:type m)))
                                     (when (#{:fail :error} (:type m))
                                       (let [v0 (first clojure.test/*testing-vars*)
                                             vm (meta v0)
@@ -231,18 +240,21 @@
                                            "file" (if thrown (str (:file vm)) (str (:file m)))
                                            "line" (if thrown (:line vm) (:line m))}))))]
                       (clojure.test/test-vars selected))
-                    (let [c
-                          (clojure.core/deref cnt)
+                    (let [total
+                          (clojure.core/deref ran)
+
+                          failing
+                          (vals (clojure.core/deref faulted))
 
                           fs
                           (clojure.core/deref fails)]
 
                       {"framework" "clojure.test"
-                       "total" (+ (:pass c) (:fail c) (:error c))
-                       "pass" (:pass c)
-                       "fail" (+ (:fail c) (:error c))
+                       "total" total
+                       "pass" (max 0 (- total (count failing)))
+                       "fail" (count failing)
                        ;; The erroring SUBSET of "fail" — already inside it.
-                       "errored" (:error c)
+                       "errored" (count (filter :error failing))
                        "selected" (count selected)
                        "skipped" skipped
                        "failures" fs})))
@@ -500,20 +512,6 @@
           lines)]
 
     (assoc fault "message" (str/trim (str/join "\n" lines)))))
-
-(defn- normalize-faults
-  "Make every fault in `parsed`'s \"failures\" honest and readable: an unresolvable
-   location is dropped (`locate-fault`), a real absolute path is rewritten relative
-   to workspace `root`, and the message leads with its reason (`describe-fault`).
-   Idempotent — an already-normalized fault is left as-is."
-  [root parsed]
-  (let [root-file
-        (io/file (str root))
-
-        clean
-        (comp describe-fault (partial rel-fault-file root-file) locate-fault)]
-
-    (if (seq (get parsed "failures")) (update parsed "failures" (partial mapv clean)) parsed)))
 
 (defn- failures->text
   "Concise, framework-neutral digest of the structured failure/error maps a
@@ -1013,6 +1011,54 @@
                   [ns-str path])))
         ns-strs))
 
+(defn- ns-fault-file
+  "clojure.test and Kaocha place an assertion by its stack frame, which names only
+   the file (`core_test.clj`), and a classpath names it from its own root
+   (`sample/core_test.clj`). When that is the file that the fault's namespace maps
+   to, name the one project file that holds it. A missing or ambiguous file keeps
+   the runner's own name. `sources` is a DELAY over the project's Clojure files, so
+   a run without such a fault never walks the workspace."
+  [sources fault]
+  (let [file
+        (str (get fault "file"))
+
+        ns-str
+        (str (get fault "ns"))
+
+        ext
+        (re-find #"\.clj[cs]?$" file)
+
+        rel
+        (when (and ext (not (str/blank? ns-str))) (str "/" (ns->source-relpath ns-str) ext))]
+
+    (if (and rel (str/ends-with? rel (str "/" file)))
+      (let [hits (filter (fn [^java.io.File f]
+                           (str/ends-with? (.getPath f) rel))
+                         @sources)]
+        (if (= 1 (count hits)) (assoc fault "file" (.getPath ^java.io.File (first hits))) fault))
+      fault)))
+
+(defn- normalize-faults
+  "Make every fault in `parsed`'s \"failures\" honest and readable: an unresolvable
+   location is dropped (`locate-fault`), a file named from its namespace's root is
+   traced to the project file (`ns-fault-file`), a real absolute path is rewritten
+   relative to workspace `root`, and the message leads with its reason
+   (`describe-fault`). Idempotent — an already-normalized fault is left as-is."
+  [root parsed]
+  (let [root-file
+        (io/file (str root))
+
+        sources
+        (delay (filterv clj-source-file? (test-source-tree root-file)))
+
+        clean
+        (comp describe-fault
+              (partial rel-fault-file root-file)
+              (partial ns-fault-file sources)
+              locate-fault)]
+
+    (if (seq (get parsed "failures")) (update parsed "failures" (partial mapv clean)) parsed)))
+
 (defn- run-via-repl
   [root ns-strs sel port]
   (let [;; Cheap pre-flight: a single `describe` under a short timeout. A dead or
@@ -1206,17 +1252,52 @@
                                            (lazytest-cli-failures out))})
        "failures"))
 
+(defn- failing-tests
+  "clojure.test, cljs.test and Kaocha count failed and erroring ASSERTIONS, but the
+   result counts TESTS: one test with four failed assertions is one failed test.
+   When the FAIL and ERROR blocks match the reported counts, count the distinct
+   tests that they name. Otherwise keep the reported counts, capped at the tests
+   that ran but never below one, so a red run never reads green. :errs counts the
+   tests that threw, :fails the other failing tests."
+  [{:keys [cases fails errs] :as counts} out]
+  (let [blocks
+        (conventional-cli-failures out)
+
+        reported
+        (frequencies (map #(get % "type") blocks))
+
+        tests-with
+        (fn [kinds]
+          (count (distinct (keep (fn [{:strs [ns test type]}]
+                                   (when (kinds type) [ns test]))
+                                 blocks))))
+
+        faults
+        (+ fails errs)
+
+        [failing errored]
+        (if (= [fails errs] [(get reported "fail" 0) (get reported "error" 0)])
+          [(tests-with #{"fail" "error"}) (tests-with #{"error"})]
+          (let [n (if (pos? faults) (max 1 (min faults cases)) 0)]
+            [n (min errs n)]))]
+
+    (assoc counts
+      :fails (- failing errored)
+      :errs errored)))
+
 (defn- summary-counts
   "Read complete, anchored reporter summaries. Never splice counts from unrelated
    log lines, or let a later passing suite erase an earlier failure. cljs.test
-   requires both failure and error counts; Lazytest can omit the error count."
+   requires both failure and error counts; Lazytest can omit the error count.
+   :fails and :errs count tests: `failing-tests` converts the assertion counts of
+   clojure.test, cljs.test and Kaocha."
   ([out] (summary-counts out false))
   ([out require-errors?]
    (let [out
          (strip-ansi (str out))
 
          conventional
-         (re-seq #"(?m)^Ran (\d+) test[^\r\n]*\r?\n(\d+) failures?(?:, (\d+) errors?)?\.\r?$" out)
+         (re-seq #"(?m)^Ran (\d+) test([^\r\n]*)\r?\n(\d+) failures?(?:, (\d+) errors?)?\.\r?$" out)
 
          kaocha
          (re-seq
@@ -1224,11 +1305,14 @@
            out)
 
          reports
-         (concat (keep (fn [[_ cases fails errs]]
+         (concat (keep (fn [[_ cases unit fails errs]]
                          (when (or (not require-errors?) errs)
                            {:cases (parse-long cases)
                             :fails (parse-long fails)
-                            :errs (if errs (parse-long errs) 0)}))
+                            :errs (if errs (parse-long errs) 0)
+                            ;; `Ran 2 tests containing 3 assertions.` counts assertions;
+                            ;; Lazytest's `Ran 2 test cases in 0.1 seconds.` counts tests.
+                            :assertions? (str/includes? unit "assertion")}))
                        conventional)
                  (when-not require-errors?
                    (map (fn [[_ cases counts]]
@@ -1239,13 +1323,17 @@
                                         0))]
                             {:cases (parse-long cases)
                              :fails (n #"(\d+) failures?")
-                             :errs (n #"(\d+) errors?")}))
+                             :errs (n #"(\d+) errors?")
+                             :assertions? true}))
                         kaocha)))
 
          headers
          (count (re-seq #"(?m)^(?:Ran \d+ test|\d+ tests?, \d+ assertions?,)" out))]
 
-     (when (and (seq reports) (= headers (count reports))) (apply merge-with + reports)))))
+     (when (and (seq reports) (= headers (count reports)))
+       (cond-> (apply merge-with + (map #(dissoc % :assertions?) reports))
+         (some :assertions? reports)
+         (failing-tests out))))))
 
 (defn- lazytest-selector-args
   "Translate resolved selectors into lazytest.main CLI flags.
