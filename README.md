@@ -68,7 +68,7 @@ which describes the shared rules.
 of its own —
 
 ```
-clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.12.0"}}}' -Spath
+clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.12.1"}}}' -Spath
 ```
 
 — and then runs
