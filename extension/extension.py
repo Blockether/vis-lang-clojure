@@ -123,7 +123,8 @@ PROMPT = prompt.routing(
         " starts a clean JVM. With a live REPL, first reload changed namespaces with"
         " `(require ... :reload)` or stop the REPL.",
         "`clj.lint_code` runs clj-kondo and also reports compiler reflection warnings as failures.",
-        "`clj.format_code` changes layout only. Structural repair runs through operation hooks.",
+        "`clj.format_code` changes layout only and writes files only with `is_written=True`."
+        " Structural repair runs through operation hooks.",
         "`patch` validates repairs before one atomic write and reports each correction.",
         "Syntax checks and repairs run in local Python, without a JVM.",
         "Python file writes are checked after the block, without a transaction or rollback.",

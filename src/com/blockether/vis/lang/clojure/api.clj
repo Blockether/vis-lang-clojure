@@ -492,9 +492,9 @@
          (finally (Files/deleteIfExists temp)))))
 
 (defn- clj-format-one-file!
-  "Format one file in place, without structural repair. Report its before and after
-   text only when its layout changed."
-  [env path]
+  "Format one file, without structural repair, and rewrite it when `write?` is
+   true. Report its before and after text only when its layout changed."
+  [env write? path]
   (let [code
         (slurp (str path))
 
@@ -502,14 +502,17 @@
         (or path (:workspace/root env))
 
         out
-        (fmt/format-source code for-path)]
+        (fmt/format-source code for-path)
 
-    (when (not= out code) (write-file! path out))
+        changed?
+        (not= out code)]
+
+    (when (and write? changed?) (write-file! path out))
     (cond-> {"path" (relativize-path (io/file (or (:workspace/root env) ".")) path)
-             "changed" (not= out code)
-             "wrote" (not= out code)
+             "changed" changed?
+             "wrote" (and write? changed?)
              "formatter" (name (fmt/formatter-for for-path))}
-      (not= out code)
+      changed?
       (merge {"before" code "after" out}))))
 
 (defn clj-format-fn
@@ -521,8 +524,10 @@
      - nothing / {}                         -> format the whole project's source
          roots (every deps.edn module's :paths + test), skipping build/vendor
          dirs (target, dist, node_modules, .clj-kondo, .clojure-lsp, .cpcache…)
-   Paths are resolved against the workspace root when relative. Every result
-   NAMES the backend that ran: `\"formatter\"` (\"zprint\" | \"cljfmt\") on a
+   A map with `\"write\" false` CHECKS the files instead: the answer is the same,
+   but no file is rewritten and every `\"wrote\"` is false. A missing `\"write\"`
+   writes. Paths are resolved against the workspace root when relative. Every result
+    NAMES the backend that ran: `\"formatter\"` (\"zprint\" | \"cljfmt\") on a
     single file / code string, and the distinct `\"formatters\"` set on a batch. A
     file a batch changed carries its text `\"before\"` and `\"after\"`, from which the
     caller counts the changed lines."
@@ -549,12 +554,15 @@
          default?
          (or (nil? arg) (and (map? arg) (not (seq paths)) (not path) (not has-code?)))
 
+         write?
+         (not (and (map? arg) (false? (get arg "write"))))
+
          batch
          (cond (seq paths) (expand-clj-source-files root paths)
                default? (expand-clj-source-files root (discover-project-source-paths root)))]
 
      (if batch
-       (let [files (mapv #(clj-format-one-file! env %) batch)]
+       (let [files (mapv #(clj-format-one-file! env write? %) batch)]
          (host/success {:result {"op" "clj-format"
                                  "files" files
                                  "changed" (count (filter #(get % "changed") files))
@@ -582,7 +590,7 @@
           out
           (fmt/format-source code for-path)]
 
-         (when (and path (not= out code)) (write-file! path out))
+         (when (and path write? (not= out code)) (write-file! path out))
          (host/success {:result (cond-> {"op" "clj-format"
                                          "changed" (not= out code)
                                          "chars" (- (count out) (count code))
@@ -594,7 +602,7 @@
                                   (assoc "path"
                                     (relativize-path (io/file (or (:workspace/root env) ".")) path)
                                     "wrote"
-                                    (not= out code)))}))))))
+                                    (and write? (not= out code))))}))))))
 
 (defn- nearest-kondo-dir
   "The nearest `.clj-kondo` config directory walking UP from `file`, or nil when

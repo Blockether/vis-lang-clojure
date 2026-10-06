@@ -154,19 +154,18 @@ class ClojureTools:
 
     def format_code(
         self,
-        paths: Annotated[
-            Sequence[str], "Files or directories to format in place."
-        ] = (),
+        paths: Annotated[Sequence[str], "Files or directories to format."] = (),
         *,
         source: Annotated[str, "Format this text instead of files."] = "",
         cwd: Annotated[str, "Project directory; inferred from paths when empty."] = "",
+        is_written: Annotated[bool, "Rewrite the files that differ."] = False,
     ) -> FormatResult:
         """Format Clojure with zprint, or cljfmt when the project has no zprint config.
 
         This changes layout only, not syntax. With source, the formatted text
-        comes back and nothing is written. With paths, changed files are
-        rewritten and directories are walked. With neither, the whole project
-        is formatted.
+        comes back and nothing is written. With paths, the result lists the
+        files that differ, and is_written rewrites them. Directories are walked.
+        With neither, the whole project is checked, or formatted with is_written.
         """
         root = self._root(cwd, tuple(paths))
         if source:
@@ -174,9 +173,8 @@ class ClojureTools:
             text = str(result.get("text") or "")
             added, removed = line_changes(source, text)
             return FormatResult(LANGUAGE, (), (), text, False, added, removed)
-        result = bridge.call(
-            "format", {"paths": list(paths)} if paths else {}, root=root
-        )
+        arg = {"paths": list(paths)} if paths else {}
+        result = bridge.call("format", {**arg, "write": is_written}, root=root)
         files = result.get("files") or ()
         changed = [one for one in files if one.get("changed")]
         counts = [line_changes(one["before"], one["after"]) for one in changed]
@@ -185,7 +183,7 @@ class ClojureTools:
             tuple(str(one.get("path")) for one in changed),
             tuple(str(one.get("path")) for one in files if not one.get("changed")),
             "",
-            True,
+            any(one.get("wrote") for one in changed),
             sum(added for added, _ in counts),
             sum(removed for _, removed in counts),
         )

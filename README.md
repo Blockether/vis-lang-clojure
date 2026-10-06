@@ -22,7 +22,8 @@ not need them.
 ## Tools
 
 ```python
-clj.format_code(["src"])                         # zprint, or cljfmt when that is the project's config
+clj.format_code(["src"])                         # check: list the files that need formatting
+clj.format_code(["src"], is_written=True)        # zprint, or cljfmt when that is the project's config
 clj.format_code(source="(defn f [x](* x 2))")    # format a snippet, nothing written
 clj.lint_code(["src"])                           # clj-kondo + reflection warnings
 clj.run_tests(["test"])                          # Lazytest, clojure.test, Cognitect test-runner, Kaocha

@@ -29,7 +29,7 @@ def test_formatting_a_source_string_returns_the_formatted_text(tools):
     assert fake.sent("format")["arg"] == {"code": "(defn f [x]\n(* x 2))"}
 
 
-def test_formatting_files_reports_what_changed(tools):
+def test_checking_files_reports_what_changed_and_writes_nothing(tools):
     clj, fake = tools
     fake.answer(
         "format",
@@ -55,16 +55,50 @@ def test_formatting_files_reports_what_changed(tools):
     result = clj.format_code(["src"], cwd=fake.cwd)
     assert result.changed == ("src/a.clj", "src/c.clj")
     assert result.unchanged == ("src/b.clj",)
-    assert result.is_written is True
+    assert result.is_written is False
     assert (result.lines_added, result.lines_removed) == (3, 2)
-    assert fake.sent("format")["arg"] == {"paths": ["src"]}
+    assert fake.sent("format")["arg"] == {"paths": ["src"], "write": False}
 
 
-def test_formatting_nothing_formats_the_whole_project(tools):
+# Blockether/vis#321: clj.format_code takes is_written, like py.format_code.
+def test_formatting_files_with_is_written_rewrites_them(tools):
+    clj, fake = tools
+    fake.answer(
+        "format",
+        {
+            "files": [
+                {
+                    "path": "src/a.clj",
+                    "changed": True,
+                    "wrote": True,
+                    "before": "(defn f [x]\n(* x 2))\n",
+                    "after": "(defn f [x]\n  (* x 2))\n",
+                },
+                {"path": "src/b.clj", "changed": False, "wrote": False},
+            ],
+            "changed": 1,
+        },
+    )
+    result = clj.format_code(["src"], cwd=fake.cwd, is_written=True)
+    assert result.changed == ("src/a.clj",)
+    assert result.is_written is True
+    assert fake.sent("format")["arg"] == {"paths": ["src"], "write": True}
+
+
+def test_formatting_a_formatted_tree_writes_nothing(tools):
+    clj, fake = tools
+    fake.answer(
+        "format", {"files": [{"path": "src/b.clj", "changed": False}], "changed": 0}
+    )
+    result = clj.format_code(["src"], cwd=fake.cwd, is_written=True)
+    assert (result.changed, result.is_written) == ((), False)
+
+
+def test_formatting_nothing_checks_the_whole_project(tools):
     clj, fake = tools
     fake.answer("format", {"files": [], "changed": 0})
     assert clj.format_code(cwd=fake.cwd).changed == ()
-    assert fake.sent("format")["arg"] == {}
+    assert fake.sent("format")["arg"] == {"write": False}
 
 
 def test_lint_findings_become_diagnostics(tools):

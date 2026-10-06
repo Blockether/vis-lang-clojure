@@ -76,7 +76,43 @@
           (expect (= 1 (get batch "changed")))
           (expect (= "(defn f [x]\n(* x 2))\n" (get-in files ["a.clj" "before"])))
           (expect (= (slurp (io/file dir "a.clj")) (get-in files ["a.clj" "after"])))
-          (expect (not-any? #(contains? (get files "b.clj") %) ["before" "after"]))))))
+          (expect (not-any? #(contains? (get files "b.clj") %) ["before" "after"])))))
+  ;; Blockether/vis#321: a format check reports what would change and writes nothing.
+  (it "checks a batch without writing when write is false"
+      (let [dir
+            (temp-dir)
+
+            file
+            (io/file dir "a.clj")
+
+            code
+            "(defn f [x]\n(* x 2))\n"]
+
+        (spit file code)
+        (let [batch
+              (result (api/clj-format-fn {:workspace/root (str dir)} {"paths" ["."] "write" false}))
+
+              one
+              (first (get batch "files"))]
+
+          (expect (= 1 (get batch "changed")))
+          (expect (= "a.clj" (get one "path")))
+          (expect (false? (get one "wrote")))
+          (expect (str/includes? (get one "after") "\n  (* x 2))"))
+          (expect (= code (slurp file))))))
+  (it "checks one file without writing when write is false"
+      (let [dir
+            (temp-dir)
+
+            file
+            (io/file dir "sample.clj")]
+
+        (spit file "(defn f [x]\n(* x 2))")
+        (let [r (result (api/clj-format-fn {:workspace/root (str dir)}
+                                           {"path" "sample.clj" "write" false}))]
+          (expect (true? (get r "changed")))
+          (expect (false? (get r "wrote")))
+          (expect (= "(defn f [x]\n(* x 2))" (slurp file)))))))
 
 ;; A format replaces a file in one step, because a lint or a test run can read the
 ;; file at the same time.
