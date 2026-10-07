@@ -310,6 +310,36 @@ def test_a_run_carries_its_selection_to_the_library(tools):
     }
 
 
+def test_one_bare_string_is_one_item_for_every_list_argument(tools):
+    # Regression for Blockether/vis#324: a bare string for a list argument named
+    # one item for each character, so `lint_code("/src")` linted `/`.
+    clj, fake = tools
+    fake.answer("lint", {"files": 1, "findings": []})
+    clj.lint_code("src/a.clj", cwd=fake.cwd)
+    assert fake.sent("lint")["arg"] == {"paths": ["src/a.clj"]}
+    fake.answer("format", {"files": [], "changed": 0})
+    clj.format_code("src/a.clj", cwd=fake.cwd)
+    assert fake.sent("format")["arg"] == {"paths": ["src/a.clj"], "write": False}
+    fake.answer("test", {"total": 1, "fail": 0, "is_pass": True})
+    clj.run_tests(
+        "test/a/core_test.clj",
+        cwd=fake.cwd,
+        namespaces="a.core-test",
+        vars="adds",
+        include="integration",
+        exclude="slow",
+        aliases="dev",
+    )
+    assert fake.sent("test")["arg"] == {
+        "paths": ["test/a/core_test.clj"],
+        "namespaces": ["a.core-test"],
+        "vars": ["adds"],
+        "include": ["integration"],
+        "exclude": ["slow"],
+        "aliases": ["dev"],
+    }
+
+
 def test_starting_a_repl_reports_the_process_it_started(tools):
     clj, fake = tools
     fake.script(

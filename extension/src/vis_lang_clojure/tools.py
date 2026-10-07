@@ -25,6 +25,7 @@ from vis_lang_interface import (
     TestResult,
     line_changes,
     project_root,
+    string_list,
 )
 
 from vis_lang_clojure import bridge, reader, repair
@@ -167,7 +168,8 @@ class ClojureTools:
         files that differ, and is_written rewrites them. Directories are walked.
         With neither, the whole project is checked, or formatted with is_written.
         """
-        root = self._root(cwd, tuple(paths))
+        paths = string_list(paths)
+        root = self._root(cwd, paths)
         if source:
             result = bridge.call("format", {"code": source}, root=root)
             text = str(result.get("text") or "")
@@ -202,7 +204,8 @@ class ClojureTools:
         compiled in a namespace that is thrown away afterwards. With no paths
         and no source, the project's own source roots are linted.
         """
-        root = self._root(cwd, tuple(paths))
+        paths = string_list(paths)
+        root = self._root(cwd, paths)
         arg = {"code": source} if source else ({"paths": list(paths)} if paths else {})
         result = bridge.call("lint", arg, root=root)
         findings = tuple(_diagnostic(one) for one in result.get("findings") or ())
@@ -233,20 +236,21 @@ class ClojureTools:
         file runs its test namespace. A selection that spans both runtimes is
         refused rather than silently trimmed. Counts are tests, not assertions.
         """
-        root = self._root(cwd, tuple(paths))
+        paths = string_list(paths)
+        root = self._root(cwd, paths)
         arg = {}
         if paths:
             arg["paths"] = list(paths)
-        if include:
-            arg["include"] = list(include)
-        if exclude:
-            arg["exclude"] = list(exclude)
-        if namespaces:
-            arg["namespaces"] = list(namespaces)
-        if vars:
-            arg["vars"] = list(vars)
-        if aliases:
-            arg["aliases"] = list(aliases)
+        listed = {
+            "include": include,
+            "exclude": exclude,
+            "namespaces": namespaces,
+            "vars": vars,
+            "aliases": aliases,
+        }
+        for key, value in listed.items():
+            if value:
+                arg[key] = list(string_list(value))
         if build:
             arg["build"] = build
         started = time.monotonic()
@@ -294,7 +298,7 @@ class ClojureTools:
         new classpath.
         """
         root = self._root(cwd)
-        arg = {"aliases": list(aliases)} if aliases else {}
+        arg = {"aliases": list(string_list(aliases))} if aliases else {}
         return _session(bridge.call("repl", arg, root=root, op="start"), root)
 
     def repl_status(
