@@ -6,7 +6,9 @@ JSON request per line in, one answer per line out.
 
 One process serves one project directory, and it stays alive. Each nREPL it
 starts is its child, so a REPL from one call is still there for the next call.
-Closing its stdin ends the process, and every REPL it owns stops with it.
+The process holds its own stdin open, so it also outlives a sandbox restart: the
+next Python process attaches to it under the same shell id. Only `stop` and the
+end of the session end it, and every REPL it owns stops with it.
 
 The process gives each verb a lane. Calls in one lane wait for each other, and
 calls in different lanes run at the same time: a lint or a format does not wait
@@ -23,14 +25,17 @@ project.
 from __future__ import annotations
 
 import atexit
+import hashlib
 import itertools
 import os
 import re
+import secrets
 import shlex
 import threading
 
 import blockether.vis.extension as vis
 from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
+from vis_lang_interface.process import shell_call
 
 from vis_lang_clojure import jail
 
@@ -322,6 +327,16 @@ def boot_command():
     )
 
 
+def shell_id(root):
+    """The shell id of the process that serves `root`.
+
+    The id keeps the process across a sandbox restart: the next process that
+    loads this extension attaches to it, with every REPL it owns.
+    """
+    digest = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:12]
+    return f"vis-lang-clojure-{digest}"
+
+
 class Process:
     """One live Clojure process, serving one project directory."""
 
@@ -329,6 +344,9 @@ class Process:
         self.root = str(root)
         self.command = tuple(command)
         self.ids = itertools.count(1)
+        # A kept process can still hold answers to an earlier Python process's
+        # calls, so every id carries a prefix of this object's own.
+        self.prefix = secrets.token_hex(4)
         # Calls in one lane wait for each other. Until the greeting names the
         # lanes, and for a library that names none, every verb shares one lock.
         self.lock = threading.Lock()
@@ -343,6 +361,7 @@ class Process:
             env=project_environment(boot_directory()),
             read_write=granted_paths(),
             name="clojure",
+            shell_id=shell_id(self.root),
         )
 
     @property
@@ -380,7 +399,7 @@ class Process:
                 f"{MAIN} stayed busy with another call for {timeout_s:g}s"
             )
         try:
-            wanted = str(next(self.ids))
+            wanted = f"{self.prefix}-{next(self.ids)}"
             payload = dict(request, id=wanted, root=self.root, session=SESSION)
             try:
                 # An answer to a call that timed out earlier is no longer
@@ -419,6 +438,10 @@ class Process:
     def stop(self):
         """End the process, and with it every REPL it owns."""
         self.live.stop()
+
+    def detach(self):
+        """Leave the process and its REPLs running for the next Python process."""
+        self.live.detach()
 
     def _stopped(self):
         tail = self.tail()
@@ -489,10 +512,20 @@ def process_for(root):
 
 
 def serves(root):
-    """True when a live process serves `root`. It never starts one."""
+    """True when a live process serves `root`. It never starts one.
+
+    A process kept from before a sandbox restart counts. The next call attaches
+    to it.
+    """
     with _PROCESSES_LOCK:
         live = _PROCESSES.get(str(root))
-    return bool(live and live.is_running)
+    if live is not None:
+        return live.is_running
+    try:
+        kept = shell_call()({"op": "logs", "id": shell_id(root), "offset": -1})
+    except Exception:
+        return False
+    return str(kept.get("status")) == "running"
 
 
 def stop(root):
@@ -512,4 +545,17 @@ def stop_all():
         process.stop()
 
 
-atexit.register(stop_all)
+def detach_all():
+    """Leave every process running, kept for the next Python process.
+
+    A sandbox restart ends this Python process. The REPLs live on, and the next
+    call attaches to them. `stop` and the end of the session stop them.
+    """
+    with _PROCESSES_LOCK:
+        live = list(_PROCESSES.values())
+        _PROCESSES.clear()
+    for process in live:
+        process.detach()
+
+
+atexit.register(detach_all)

@@ -30,6 +30,23 @@ def test_a_stopped_process_is_started_again(fake):
     assert bridge.process_for(fake.cwd) is not first
 
 
+def test_a_process_outlives_a_sandbox_restart(fake):
+    # A sandbox restart ended the Python process, and with it the JVM and every
+    # REPL it owned. Now the next process attaches to the same JVM.
+    first = bridge.process_for(fake.cwd)
+    bridge.detach_all()
+    assert first.is_running is True
+    assert bridge.serves(fake.cwd) is True
+    again = bridge.process_for(fake.cwd)
+    assert again is not first
+    assert again.live.pid == first.live.pid
+    assert bridge.call("ping", root=fake.cwd) == {"pong": True}
+    assert len({request["id"] for request in fake.requests()}) == len(fake.requests())
+    bridge.stop(fake.cwd)
+    assert again.is_running is False
+    assert bridge.serves(fake.cwd) is False
+
+
 def test_a_refusal_carries_the_message_and_the_hint(fake):
     fake.script(
         {
