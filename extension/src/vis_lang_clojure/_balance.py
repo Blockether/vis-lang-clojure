@@ -283,6 +283,13 @@ def _paired_lines(original, source):
     ]
 
 
+def _closes_new_opener(original, source, seated):
+    _, before, after = _middles(original, source)
+    gained = _surplus(_delimiters("".join(after)), _delimiters("".join(before)))
+    restored = _surplus(_delimiters(seated), _delimiters(source))
+    return any(CLOSERS[char] in restored for char in gained if char in OPENERS)
+
+
 def _reseat(pairs, source):
     lines = _terminated_lines(source)
     changed = False
@@ -672,8 +679,10 @@ def rebalance(
         )
 
     def attempt():
-        if pairs:
-            seated = verdict(_reseat(pairs, source))
+        seated = _reseat(pairs, source) if pairs else None
+        # A new opener can own the closer that a line lost: indentation decides then.
+        if seated is not None and not _closes_new_opener(original, source, seated):
+            seated = verdict(seated)
             if seated["ok?"]:
                 return seated
         relocated = _relocated_closer(source, original, spans, parse_units)

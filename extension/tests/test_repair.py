@@ -58,6 +58,30 @@ def test_code_to_evaluate_with_a_surplus_closer_gets_only_a_reason():
     )
 
 
+def test_a_lost_closer_stays_with_the_opener_that_the_edit_added():
+    # A patch wrapped a map in `merge` and lost the closer of the outer call.
+    # The repair put that closer back after the map, so `merge` ended too early.
+    original = (
+        "(export! trajectory\n"
+        "         {:prompt prompt\n"
+        "          :subagents (council-subagents (:session-id result))})\n"
+    )
+    source = (
+        "(export! trajectory\n"
+        "         (merge {:prompt prompt\n"
+        "                 :subagents (council-subagents (:session-id result))}\n"
+        "                (persisted-session (:session-id result)))\n"
+    )
+    repaired = repair_source(
+        source, original=original, spans=((2, 4),), parses_clean=reader.parses_clean
+    )
+    assert repaired is not None
+    assert repaired.source == source.replace("result)))\n", "result))))\n")
+    assert repaired.notes == (
+        "line 4 added `)` → `(persisted-session (:session-id result))))`",
+    )
+
+
 @pytest.fixture
 def extension(monkeypatch, tmp_path):
     registered = []
