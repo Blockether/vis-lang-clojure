@@ -1641,6 +1641,95 @@
               (expect (= :clj/bad-args (:type (ex-data error))))
               (expect (str/includes? (or (ex-message error) "") "ambiguous test namespace"))))))))
 
+(def ^:private issue-370-project
+  "Issue #370: a deps.edn project with Kaocha test paths, a shadow-cljs.edn, a
+   shared `.cljc` JVM test, and two `:local/root` modules that both declare the
+   same test namespace outside the root test paths."
+  {"deps.edn" (pr-str {:paths ["src"]
+                       :deps {'a/a {:local/root "modules/a"} 'b/b {:local/root "modules/b"}}
+                       :aliases {:test {:extra-paths ["test/clj"]}
+                                 :runner {:extra-deps {'lambdaisland/kaocha {:mvn/version
+                                                                             "1.91.1392"}}
+                                          :main-opts ["-m" "kaocha.runner"]}}})
+   "tests.edn" "#kaocha/v1 {:tests [{:id :unit :test-paths [\"test/clj\"]}]}\n"
+   "shadow-cljs.edn"
+   "{:deps true :builds {:test {:target :karma :output-to \"target/karma.js\"}}}\n"
+   "src/demo/token.cljc" "(ns demo.token)\n"
+   "test/clj/demo/token_test.cljc" "(ns demo.token-test)\n"
+   "modules/a/deps.edn" "{:paths [\"src/main\"]}\n"
+   "modules/a/src/test/clj/web/devcards/devcards_test.clj" "(ns web.devcards.devcards-test)\n"
+   "modules/b/deps.edn" "{:paths [\"src/main\"]}\n"
+   "modules/b/src/test/clj/web/devcards/devcards_test.clj" "(ns web.devcards.devcards-test)\n"})
+
+(defdescribe
+  issue-370-jvm-cljc-selection-test
+  "Regression, issue #370: a `.cljc` JVM test ran as ClojureScript, duplicate
+   namespaces in other modules blocked every selection, and a namespace in
+   `paths` was refused as a missing path."
+  (it "runs a .cljc test on the project's JVM test paths on the JVM"
+      (with-project issue-370-project
+                    (fn [root]
+                      (doseq [arg [{"paths" ["test/clj/demo/token_test.cljc"]}
+                                   {"paths" [(str root "/test/clj/demo/token_test.cljc")]}
+                                   {"ns" "demo.token-test"} {"paths" ["test/clj"]}]]
+                        (let [seen (run-capturing-cljs root arg)]
+                          (expect (= ["demo.token-test"] (:cli-nses seen)) (pr-str arg))
+                          (expect (= root (:cli-root seen)) (pr-str arg))
+                          (expect (nil? (:root seen)) (pr-str arg)))))))
+  (it "still runs that .cljc test as ClojureScript when a build is given"
+      (with-project issue-370-project
+                    (fn [root]
+                      (let [seen (run-capturing-cljs root
+                                                     {"paths" ["test/clj/demo/token_test.cljc"]
+                                                      "build" "test"})]
+                        (expect (= ["demo.token-test"] (:nses seen)))
+                        (expect (nil? (:cli-root seen)))))))
+  (it "selects a namespace although other modules duplicate an unrelated one"
+      (with-project
+        issue-370-project
+        (fn [root]
+          (doseq [arg [{"ns" "demo.token-test"}
+                       {"paths" ["test/clj"] "ns" "demo.token-test" "aliases" [":test" ":runner"]}]]
+            (expect (= ["demo.token-test"] (:cli-nses (run-capturing-cljs root arg)))
+                    (pr-str arg))))))
+  (it "names a selector when the requested namespace itself is ambiguous"
+      (with-project issue-370-project
+                    (fn [root]
+                      (let [error (try (run-capturing-cljs root {"ns" "web.devcards.devcards-test"})
+                                       nil
+                                       (catch clojure.lang.ExceptionInfo e e))]
+                        (expect (= :clj/bad-args (:type (ex-data error))))
+                        (expect (str/includes? (ex-message error) "ambiguous test namespace"))
+                        (expect (str/includes? (ex-message error) "paths=["))))))
+  (it "selects one file of a duplicated namespace by its path"
+      (with-project issue-370-project
+                    (fn [root]
+                      (let [seen (run-capturing-cljs
+                                   root
+                                   {"paths"
+                                    ["modules/a/src/test/clj/web/devcards/devcards_test.clj"]})]
+                        (expect (= ["web.devcards.devcards-test"] (:cli-nses seen)))
+                        (expect (= (str root "/modules/a") (:cli-root seen)))))))
+  (it "leaves duplicates outside the declared test paths out of a bare run"
+      (with-project issue-370-project
+                    (fn [root]
+                      (expect (= ["demo.token-test"] (:cli-nses (run-capturing-cljs root {})))))))
+  (it "accepts a namespace name in paths, with or without a var"
+      (with-project issue-370-project
+                    (fn [root]
+                      (expect (= ["demo.token-test"]
+                                 (:cli-nses (run-capturing-cljs root
+                                                                {"paths" ["demo.token-test"]}))))
+                      (let [seen (run-capturing-cljs root {"paths" ["demo.token-test::f-test"]})]
+                        (expect (= ["demo.token-test"] (:cli-nses seen)))))))
+  (it "keeps a missing path that is not a namespace name a path error"
+      (with-project issue-370-project
+                    (fn [root]
+                      (let [error (try (run-capturing-cljs root {"paths" ["tset/clj"]})
+                                       nil
+                                       (catch clojure.lang.ExceptionInfo e e))]
+                        (expect (str/includes? (ex-message error) "no such path")))))))
+
 (defdescribe
   cljs-configuration-selection-test
   (it

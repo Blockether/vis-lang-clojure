@@ -267,23 +267,46 @@ def test_a_run_that_broke_without_counts_never_reads_green(tools):
     assert result.is_passed is False
 
 
-def test_a_refused_run_says_why(tools):
+def test_a_refused_run_raises_why(tools):
     # Regression: a run the library refused before any test started answered
     # only an `error`, which was dropped, so it read as one failure and no output.
     clj, fake = tools
     why = "this runner has no supported focus adapter; no tests started"
     fake.answer("test", {"mode": "cli", "is_pass": False, "error": why})
-    result = clj.run_tests(cwd=fake.cwd, namespaces=["a.core-test"])
-    assert (result.failed, result.is_passed) == (1, False)
-    assert result.output == why
+    with pytest.raises(bridge.ClojureError, match="no supported focus adapter"):
+        clj.run_tests(cwd=fake.cwd, namespaces=["a.core-test"])
+
+
+def test_a_setup_error_is_not_a_failed_test(tools):
+    # Regression, vis#370: a ClojureScript launcher error before any test ran
+    # read as `failed=1` with no failures. It is a setup error with the output.
+    clj, fake = tools
+    why = "the configured deps.edn classpath has no thheller/shadow-cljs dependency"
+    fake.answer(
+        "test", {"mode": "shadow", "is_pass": False, "error": why, "output": "boot"}
+    )
+    with pytest.raises(bridge.ClojureError) as raised:
+        clj.run_tests(["test/demo/token_test.cljc"], cwd=fake.cwd)
+    assert str(raised.value) == f"{why}\n\nboot"
 
 
 def test_a_run_error_leads_what_the_runner_printed(tools):
     clj, fake = tools
     fake.answer(
-        "test", {"is_pass": False, "error": "no summary", "output": "Ran 0 tests"}
+        "test",
+        {"is_pass": False, "error": "no summary", "output": "Ran 0 tests", "fail": 1},
     )
     assert clj.run_tests(cwd=fake.cwd).output == "no summary\n\nRan 0 tests"
+
+
+def test_a_timed_out_run_stays_a_red_result(tools):
+    clj, fake = tools
+    fake.answer(
+        "test", {"is_pass": False, "error": "test run timed out", "timed_out": True}
+    )
+    result = clj.run_tests(cwd=fake.cwd)
+    assert (result.failed, result.is_passed) == (1, False)
+    assert result.output == "test run timed out"
 
 
 def test_a_run_carries_its_selection_to_the_library(tools):

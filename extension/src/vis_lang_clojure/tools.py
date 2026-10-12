@@ -260,16 +260,19 @@ class ClojureTools:
         total = int(result.get("total") or result.get("selected") or 0)
         skipped = int(result.get("skipped") or 0)
         failed = int(result.get("fail") or 0)
-        # A runner can fail without leaving countable failures — a compile error,
-        # a non-zero exit. Its own verdict decides, so a red run never reads green.
-        if not result.get("is_pass") and not failed:
-            failed = max(len(failures), 1)
-        # A run refused before any test started answers only why; that reason
-        # leads the output, so the red result explains itself.
         output = str(result.get("output") or "")
         error = str(result.get("error") or "")
         if error and error not in output:
             output = f"{error}\n\n{output}" if output else error
+        # A run that stopped with an error before any test ran is a setup error,
+        # not one failed test: raise why, with the runner's own output. A run that
+        # timed out stays a red result, because its tests started.
+        if error and not (total or failed or failures or result.get("timed_out")):
+            raise bridge.ClojureError(output)
+        # A runner can fail without leaving countable failures — a compile error,
+        # a non-zero exit. Its own verdict decides, so a red run never reads green.
+        if not result.get("is_pass") and not failed:
+            failed = max(len(failures), 1)
         return TestResult.of(
             LANGUAGE,
             total=max(total, failed),

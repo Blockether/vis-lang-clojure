@@ -639,21 +639,93 @@
                         (str/ends-with? (.getName f) (str "_test" ext)))
                       test-file-exts))))
 
+(defn- canonical-path
+  "The canonical path of `f`, or its plain path when the file system refuses."
+  ^String [^java.io.File f]
+  (try (.getCanonicalPath f) (catch Throwable _ (.getPath f))))
+
+(defn- within-root?
+  "True when `d` is `root-canon` itself or a directory nested under it."
+  [^String root-canon ^java.io.File d]
+  (let [dc (canonical-path d)]
+    (or (= dc root-canon) (str/starts-with? dc (str root-canon java.io.File/separator)))))
+
+(defn- ambiguity-error
+  "The refusal for a test namespace that several files declare. It names each
+   file, and a path selector that picks one of them."
+  [ns-str files]
+  (ex-info (str "ambiguous test namespace "
+                ns-str
+                " in "
+                (str/join " and " files)
+                "; select one file by path instead, for example paths=["
+                (pr-str (str (first files)))
+                "]")
+           {:type :clj/bad-args :namespace ns-str :files (mapv str files)}))
+
 (defn- index-test-file
   "Keep one unambiguous file per namespace. Never overwrite a JVM/JS or nested
    project collision: callers can name a precise file/project instead."
   [index ns-str ^java.io.File file]
   (when-let [^java.io.File previous (get index ns-str)]
     (when (and file (not= (.getCanonicalPath previous) (.getCanonicalPath file)))
-      (throw (ex-info (str "ambiguous test namespace "
-                           ns-str
-                           " in "
-                           previous
-                           " and "
-                           file
-                           "; select a specific file/project instead")
-                      {:type :clj/bad-args}))))
+      (throw (ambiguity-error ns-str [previous file]))))
   (assoc index ns-str (or file (get index ns-str))))
+
+(defn- read-config-edn
+  "Read a project's EDN configuration without evaluating it, or nil. Unknown
+   reader tags, such as Kaocha's `#kaocha/v1`, stay data."
+  [^java.io.File f]
+  (try (when (.isFile f) (edn/read-string {:default tagged-literal} (slurp f)))
+       (catch Throwable _ nil)))
+
+(defn- untagged
+  "The form inside a reader tag (`#kaocha/v1 {…}` -> `{…}`); other values unchanged."
+  [x]
+  (if (instance? clojure.lang.TaggedLiteral x) (recur (:form x)) x))
+
+(defn- jvm-test-dirs
+  "The JVM test directories that the project in `dir` declares, as canonical
+   paths, or nil when it declares none. They are Kaocha's `tests.edn`
+   `:test-paths` (default `test`) and the `:extra-paths` of the deps.edn `:test`
+   alias and of each alias the call adds. A `.cljc` test in one of them is a JVM
+   test; ClojureScript needs an explicit build."
+  [dir aliases]
+  (let [dir
+        (io/file (str dir))
+
+        kaocha
+        (untagged (read-config-edn (io/file dir "tests.edn")))
+
+        suites
+        (untagged (:tests (when (map? kaocha) kaocha)))
+
+        kaocha-paths
+        (when (map? kaocha)
+          (mapcat (fn [suite]
+                    (let [suite (untagged suite)]
+                      (when (map? suite) (or (:test-paths suite) ["test"]))))
+                  (if (and (sequential? suites) (seq suites)) suites [{}])))
+
+        alias-defs
+        (:aliases (read-config-edn (io/file dir "deps.edn")))
+
+        alias-paths
+        (mapcat (fn [a]
+                  (let [opts (when (map? alias-defs) (get alias-defs (keyword (str a))))]
+                    (when (map? opts) (:extra-paths opts))))
+                (cons "test" aliases))]
+
+    (not-empty (vec (distinct (keep (fn [p]
+                                      (when (string? p) (canonical-path (io/file dir p))))
+                                    (concat kaocha-paths alias-paths)))))))
+
+(defn- on-paths?
+  "True when `file` lies in one of the canonical directory paths `dirs`."
+  [dirs ^java.io.File file]
+  (boolean (some (fn [dir]
+                   (within-root? dir file))
+                 dirs)))
 
 (defn- test-source-tree
   "Walk source directories, pruning hidden directories and generated target copies.
@@ -672,14 +744,55 @@
   "Index every test file under root by its declared ns string, built once per
    run so SOURCE paths can be resolved to their corresponding test namespace —
    and so a namespace NAME can be traced back to the file that decides which
-   runtime runs it."
-  [root test-file?]
-  (reduce (fn [index ^java.io.File f]
-            (if-let [ns-str (when (test-file? f) (ns-of-file f))]
-              (index-test-file index ns-str f)
-              index))
-          {}
-          (test-source-tree root)))
+   runtime runs it.
+
+   Several files can declare one namespace, for example in `:local/root`
+   modules. `on-test-path?` (nil when the project declares no test paths) then
+   keeps the one file on the project's own test paths. Any other collision maps
+   the namespace to nil and keeps its files in `::ambiguous` metadata, so it is
+   refused only when a run needs it (`indexed-file`), never for an unrelated
+   selection."
+  ([root test-file?] (all-test-files root test-file? nil))
+  ([root test-file? on-test-path?]
+   (let [found (reduce (fn [found ^java.io.File f]
+                         (if-let [ns-str (when (test-file? f) (ns-of-file f))]
+                           (update found ns-str (fnil conj []) f)
+                           found))
+                       {}
+                       (test-source-tree root))]
+     (reduce-kv
+       (fn [index ns-str files]
+         (let [files (vec (vals (into (sorted-map) (map (juxt canonical-path identity)) files)))
+               on-path (when (and on-test-path? (< 1 (count files))) (filterv on-test-path? files))
+               files (if (= 1 (count on-path)) on-path files)]
+
+           (if (= 1 (count files))
+             (assoc index ns-str (first files))
+             (vary-meta (assoc index ns-str nil) assoc-in [::ambiguous ns-str] files))))
+       {}
+       found))))
+
+(defn- indexed-file
+  "The one file in `index` that declares `ns-str`, or nil when none does. An
+   ambiguous namespace is refused here, when a run needs it."
+  [index ns-str]
+  (if-let [files (get-in (meta index) [::ambiguous ns-str])]
+    (throw (ambiguity-error ns-str files))
+    (get index ns-str)))
+
+(defn- suite-index
+  "The test index of a bare run, the project's own suite. A namespace that
+   several files declare outside the project's declared test paths belongs to
+   other modules, so the run leaves it out. Without declared paths, or with
+   several files on them, the namespace is refused."
+  [index on-test-path?]
+  (doseq [[ns-str files] (::ambiguous (meta index))]
+    (when (or (nil? on-test-path?) (some on-test-path? files))
+      (throw (ambiguity-error ns-str files))))
+  (into {}
+        (remove (fn [[_ file]]
+                  (nil? file)))
+        index))
 
 (defn- path->nses
   "Resolve ONE file/dir to `{:ns :file}` entries. A test file -> its own ns. A
@@ -701,7 +814,7 @@
         (fn [^java.io.File file]
           (when-let [src-ns (ns-of-file file)]
             (some (fn [tn]
-                    (when-let [tf (get @test-index tn)]
+                    (when-let [tf (indexed-file @test-index tn)]
                       {:ns tn :file tf}))
                   (source-ns->test-nses src-ns))))]
 
@@ -783,7 +896,7 @@
   [root {ns-str :ns var-name :var} test-index test-file?]
   (let [with-files (fn [nses]
                      (mapv (fn [n]
-                             {:ns n :file (get @test-index n)})
+                             {:ns n :file (indexed-file @test-index n)})
                            nses))]
     (if (nil? ns-str)
       {:entries [] :var var-name}
@@ -815,63 +928,65 @@
    A nil :name with a namespace preserves a whole-file selection alongside scoped
    vars. Paths are relative to root or absolute; files AND directories are accepted,
    and SOURCE files/dirs map to their *_test namespaces."
-  [root path-entries ns-entries test-file?]
-  (let [test-index
-        (delay (all-test-files root test-file?))
+  ([root path-entries ns-entries test-file?]
+   (resolve-selection root path-entries ns-entries test-file? nil))
+  ([root path-entries ns-entries test-file? on-test-path?]
+   (let [test-index
+         (delay (all-test-files root test-file? on-test-path?))
 
-        ;; One entry's resolved namespaces plus the name it narrows to. A name with
-        ;; no namespace of its own stays `{:ns nil}` — 'wherever it lives'.
-        add
-        (fn [acc entries var]
-          (let [nses (mapv :ns entries)]
-            (cond-> (-> acc
-                        (update :nses into nses)
-                        (update :ns-files
-                                (fn [index]
-                                  (reduce (fn [m {:keys [ns file]}]
-                                            (index-test-file m ns file))
-                                          index
-                                          entries))))
-              (nil? var)
-              (update :whole-nses into nses)
+         ;; One entry's resolved namespaces plus the name it narrows to. A name with
+         ;; no namespace of its own stays `{:ns nil}` — 'wherever it lives'.
+         add
+         (fn [acc entries var]
+           (let [nses (mapv :ns entries)]
+             (cond-> (-> acc
+                         (update :nses into nses)
+                         (update :ns-files
+                                 (fn [index]
+                                   (reduce (fn [m {:keys [ns file]}]
+                                             (index-test-file m ns file))
+                                           index
+                                           entries))))
+               (nil? var)
+               (update :whole-nses into nses)
 
-              var
-              (update :vars
-                      into
-                      (if (seq nses)
-                        (map (fn [n]
-                               {:ns n :name var})
-                             nses)
-                        [{:ns nil :name var}])))))
+               var
+               (update :vars
+                       into
+                       (if (seq nses)
+                         (map (fn [n]
+                                {:ns n :name var})
+                              nses)
+                         [{:ns nil :name var}])))))
 
-        acc
-        (reduce (fn [acc {:keys [path var]}]
-                  (let [entries (when path
-                                  (vec (path->nses (under-root root path) test-index test-file?)))]
-                    (when (and path (.exists (under-root root path)) (empty? entries))
-                      (throw (ex-info (str "run_tests found no test namespaces under "
-                                           (pr-str path))
-                                      {:type :clj/bad-args})))
-                    (add acc entries var)))
-                {:nses [] :vars [] :whole-nses [] :files [] :ns-files {}}
-                path-entries)
+         acc
+         (reduce (fn [acc {:keys [path var]}]
+                   (let [entries (when path
+                                   (vec (path->nses (under-root root path) test-index test-file?)))]
+                     (when (and path (.exists (under-root root path)) (empty? entries))
+                       (throw (ex-info (str "run_tests found no test namespaces under "
+                                            (pr-str path))
+                                       {:type :clj/bad-args})))
+                     (add acc entries var)))
+                 {:nses [] :vars [] :whole-nses [] :files [] :ns-files {}}
+                 path-entries)
 
-        acc
-        (reduce (fn [acc entry]
-                  (let [{:keys [entries var]} (resolve-ns-entry root entry test-index test-file?)]
-                    (-> (add acc entries var)
-                        (update :files into (keep :file entries)))))
-                acc
-                ns-entries)]
+         acc
+         (reduce (fn [acc entry]
+                   (let [{:keys [entries var]} (resolve-ns-entry root entry test-index test-file?)]
+                     (-> (add acc entries var)
+                         (update :files into (keep :file entries)))))
+                 acc
+                 ns-entries)]
 
-    {:nses (vec (sort (distinct (:nses acc))))
-     :vars (vec (distinct (cond-> (:vars acc)
-                            (and (seq (:vars acc)) (every? :ns (:vars acc)))
-                            (into (map (fn [n]
-                                         {:ns n :name nil})
-                                       (:whole-nses acc))))))
-     :files (vec (distinct (:files acc)))
-     :ns-files (:ns-files acc)}))
+     {:nses (vec (sort (distinct (:nses acc))))
+      :vars (vec (distinct (cond-> (:vars acc)
+                             (and (seq (:vars acc)) (every? :ns (:vars acc)))
+                             (into (map (fn [n]
+                                          {:ns n :name nil})
+                                        (:whole-nses acc))))))
+      :files (vec (distinct (:files acc)))
+      :ns-files (:ns-files acc)})))
 
 (def ^:private namespace-selector-keys
   "Selector spellings whose value names a NAMESPACE. `clojure -M:test` takes
@@ -972,6 +1087,35 @@
                                 "clj.run_tests([\"::adds-test\"])"
                                 "clj.run_tests(namespaces=[\"com.example.thing-test\"])"
                                 "clj.run_tests([\"test\"], exclude=[\"slow\"])"]}))))
+
+(defn- namespace-name?
+  "True when a `paths` entry is spelled as a namespace (`a.core-test`): a dotted
+   name without a path separator or a file extension."
+  [s]
+  (boolean (and (re-matches #"[^\s/\\.:][^\s/\\:]*" (str s))
+                (str/includes? (str s) ".")
+                (not (re-find #"\.(?:clj[cs]?|edn)$" (str s))))))
+
+(defn- namespace-paths
+  "Move each `paths` entry that names a namespace, not a location, to the
+   namespace selectors. The tool documents `paths` as files, directories or
+   namespaces. An entry that is on disk stays a path, and `a.core-test::x` keeps
+   its var."
+  [root norm]
+  (let [ns-path?
+        (fn [{:keys [path]}]
+          (boolean (and path (not (.exists (under-root root path))) (namespace-name? path))))
+
+        {named true located false}
+        (group-by ns-path? (:paths norm))]
+
+    (-> norm
+        (assoc :paths (vec located))
+        (update :ns-selectors
+                (fnil into [])
+                (map (fn [{:keys [path var]}]
+                       {:ns path :var var}))
+                named))))
 
 (defn- ns->source-relpath
   "The relative source path a namespace maps to, WITHOUT the extension
@@ -2054,12 +2198,6 @@
                    (.isFile (io/file dir n)))
                  ["deps.edn" "project.clj" "bb.edn"])))
 
-(defn- within-root?
-  "True when `d` is `root-canon` itself or a directory nested under it."
-  [^String root-canon ^java.io.File d]
-  (let [dc (try (.getCanonicalPath d) (catch Throwable _ (.getPath d)))]
-    (or (= dc root-canon) (str/starts-with? dc (str root-canon java.io.File/separator)))))
-
 (defn- nearest-build-root
   "Closest ancestor directory of `start` (a File dir or file), at or below `root`,
    that holds a Clojure build manifest — i.e. the project the tests belong to, so a
@@ -2183,7 +2321,7 @@
                (.getPath (if (.isAbsolute f) f (io/file wsroot (str req-dir)))))))
 
          {:keys [paths ns-selectors] :as norm}
-         (normalize-arg arg)
+         (namespace-paths root (normalize-arg arg))
 
          ;; Cache each nested project's config for this discovery pass. Only JS
          ;; and shared sources use shadow's namespace rules; JVM discovery stays
@@ -2204,8 +2342,24 @@
                       (when-let [ns-str (ns-of-file file)]
                         (shadow/test-namespace? cfg (:build norm) ns-str))))))
 
+         ;; The run root's own JVM test directories. A namespace that several files
+         ;; declare resolves to the one file on them, so duplicate namespaces in
+         ;; other `:local/root` modules never block an unrelated selection.
+         on-test-path?
+         (when-let [dirs (jvm-test-dirs root (:aliases norm))]
+           (fn [^java.io.File file]
+             (on-paths? dirs file)))
+
+         ;; A shared .cljc file on the JVM test paths of its own project is a JVM
+         ;; test. Each project's paths are read once in this run.
+         jvm-test-path?
+         (let [dirs (memoize (fn [dir]
+                               (jvm-test-dirs dir (:aliases norm))))]
+           (fn [^java.io.File file]
+             (on-paths? (dirs (.getPath (nearest-build-root (io/file root) file))) file)))
+
          resolved
-         (resolve-selection root paths ns-selectors test-file?)
+         (resolve-selection root paths ns-selectors test-file? on-test-path?)
 
          ;; Locations the caller EXPLICITLY asked for — used ONLY to find the tests'
          ;; own project root. Empty for a bare "run everything" call (and for a
@@ -2233,12 +2387,14 @@
                                        (remove (fn [[_ file]]
                                                  (and (cljs-file? file)
                                                       (not (shadow-project? (io/file root) file)))))
-                                       (all-test-files root test-file?))]
+                                       (suite-index (all-test-files root test-file? on-test-path?)
+                                                    on-test-path?))]
                        {:nses (vec (sort (keys index))) :ns-files index}))
 
          ;; An explicit build selects JS, including shared .cljc tests. Otherwise
-         ;; only .clj is JVM-only; .cljc can accompany either runtime. Never drop
-         ;; half a mixed selection and call the remaining half a passing run.
+         ;; .clj and a .cljc on its project's JVM test paths run on the JVM; any
+         ;; other .cljc can accompany either runtime. Never drop half a mixed
+         ;; selection and call the remaining half a passing run.
          cljs-nses
          (filterv (fn [n]
                     (cljs-file? (get (:ns-files selection) n)))
@@ -2247,7 +2403,10 @@
          jvm-nses
          (filterv (fn [n]
                     (if-let [^java.io.File file (get (:ns-files selection) n)]
-                      (str/ends-with? (.getName file) ".clj")
+                      (or (str/ends-with? (.getName file) ".clj")
+                          (and (not (:build norm))
+                               (str/ends-with? (.getName file) ".cljc")
+                               (jvm-test-path? file)))
                       (not (:build norm))))
            (:nses selection))
 
