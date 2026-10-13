@@ -175,6 +175,9 @@ class _Parser:
         self.node: _Token | None = None
         self.collection = False
         self.token_index = -1
+        # An indent-mode collection gives the same operations at each read.
+        # Without this cache, each rewind reads its tail again: exponential time.
+        self.indented = {}
 
     @property
     def current(self) -> _Token:
@@ -217,7 +220,14 @@ class _Parser:
                     "indent" if (token.line, token.column) < self.cursor else "paren"
                 )
             if effective == "indent":
-                self.indent(index)
+                cached = self.indented.get(index)
+                if cached is None:
+                    start = len(self.ops)
+                    self.indent(index)
+                    self.indented[index] = self.ops[start:], self.index
+                else:
+                    self.ops.extend(cached[0])
+                    self.index = cached[1]
             elif effective == "paren":
                 self.paren(index, indent_change)
             else:

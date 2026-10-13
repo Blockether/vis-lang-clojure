@@ -6,6 +6,7 @@ Balance cases replay the exact parser and balancer answers from upstream tests.
 """
 
 import json
+import time
 from dataclasses import asdict
 from pathlib import Path
 
@@ -62,6 +63,15 @@ def test_parser_repairs_a_large_file():
     )
     broken = source.replace("{:status 200 :body body}))", "{:status 200 :body body})")
     assert parse(broken, mode="indent").text == source
+
+
+def test_parser_repairs_deep_nesting_in_linear_time():
+    # Each nested form used to double the indent-mode work: 20 levels took 13 s.
+    depth = 20
+    started = time.monotonic()
+    repaired = parse("(f [x] " * depth + ")" * (depth - 1), mode="indent")
+    assert time.monotonic() - started < 1
+    assert repaired.text == "(f [x] " * depth + ")" * depth
 
 
 def test_parser_rejects_an_unknown_mode():
