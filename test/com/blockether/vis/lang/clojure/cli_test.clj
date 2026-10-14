@@ -307,3 +307,18 @@
           (expect (= "cli" (get-in answer ["result" "mode"])))
           (expect (empty? (get-in answer ["result" "failures"]))))
         (finally (cleanup root))))))
+
+(defdescribe idle-test
+             ;; A kept process never reads EOF: 34 idle bridge JVMs stayed under one gateway.
+             (it "reads the idle limit in minutes, with a default and an off switch"
+                 (expect (= (* 30 60000) (cli/idle-limit-ms nil)))
+                 (expect (= (* 30 60000) (cli/idle-limit-ms "soon")))
+                 (expect (= (* 5 60000) (cli/idle-limit-ms " 5 ")))
+                 (expect (nil? (cli/idle-limit-ms "0"))))
+             (it "ends only without a running request, a recent request or a live REPL"
+                 (let [quiet {:busy 0 :since 0}]
+                   (expect (true? (cli/idle? quiet 1000 1000 false)))
+                   (expect (false? (cli/idle? quiet 999 1000 false)))
+                   (expect (false? (cli/idle? (assoc quiet :busy 1) 5000 1000 false)))
+                   (expect (false? (cli/idle? quiet 5000 1000 true)))
+                   (expect (false? (cli/idle? quiet 5000 nil false))))))

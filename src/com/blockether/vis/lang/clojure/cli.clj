@@ -12,6 +12,8 @@
    does not wait for a test run. One lane answers its requests in order. Answers can
    arrive out of order, and each answer carries the id of its request. EOF on stdin
    ends the run: the lanes finish their requests, then every REPL it started stops.
+   A kept process never sees EOF, so it also ends after `VIS_LANG_CLOJURE_IDLE_MINUTES`
+   (default 30, 0 turns it off) without a request, while no request runs and no REPL is live.
 
    Request:  {\"id\": \"7\", \"verb\": \"format\", \"root\": \"/proj\", \"session\": \"s1\", \"arg\": …}
    Answer:   {\"id\": \"7\", \"ok\": true, \"result\": …}
@@ -31,6 +33,35 @@
 (def ^:private sessions
   "Every session id a request has named, so shutdown can stop what it started."
   (atom #{}))
+
+(def idle-env
+  "Environment variable that sets the idle limit in minutes."
+  "VIS_LANG_CLOJURE_IDLE_MINUTES")
+
+(def ^:private default-idle-minutes 30)
+
+(def ^:private activity
+  "Requests that run now, and the time of the last request or answer."
+  (atom {:busy 0 :since (System/currentTimeMillis)}))
+
+(defn idle-limit-ms
+  "The idle limit in milliseconds from the value of [[idle-env]], or nil when it is off.
+   A blank or unreadable value gives the default."
+  [value]
+  (let [minutes (or (some-> value
+                            str/trim
+                            parse-long)
+                    default-idle-minutes)]
+    (when (pos? (long minutes)) (* 60000 (long minutes)))))
+
+(defn idle?
+  "True when the process can end: no request runs, none came for `limit-ms` and no
+   REPL is live."
+  [{:keys [busy since]} now limit-ms repls-live?]
+  (boolean (and limit-ms
+                (zero? (long busy))
+                (>= (- (long now) (long since)) (long limit-ms))
+                (not repls-live?))))
 
 (def lanes
   "The lane of each verb. Verbs in different lanes run at the same time. One lane runs
@@ -141,11 +172,15 @@
 
     (let [request (.take queue)]
       (when-not (identical? ::closed request)
-        (try (write-answer! writer (handle request))
+        (try (swap! activity update :busy inc)
+             (write-answer! writer (handle request))
              (catch Throwable e
                (.println System/err
                          (str "vis-lang-clojure: no answer for request " (get request "id")
-                              ": " (.getMessage e)))))
+                              ": " (.getMessage e))))
+             (finally (swap! activity #(-> %
+                                           (update :busy dec)
+                                           (assoc :since (System/currentTimeMillis))))))
         (recur)))))
 
 (defn- serve!
@@ -170,6 +205,7 @@
     (loop []
 
       (when-let [line (.readLine reader)]
+        (swap! activity assoc :since (System/currentTimeMillis))
         (when-not (str/blank? line)
           (let [[request failure] (try [(json/read-json line) nil] (catch Throwable e [nil e]))
                 queue (get queues (get lanes (str (get request "verb"))))]
@@ -183,9 +219,32 @@
     (doseq [^Thread thread threads]
       (.join thread))))
 
+(defn- live-repls?
+  []
+  (boolean (some #(seq (try (repl-manager/session-repls %) (catch Throwable _ nil))) @sessions)))
+
+(defn- watch-idle!
+  "End the process when [[idle?]] says so. The shutdown hook then stops every REPL."
+  [limit-ms]
+  (when limit-ms
+    (doto (Thread. ^Runnable
+                   (fn []
+                     (loop []
+
+                       (Thread/sleep (long (min 60000 (long limit-ms))))
+                       (if (idle? @activity (System/currentTimeMillis) limit-ms (live-repls?))
+                         (do (.println System/err "vis-lang-clojure: idle, so the process ends")
+                             (System/exit 0))
+                         (recur))))
+                   "vis-lang-clojure-idle")
+      (.setDaemon true)
+      (.start))))
+
 (defn -main
-  "Serve requests from stdin until it closes, then stop every REPL this run started."
+  "Serve requests from stdin until it closes or the process is idle, then stop every
+   REPL this run started."
   [& _args]
   (.addShutdownHook (Runtime/getRuntime) (Thread. ^Runnable stop-repls!))
+  (watch-idle! (idle-limit-ms (System/getenv idle-env)))
   (serve! (BufferedReader. *in*) *out*)
   (stop-repls!))
