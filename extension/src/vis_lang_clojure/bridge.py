@@ -148,15 +148,16 @@ def user_configuration():
     return os.path.join(os.path.expanduser("~"), ".clojure")
 
 
-def granted_paths():
-    """Paths outside the session that every Clojure run is handed.
+def shared_paths():
+    """Paths outside the session that every Clojure run shares with the person.
 
     A confined child can write only to its workspace and to Vis' own state
     directory. The shared caches and the person's Clojure configuration are
-    outside both. The extension grants exactly those directories on the call
-    that starts the run. The jail still refuses everything else. A configuration
-    directory that does not exist is left out. A machine without one needs no
-    grant, and the run reads the project's own `deps.edn` as before.
+    outside both. The extension declares exactly those directories as read-write
+    grants. Vis gives them only to this extension's own processes. The jail
+    still refuses everything else. A configuration directory that does not exist
+    is left out. A machine without one needs no grant, and the run reads the
+    project's own `deps.edn` as before.
 
     Returns:
         The directories to grant, as a tuple.
@@ -228,16 +229,18 @@ def _covers(path, protected):
     return protected == path or protected.startswith(path.rstrip(os.sep) + os.sep)
 
 
-def grantable(paths):
+def grantable(paths, *, existing=True):
     """The paths of `paths` that the host accepts as grants, in order, once each.
 
     The host refuses a grant whose resolved path is the filesystem root, or that
     contains the home directory or the Vis home. Such a grant would stop the
-    extension from registering, so it is left out here. Relative and missing
-    paths are left out too.
+    extension from registering, so it is left out here. Relative paths are left
+    out too.
 
     Args:
         paths: Candidate paths.
+        existing: Leave out paths that do not exist. A cache that a tool creates
+            later needs its grant before it exists.
 
     Returns:
         The kept paths, as declared, as a tuple.
@@ -248,7 +251,9 @@ def grantable(paths):
     )
     kept = []
     for path in paths:
-        if not path or not os.path.isabs(path) or not os.path.exists(path):
+        if not path or not os.path.isabs(path):
+            continue
+        if existing and not os.path.exists(path):
             continue
         declared = os.path.normpath(path)
         resolved = os.path.realpath(declared)
@@ -343,7 +348,6 @@ def library_classpath(refresh=False):
                 cwd=boot,
                 env=boot_environment(boot),
                 timeout_s=BOOT_TIMEOUT_S,
-                read_write=granted_paths(),
             )
         except ToolTimeout:
             vis.log(
@@ -435,14 +439,12 @@ class Process:
         self.lock = threading.Lock()
         self.lanes = {}
         # The process serves ONE project, and it resolves that project's own
-        # dependencies for the test runs and REPLs it starts: it needs the same
-        # shared caches the boot resolution used, the person's own Clojure
-        # configuration, and the grants that reach both.
+        # dependencies for the test runs and REPLs it starts. The declared grants
+        # give it the shared caches and the person's own Clojure configuration.
         self.live = runtime.start(
             self.command,
             cwd=self.root,
             env=project_environment(boot_directory()),
-            read_write=granted_paths(),
             name="clojure",
             shell_id=shell_id(self.root),
         )

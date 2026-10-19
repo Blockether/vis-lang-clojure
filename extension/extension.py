@@ -1,12 +1,10 @@
 """Vis entrypoint. The tools themselves live in vis_lang_clojure."""
 
-from typing import Any, Literal
-
 import blockether.vis.extension as vis
 from vis_lang_interface import presentation, prompt
 from vis_lang_interface.syntax import SyntaxGuard
 
-from vis_lang_clojure.bridge import toolchain_paths
+from vis_lang_clojure.bridge import grantable, shared_paths, toolchain_paths
 from vis_lang_clojure.repair import repair_source
 from vis_lang_clojure.tools import (
     LANGUAGE,
@@ -15,13 +13,15 @@ from vis_lang_clojure.tools import (
     _check_syntax,
 )
 
-# The tags that this extension binds. Older SDKs do not export `vis.SymbolTag`,
-# so this module keeps its own tag type.
-_Tag = Literal["observation", "mutation", "verification"]
-
 
 def _bind(
-    name, label, build, *, tag: _Tag = "observation", show_start=True, describe=None
+    name,
+    label,
+    build,
+    *,
+    tag: vis.SymbolTag = "observation",
+    show_start=True,
+    describe=None,
 ):
     """Attach one Activity presentation to a method of ClojureTools."""
     setattr(
@@ -36,19 +36,6 @@ def _bind(
     )
 
 
-def _knows(tag: _Tag) -> bool:
-    """Whether this Vis host accepts `tag`. Older hosts refuse `verification`."""
-    try:
-        vis.method(tag=tag)
-    except ValueError:
-        return False
-    return True
-
-
-# Lint and test runs check work; a host that lacks the tag records them as reads.
-_CHECK: _Tag = "verification" if _knows("verification") else "observation"
-
-
 _bind(
     "format_code",
     "Format Clojure code",
@@ -60,13 +47,13 @@ _bind(
     "lint_code",
     "Lint Clojure code",
     lambda result: presentation.lint_presentation("Lint Clojure code", result),
-    tag=_CHECK,
+    tag="verification",
 )
 _bind(
     "run_tests",
     "Run Clojure tests",
     lambda result: presentation.test_presentation("Run Clojure tests", result),
-    tag=_CHECK,
+    tag="verification",
 )
 _bind(
     "repl_start",
@@ -136,18 +123,21 @@ PROMPT = prompt.routing(
 # Keeps the files the Clojure reader reads parseable, across patches and Python writes.
 GUARD = SyntaxGuard(LANGUAGE, SYNTAX_SUFFIXES, _check_syntax, repair=repair_source)
 
-# Vis without `vis.Grant` cannot declare toolchain grants; the jail then needs its own rules.
-_GRANT = getattr(vis, "Grant", None)
-GRANTS = (
-    tuple(
-        _GRANT(path, reason="Run the JDK and the Clojure CLI for the Clojure tools.")
+# Vis gives these paths only to this extension's own processes.
+GRANTS = [
+    *(
+        vis.Grant(path, reason="Run the JDK and the Clojure CLI for the Clojure tools.")
         for path in toolchain_paths()
-    )
-    if _GRANT
-    else ()
-)
-# Keyword arguments for `vis.Extension`: an older Vis refuses an unknown `grants`.
-_TOOLCHAIN: dict[str, Any] = {"grants": GRANTS} if GRANTS else {}
+    ),
+    *(
+        vis.Grant(
+            path,
+            "read_write",
+            reason="Share the Maven, git and tools.deps caches with the person's tools.",
+        )
+        for path in grantable(shared_paths(), existing=False)
+    ),
+]
 
 
 vis.register_extension(
@@ -162,6 +152,6 @@ vis.register_extension(
         prompt=PROMPT,
         op_hooks=GUARD.op_hooks(),
         ctx=GUARD.ctx,
-        **_TOOLCHAIN,
+        grants=GRANTS,
     )
 )

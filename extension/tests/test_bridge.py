@@ -271,7 +271,7 @@ def test_the_shared_caches_are_the_ones_a_person_already_has(tmp_path, monkeypat
     # A configuration directory the host happens to keep must not leak into the
     # grants this test is about, so name one that is not there.
     monkeypatch.setenv("CLJ_CONFIG", str(tmp_path / "person" / ".clojure"))
-    assert bridge.granted_paths() == ("/srv/artifacts", "/srv/gitlibs")
+    assert bridge.shared_paths() == ("/srv/artifacts", "/srv/gitlibs")
 
 
 def test_the_configuration_is_the_one_the_clojure_command_reads(tmp_path, monkeypatch):
@@ -296,18 +296,18 @@ def test_a_configuration_is_granted_only_when_the_machine_has_one(
     monkeypatch.setenv("GITLIBS", "/srv/gitlibs")
     configuration = tmp_path / "person" / ".clojure"
     monkeypatch.setenv("CLJ_CONFIG", str(configuration))
-    assert bridge.granted_paths() == ("/srv/artifacts", "/srv/gitlibs")
+    assert bridge.shared_paths() == ("/srv/artifacts", "/srv/gitlibs")
     configuration.mkdir(parents=True)
-    assert bridge.granted_paths() == (
+    assert bridge.shared_paths() == (
         "/srv/artifacts",
         "/srv/gitlibs",
         str(configuration),
     )
 
 
-def test_a_resolution_asks_for_the_caches_it_uses(tmp_path, monkeypatch):
-    # The shared caches sit outside the session's roots: a confined run reaches
-    # them only because this call hands them over, and it hands over nothing else.
+def test_a_resolution_asks_for_no_grant_of_its_own(tmp_path, monkeypatch):
+    # The shared caches sit outside the session's roots. The grants that the
+    # extension declares reach them, so this call hands over nothing.
     asked = {}
 
     def recorded(command, **options):
@@ -325,12 +325,10 @@ def test_a_resolution_asks_for_the_caches_it_uses(tmp_path, monkeypatch):
     monkeypatch.setattr(bridge, "run", recorded)
     monkeypatch.setattr(bridge, "_CLASSPATH", None)
     assert bridge.library_classpath(refresh=True) == "/jars/library.jar"
-    assert asked["read_write"] == bridge.granted_paths()
+    assert "read_write" not in asked
 
 
-def test_a_project_process_is_handed_the_caches_and_the_configuration(
-    tmp_path, monkeypatch
-):
+def test_a_project_process_reads_the_person_s_configuration(tmp_path, monkeypatch):
     # The boot resolution keeps the tools clear of a project's ambient setup.
     # The process serving the project must not: a REPL asked for an alias a
     # cross-project `deps.edn` defines has to find it, the way a terminal does.
@@ -347,7 +345,7 @@ def test_a_project_process_is_handed_the_caches_and_the_configuration(
     monkeypatch.setenv("CLJ_CONFIG", "/srv/clojure")
     monkeypatch.setattr(bridge.runtime, "start", recorded)
     bridge.Process(tmp_path / "project", ("java", "-cp", "library.jar"))
-    assert started["read_write"] == bridge.granted_paths()
+    assert "read_write" not in started
     assert started["env"]["CLJ_CONFIG"] == "/srv/clojure"
     assert started["env"]["GITLIBS"] == bridge.git_libraries()
     assert started["env"][jail.REPOSITORY_VARIABLE] == bridge.maven_repository()
@@ -496,23 +494,20 @@ def _declared(monkeypatch):
     return registered[0]
 
 
-def test_a_host_with_grants_receives_the_toolchain(tmp_path, monkeypatch):
+def test_the_toolchain_is_read_only_and_the_caches_are_writable(tmp_path, monkeypatch):
     clojure = _program(tmp_path / "bin" / "clojure")
     monkeypatch.delenv("JAVA_HOME", raising=False)
     monkeypatch.setenv("PATH", str(clojure.parent))
-    monkeypatch.setattr(
-        vis, "Grant", lambda path, *, reason: ("grant", path, reason), raising=False
-    )
+    monkeypatch.setenv("MAVEN_LOCAL_REPO", str(tmp_path / "m2"))
+    monkeypatch.setenv("GITLIBS", str(tmp_path / "gitlibs"))
+    monkeypatch.setenv("CLJ_CONFIG", str(tmp_path / "no-configuration"))
     grants = _declared(monkeypatch)["grants"]
-    assert [grant[1] for grant in grants] == [str(clojure)]
-    assert all(grant[2] for grant in grants)
-
-
-def test_an_older_host_registers_without_grants(tmp_path, monkeypatch):
-    clojure = _program(tmp_path / "bin" / "clojure")
-    monkeypatch.setenv("PATH", str(clojure.parent))
-    monkeypatch.delattr(vis, "Grant", raising=False)
-    assert "grants" not in _declared(monkeypatch)
+    assert [(str(grant.path), grant.mode) for grant in grants] == [
+        (str(clojure), "read"),
+        (str(tmp_path / "m2"), "read_write"),
+        (str(tmp_path / "gitlibs"), "read_write"),
+    ]
+    assert all(grant.reason for grant in grants)
 
 
 def test_an_override_is_run_as_written(tmp_path, monkeypatch):

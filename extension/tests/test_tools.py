@@ -721,14 +721,6 @@ def test_lint_and_test_runs_report_as_checks(monkeypatch):
     assert tags["format_code"] == "mutation"
 
 
-def test_an_older_host_records_lint_and_test_runs_as_reads(monkeypatch):
-    _older_host(monkeypatch)
-    tags = _entrypoint_tags(monkeypatch)
-    assert (tags["lint_code"], tags["run_tests"]) == ("observation", "observation")
-    assert tags["repl_eval"] == "mutation"
-    assert "check_syntax" not in tags
-
-
 def test_syntax_check_is_not_exported_or_advertised(monkeypatch):
     registered = []
     monkeypatch.setattr(vis, "register_extension", registered.append)
