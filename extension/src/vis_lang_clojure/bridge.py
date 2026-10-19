@@ -31,10 +31,18 @@ import os
 import re
 import secrets
 import shlex
+import shutil
 import threading
 
 import blockether.vis.extension as vis
-from vis_lang_interface import RuntimeGone, ToolTimeout, run, runtime, tool_path
+from vis_lang_interface import (
+    RuntimeGone,
+    ToolMissing,
+    ToolTimeout,
+    run,
+    runtime,
+    tool_path,
+)
 from vis_lang_interface.process import shell_call
 
 from vis_lang_clojure import jail
@@ -213,6 +221,81 @@ def java_command():
         if os.access(java, os.X_OK):
             return java
     return tool_path("java", "Install a JDK, or point JAVA_HOME at one.")
+
+
+def _covers(path, protected):
+    """Whether `path` is `protected` or one of its parent directories."""
+    return protected == path or protected.startswith(path.rstrip(os.sep) + os.sep)
+
+
+def grantable(paths):
+    """The paths of `paths` that the host accepts as grants, in order, once each.
+
+    The host refuses a grant whose resolved path is the filesystem root, or that
+    contains the home directory or the Vis home. Such a grant would stop the
+    extension from registering, so it is left out here. Relative and missing
+    paths are left out too.
+
+    Args:
+        paths: Candidate paths.
+
+    Returns:
+        The kept paths, as declared, as a tuple.
+    """
+    home = os.path.realpath(os.path.expanduser("~"))
+    vis_home = os.path.realpath(
+        os.environ.get("VIS_HOME", "").strip() or os.path.join(home, ".vis")
+    )
+    kept = []
+    for path in paths:
+        if not path or not os.path.isabs(path) or not os.path.exists(path):
+            continue
+        declared = os.path.normpath(path)
+        resolved = os.path.realpath(declared)
+        if os.path.dirname(resolved) == resolved:
+            continue
+        if _covers(resolved, home) or _covers(resolved, vis_home):
+            continue
+        if declared not in kept:
+            kept.append(declared)
+    return tuple(kept)
+
+
+def toolchain_paths():
+    """The JDK and the Clojure CLI that a confined run executes.
+
+    A jailed child reads only the system directories, its workspace and the
+    directories that it is granted. A JDK from SDKMAN lives under the home
+    directory, behind a `current` link. The jail follows a link only when it may
+    read the link itself. So each program is kept as found and as its links
+    resolve. A JDK is kept as its whole home, the directory with its `release`
+    file, because the JVM loads its libraries from there. The Clojure CLI is kept
+    with the `lib/clojure` directory that holds its own jar.
+
+    Returns:
+        The paths to grant read access to, as a tuple.
+    """
+    found = []
+    try:
+        java = java_command()
+    except ToolMissing:
+        java = None
+    if java:
+        for path in (os.path.abspath(java), os.path.realpath(java)):
+            found.append(path)
+            jdk = os.path.dirname(os.path.dirname(path))
+            if os.path.isfile(os.path.join(jdk, "release")):
+                found.append(jdk)
+    clojure = shutil.which("clojure")
+    if clojure:
+        for path in (os.path.abspath(clojure), os.path.realpath(clojure)):
+            found.append(path)
+            library = os.path.join(
+                os.path.dirname(os.path.dirname(path)), "lib", "clojure"
+            )
+            if os.path.isdir(library):
+                found.append(library)
+    return grantable(found)
 
 
 _CLASSPATH = None

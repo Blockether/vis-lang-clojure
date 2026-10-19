@@ -116,6 +116,14 @@ resolves, including those a global `deps.edn` defines. The tools' own resolution
 their configuration and classpath cache live in the jail directory, so nothing a project or your
 global setup declares decides what the formatter, the linter or the test runner run on.
 
+The programs are granted too, but only for reading. A confined run reads the system directories and
+the paths above. A JDK from SDKMAN or the Clojure CLI under your home directory is outside them, so
+the jail would refuse to execute it. The extension declares the JDK home, through the link that
+`JAVA_HOME` or `PATH` names and as that link resolves, and the `clojure` command with its
+`lib/clojure` directory. Vis checks these grants and gives them only to the extension's own
+processes, not to the agent. A Vis without toolchain grants gets no declaration. There, add the
+paths to `jail.filesystem` yourself.
+
 Outside a sandbox there is no proxy in the environment, nothing is prepared, and your caches and
 configuration are used exactly as before.
 

@@ -1,11 +1,12 @@
 """Vis entrypoint. The tools themselves live in vis_lang_clojure."""
 
-from typing import Literal
+from typing import Any, Literal
 
 import blockether.vis.extension as vis
 from vis_lang_interface import presentation, prompt
 from vis_lang_interface.syntax import SyntaxGuard
 
+from vis_lang_clojure.bridge import toolchain_paths
 from vis_lang_clojure.repair import repair_source
 from vis_lang_clojure.tools import (
     LANGUAGE,
@@ -135,6 +136,19 @@ PROMPT = prompt.routing(
 # Keeps the files the Clojure reader reads parseable, across patches and Python writes.
 GUARD = SyntaxGuard(LANGUAGE, SYNTAX_SUFFIXES, _check_syntax, repair=repair_source)
 
+# Vis without `vis.Grant` cannot declare toolchain grants; the jail then needs its own rules.
+_GRANT = getattr(vis, "Grant", None)
+GRANTS = (
+    tuple(
+        _GRANT(path, reason="Run the JDK and the Clojure CLI for the Clojure tools.")
+        for path in toolchain_paths()
+    )
+    if _GRANT
+    else ()
+)
+# Keyword arguments for `vis.Extension`: an older Vis refuses an unknown `grants`.
+_TOOLCHAIN: dict[str, Any] = {"grants": GRANTS} if GRANTS else {}
+
 
 vis.register_extension(
     vis.Extension(
@@ -148,5 +162,6 @@ vis.register_extension(
         prompt=PROMPT,
         op_hooks=GUARD.op_hooks(),
         ctx=GUARD.ctx,
+        **_TOOLCHAIN,
     )
 )

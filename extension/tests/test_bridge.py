@@ -2,8 +2,11 @@
 
 import json
 import os
+import runpy
 import sys
+from pathlib import Path
 
+import blockether.vis.extension as vis
 import pytest
 from vis_lang_interface import ToolRun, ToolTimeout
 
@@ -434,6 +437,82 @@ def test_the_jdk_comes_from_java_home_when_it_has_one(tmp_path, monkeypatch):
     java.chmod(0o755)
     monkeypatch.setenv("JAVA_HOME", str(home))
     assert bridge.java_command() == str(java)
+
+
+def _program(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("#!/bin/sh\nexit 0\n")
+    path.chmod(0o755)
+    return path
+
+
+def test_a_linked_jdk_is_granted_as_linked_and_as_resolved(tmp_path, monkeypatch):
+    # Blockether/vis#394: SDKMAN runs the JDK through its `current` link.
+    real = tmp_path / "candidates" / "java" / "21.0.4-tem"
+    _program(real / "bin" / "java")
+    (real / "release").write_text('JAVA_VERSION="21.0.4"\n')
+    current = tmp_path / "candidates" / "java" / "current"
+    current.symlink_to(real)
+    monkeypatch.setenv("JAVA_HOME", str(current))
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    resolved = os.path.realpath(real)
+    assert bridge.toolchain_paths() == (
+        str(current / "bin" / "java"),
+        str(current),
+        os.path.join(resolved, "bin", "java"),
+        resolved,
+    )
+
+
+def test_the_clojure_cli_is_granted_with_its_own_jar(tmp_path, monkeypatch):
+    clojure = _program(tmp_path / "prefix" / "bin" / "clojure")
+    library = tmp_path / "prefix" / "lib" / "clojure"
+    library.mkdir(parents=True)
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    monkeypatch.setenv("PATH", str(clojure.parent))
+    granted = bridge.toolchain_paths()
+    assert str(clojure) in granted
+    assert str(library) in granted
+    assert not any(path.endswith("java") for path in granted)
+
+
+def test_a_grant_the_host_would_refuse_is_left_out(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    (home / ".vis").mkdir(parents=True)
+    tool = _program(home / "jdk" / "bin" / "java")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv("VIS_HOME", raising=False)
+    assert bridge.grantable(
+        ["/", str(home), str(home / ".vis"), str(tmp_path), "relative", str(tool)]
+    ) == (str(tool),)
+
+
+def _declared(monkeypatch):
+    """The keyword arguments the entrypoint gives `vis.Extension`."""
+    registered = []
+    monkeypatch.setattr(vis, "Extension", lambda **declaration: declaration)
+    monkeypatch.setattr(vis, "register_extension", registered.append)
+    runpy.run_path(str(Path(__file__).resolve().parents[1] / "extension.py"))
+    return registered[0]
+
+
+def test_a_host_with_grants_receives_the_toolchain(tmp_path, monkeypatch):
+    clojure = _program(tmp_path / "bin" / "clojure")
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    monkeypatch.setenv("PATH", str(clojure.parent))
+    monkeypatch.setattr(
+        vis, "Grant", lambda path, *, reason: ("grant", path, reason), raising=False
+    )
+    grants = _declared(monkeypatch)["grants"]
+    assert [grant[1] for grant in grants] == [str(clojure)]
+    assert all(grant[2] for grant in grants)
+
+
+def test_an_older_host_registers_without_grants(tmp_path, monkeypatch):
+    clojure = _program(tmp_path / "bin" / "clojure")
+    monkeypatch.setenv("PATH", str(clojure.parent))
+    monkeypatch.delattr(vis, "Grant", raising=False)
+    assert "grants" not in _declared(monkeypatch)
 
 
 def test_an_override_is_run_as_written(tmp_path, monkeypatch):
