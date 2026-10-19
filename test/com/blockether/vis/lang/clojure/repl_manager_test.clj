@@ -891,7 +891,7 @@
           (doseq [opts [{:build "app"} {:build "app" :port 9999}]]
             (let [r (rm/connect! "s-shadow-deps-hint" dir opts)]
               (expect (str/includes? (get r "message")
-                                     "clojure -M:frontend -m shadow.cljs.devtools.cli watch app"))
+                                     "-M:frontend:vis/shadow-cljs-launch watch app"))
               (expect (empty? (rm/session-repls "s-shadow-deps-hint"))))))))
   (it "reads the port the watch published when the caller gives none"
       (let [sid

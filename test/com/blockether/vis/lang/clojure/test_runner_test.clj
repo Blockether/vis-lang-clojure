@@ -1066,6 +1066,11 @@
    "node_modules/.bin/shadow-cljs" "#!/bin/sh\n"
    "test/repro/core_test.cljs" "(ns repro.core-test)\n"})
 
+(def ^:private launch-sdeps
+  "The `-Sdeps` value of a deps.edn shadow-cljs launch: one tool-owned alias that
+   carries the only `-m shadow.cljs.devtools.cli` (issue #400)."
+  "{:aliases {:vis/shadow-cljs-launch {:main-opts [\"-m\" \"shadow.cljs.devtools.cli\"]}}}")
+
 (defn- run-capturing-cljs
   "Run `clj-test-fn` with EVERY runner stubbed, answering `{:root :nses :build}`
    from the shadow-cljs runner and `{:cli-root :cli-nses}` from the JVM one — so
@@ -1340,7 +1345,8 @@
             "deps.edn"
             "{:aliases {:cljs {:extra-deps {thheller/shadow-cljs {:mvn/version \"2.28.20\"}}}}}\n"))
         (fn [root]
-          (expect (= ["clojure" "-M:cljs" "-m" "shadow.cljs.devtools.cli" "compile" "test"]
+          (expect (= ["clojure" "-Sdeps" launch-sdeps "-M:cljs:vis/shadow-cljs-launch" "compile"
+                      "test"]
                      (vec (take 6 (:argv (first (:steps (shadow/run-steps root {})))))))))))
   (it "runs the CLI plainly when the project's own :deps carry shadow-cljs"
       (with-project
@@ -1348,7 +1354,7 @@
             (dissoc "node_modules/.bin/shadow-cljs" "package.json")
             (assoc "deps.edn" "{:deps {thheller/shadow-cljs {:mvn/version \"2.28.20\"}}}\n"))
         (fn [root]
-          (expect (= ["clojure" "-M" "-m" "shadow.cljs.devtools.cli"]
+          (expect (= ["clojure" "-Sdeps" launch-sdeps "-M:vis/shadow-cljs-launch"]
                      (vec (take 4 (:argv (first (:steps (shadow/run-steps root {})))))))))))
   (it "answers a declared-but-uninstalled shadow-cljs with the install, not with 'no runner'"
       (with-project (dissoc cljs-project "node_modules/.bin/shadow-cljs")
@@ -1804,6 +1810,100 @@
                 (expect (= n (get r "selected")))
                 (expect (= faults (get r "fail"))))))))))
 
+;; Regression, issue #400 (paraphrased: a tools.deps project with `:deps true`
+;; and shadow-cljs plus its CLI `:main-opts` in an alias could not run its tests:
+;; `:deps true` skipped the library alias, run_tests aliases were refused, and
+;; the launch passed `-m shadow.cljs.devtools.cli` twice).
+(def ^:private issue-400-deps
+  {:paths ["src"]
+   :aliases {:dev {:extra-paths ["dev"]}
+             :test {:extra-paths ["test"]}
+             :shadow-cljs {:extra-deps {'thheller/shadow-cljs {:mvn/version "3.5.4"}}
+                           :main-opts ["-m" "shadow.cljs.devtools.cli"]}}})
+
+(defn- issue-400-launch
+  "The launcher of a project with `deps` and `shadow-edn`, for `requested`."
+  [deps shadow-edn requested]
+  (let [answer (atom nil)]
+    (with-project {"deps.edn" (pr-str deps) "shadow-cljs.edn" shadow-edn}
+                  (fn [root]
+                    (reset! answer (shadow/launcher root requested))))
+    @answer))
+
+(defdescribe
+  issue-400-deps-true-launch-test
+  (it "uses the unique library alias with :deps true, and passes -m only once"
+      (let [argv (:argv (issue-400-launch issue-400-deps "{:deps true :builds {}}" []))]
+        (expect (= ["clojure" "-Sdeps" launch-sdeps "-M:shadow-cljs:vis/shadow-cljs-launch"] argv))
+        (expect (not-any? #{"-m"} argv) "the only -m is inside the -Sdeps value")))
+  (it "puts the run_tests aliases first, with or without the library alias"
+      (doseq [requested [["dev" "test" "shadow-cljs"] ["dev" "test"] [":dev" ":test"]]]
+        (expect (= "-M:dev:test:shadow-cljs:vis/shadow-cljs-launch"
+                   (last (:argv (issue-400-launch issue-400-deps "{:deps true}" requested))))
+                (pr-str requested))))
+  (it "reads a :deps map without :aliases like :deps true"
+      (expect (= "-M:dev:shadow-cljs:vis/shadow-cljs-launch"
+                 (last (:argv (issue-400-launch issue-400-deps "{:deps {}}" ["dev"]))))))
+  (it "keeps an explicit :deps {:aliases [...]} and refuses aliases outside it"
+      (let [shadow-edn "{:deps {:aliases [:dev :test :shadow-cljs]}}"]
+        (doseq [requested [[] ["test"] ["shadow-cljs" "dev"]]]
+          (expect (= "-M:dev:test:shadow-cljs:vis/shadow-cljs-launch"
+                     (last (:argv (issue-400-launch issue-400-deps shadow-edn requested))))
+                  (pr-str requested)))
+        (let [{:keys [error argv]} (issue-400-launch (assoc-in issue-400-deps [:aliases :bench] {})
+                                                     shadow-edn
+                                                     ["bench"])]
+          (expect (nil? argv))
+          (expect (str/includes? error "[:bench] are not in it")))))
+  (it "runs an alias without :main-opts through the same launch alias"
+      (expect (= ["clojure" "-Sdeps" launch-sdeps "-M:cljs:vis/shadow-cljs-launch"]
+                 (:argv (issue-400-launch {:aliases {:cljs {:extra-deps {'thheller/shadow-cljs
+                                                                         {:mvn/version "3.5.4"}}}}}
+                                          "{:deps true}"
+                                          [])))))
+  (it "lets run_tests aliases choose between several library aliases"
+      (let [deps (assoc-in issue-400-deps
+                   [:aliases :cljs-next]
+                   {:extra-deps {'thheller/shadow-cljs {:mvn/version "3.6.0"}}})]
+        (expect (str/includes? (:error (issue-400-launch deps "{:deps true}" []))
+                               "multiple shadow-cljs library aliases"))
+        (expect (= "-M:test:cljs-next:vis/shadow-cljs-launch"
+                   (last (:argv (issue-400-launch deps "{:deps true}" ["test" "cljs-next"])))))))
+  (it "names unknown aliases instead of a missing dependency"
+      (expect (str/includes? (:error (issue-400-launch issue-400-deps "{:deps true}" ["nope"]))
+                             "unknown deps.edn aliases: [:nope]")))
+  (it "passes aliases to an npm launcher with :deps, and refuses them without :deps or with :lein"
+      (with-project {"deps.edn" (pr-str issue-400-deps)
+                     "shadow-cljs.edn" "{:deps true}"
+                     "node_modules/.bin/shadow-cljs" "#!/bin/sh\n"}
+                    (fn [root]
+                      (expect (= [(str root "/node_modules/.bin/shadow-cljs") "--aliases"
+                                  ":dev:test"]
+                                 (:argv (shadow/launcher root ["dev" "test"]))))
+                      (spit (io/file root "shadow-cljs.edn") "{:source-paths [\"test\"]}")
+                      (expect (string? (:error (shadow/launcher root ["dev"]))))
+                      (expect (= [(str root "/node_modules/.bin/shadow-cljs")]
+                                 (:argv (shadow/launcher root []))))))
+      (expect (str/includes? (:error (issue-400-launch issue-400-deps "{:lein true}" ["dev"]))
+                             "launches through :lein")))
+  (it "carries the run_tests aliases into the compile step of a :deps true run"
+      (with-project
+        {"deps.edn" (pr-str issue-400-deps)
+         "shadow-cljs.edn"
+         "{:deps true :builds {:test {:target :node-test :output-to \"out/tests.js\"}}}"
+         "test/repro/core_test.cljs" "(ns repro.core-test)\n"}
+        (fn [root]
+          (let [calls (atom [])]
+            (with-redefs [tr/run-command
+                          (sh-answering calls 0 "Ran 1 tests.\n0 failures, 0 errors.\n")]
+              (let [r (run-via-shadow root
+                                      ["repro.core-test"]
+                                      {:nses ["repro.core-test"] :aliases ["dev" "test"]})]
+                (expect (true? (get r "is_pass")) (pr-str r))
+                (expect (= ["clojure" "-Sdeps" launch-sdeps
+                            "-M:dev:test:shadow-cljs:vis/shadow-cljs-launch" "compile" "test"]
+                           (vec (take 6 (first @calls))))))))))))
+
 ;; The shadow-cljs user guide specifies that :deps/:lein own the classpath,
 ;; and that :node-test/:karma/:browser-test are different JS runtimes.
 (defdescribe
@@ -1814,7 +1914,8 @@
                                          :aliases {:frontend {:extra-paths ["src"]}
                                                    :checks {:extra-paths ["test"]}}})}
                     (fn [root]
-                      (expect (= ["clojure" "-M:frontend:checks" "-m" "shadow.cljs.devtools.cli"]
+                      (expect (= ["clojure" "-Sdeps" launch-sdeps
+                                  "-M:frontend:checks:vis/shadow-cljs-launch"]
                                  (:argv (shadow/launcher root)))))))
   (it "honors :lein instead of an unrelated deps.edn"
       (with-project {"shadow-cljs.edn" "{:lein {:profile \"+frontend\"} :builds {}}"
@@ -2154,6 +2255,25 @@
               (run! deps-cfg {"ns" "repro.core-test"} true 1)
               (io/delete-file (io/file root "node_modules/.bin/shadow-cljs"))
               (run! deps-cfg {"ns" "repro.core-test"} true 1)
+              ;; Issue #400: `:deps true`, shadow's CLI :main-opts in the library alias,
+              ;; and the test paths from run_tests aliases.
+              (spit (io/file root "deps.edn")
+                    (pr-str {:aliases {:frontend {:extra-paths ["test" "spec"]
+                                                  :extra-deps {'thheller/shadow-cljs {:mvn/version
+                                                                                      version}}}
+                                       :checks {:extra-paths ["test" "spec"]}
+                                       :shadow-cljs
+                                       {:extra-deps {'thheller/shadow-cljs {:mvn/version version}}
+                                        :main-opts ["-m" "shadow.cljs.devtools.cli"]}}}))
+              (run! (assoc cfg :deps true)
+                    {"ns" "repro.core-test" "aliases" ["checks" "shadow-cljs"]}
+                    true
+                    1)
+              (run! (assoc cfg :deps {:aliases [:checks :shadow-cljs]})
+                    {"ns" "repro.core-test"}
+                    true
+                    1)
+              (spit (io/file root "shadow-cljs.edn") (pr-str deps-cfg))
               ;; Issue #157: a focused CLI run must not reconfigure an existing watch.
               (let [log (io/file root "server.log")
                     server (.start (doto (ProcessBuilder. ^java.util.List

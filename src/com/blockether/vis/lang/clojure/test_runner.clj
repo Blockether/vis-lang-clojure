@@ -2004,25 +2004,26 @@
       {:cases (reduce + 0 (map :cases reports)) :fails failures})))
 
 (defn- run-via-shadow*
-  "Use the project's own shadow launcher and build. Never silently broaden
-   unsupported var/tag selectors or classpath aliases. A pass requires actual
-   tests reported by the final execution step, including Karma's own reporter."
+  "Use the project's own shadow launcher and build. The run_tests aliases add
+   deps.edn classpath to that launcher, and the launcher reports a conflict with
+   shadow-cljs.edn. Never silently broaden unsupported var/tag selectors. A pass
+   requires actual tests reported by the final execution step, including Karma's
+   own reporter."
   [root nses norm output-root]
   (let
     [nses
      (if (focused? (assoc norm :nses nses)) nses [])
 
      unsupported
-     (cond
-       (seq (:aliases norm))
-       "configure :deps {:aliases [...]} in shadow-cljs.edn; run_tests aliases cannot change the build's classpath"
-       (some seq ((juxt :vars :include :exclude) norm))
+     (when (some seq ((juxt :vars :include :exclude) norm))
        "the Vis shadow-cljs adapter currently supports namespace focus, not var or metadata selectors; no tests started")
 
      {:keys [error steps build target]}
      (if unsupported
        {:error unsupported}
-       (shadow/run-steps root {:nses nses :build (:build norm) :output-root output-root}))
+       (shadow/run-steps
+         root
+         {:nses nses :build (:build norm) :output-root output-root :aliases (:aliases norm)}))
 
      base
      {"mode" "cli"
@@ -2132,9 +2133,9 @@
 
           (and (some? cases) (zero? (long cases)))
           (assoc "error"
-            (str "shadow-cljs ran 0 tests for build "
-                 build
-                 " — check the namespace selection and the configured source paths/classpath"))
+            (str "shadow-cljs ran 0 tests for build " build
+                 " — check the namespace selection and the configured source paths/classpath;"
+                 " with :deps true, pass the deps.edn aliases that add the test paths in aliases"))
 
           (:timed-out ran)
           (assoc "timed_out"

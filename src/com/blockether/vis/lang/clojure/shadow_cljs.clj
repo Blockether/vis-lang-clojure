@@ -104,15 +104,40 @@
                          (try (re-find (re-pattern pattern) ns-str) (catch Exception _ false)))))))
             builds))))
 
+(def ^:private launch-alias
+  "The tool-owned deps.edn alias that carries shadow-cljs' CLI main. It comes
+   last, because tools.deps uses the `:main-opts` of the last alias. A project
+   alias with its own `-m shadow.cljs.devtools.cli` then adds only classpath."
+  :vis/shadow-cljs-launch)
+
+(defn- classpath-deps
+  "The dependency map that `selected` deps.edn aliases give: `:replace-deps`
+   replaces the root `:deps`, and `:extra-deps` adds to it."
+  [deps selected]
+  (let [options
+        (map (:aliases deps) selected)
+
+        replacements
+        (keep :replace-deps options)]
+
+    (merge (if (seq replacements) (apply merge replacements) (:deps deps))
+           (apply merge (keep :extra-deps options)))))
+
 (defn- deps-aliases
-  "The classpath selected by shadow-cljs.edn's :deps. Without explicit settings,
-   a unique library alias is usable; never pick an arbitrary alias by map order."
-  [deps settings]
+  "The deps.edn aliases that a library launch selects, project aliases first.
+   An explicit `:deps {:aliases [...]}` in shadow-cljs.edn wins, and `requested`
+   (the run_tests aliases) must not add to it. With `:deps true`, or no alias
+   list, the requested aliases come first. A unique library alias joins them
+   when they do not bring shadow-cljs. Never pick an alias by map order."
+  [deps settings requested]
   (let [aliases
         (:aliases deps)
 
         configured
-        (vec (:aliases settings))
+        (when (and (map? settings) (contains? settings :aliases)) (vec (:aliases settings)))
+
+        requested
+        (vec (distinct requested))
 
         candidates
         (sort-by str
@@ -122,33 +147,46 @@
                            k))
                        aliases))
 
-        selected
-        (cond settings configured
-              (contains? (:deps deps) shadow-dep) []
+        brings-shadow?
+        (fn [selected]
+          (contains? (classpath-deps deps selected) shadow-dep))
+
+        fallback
+        (cond (contains? (:deps deps) shadow-dep) []
               (= 1 (count candidates)) [(first candidates)]
               :else nil)
 
-        missing
-        (remove #(contains? aliases %) selected)
+        selected
+        (cond configured configured
+              (and (seq requested) (brings-shadow? requested)) requested
+              fallback (vec (distinct (concat requested fallback)))
+              :else nil)
 
-        options
-        (map aliases selected)
+        unknown-requested
+        (remove #(contains? aliases %) requested)
 
-        replacements
-        (keep :replace-deps options)
-
-        effective
-        (merge (if (seq replacements) (apply merge replacements) (:deps deps))
-               (apply merge (keep :extra-deps options)))]
+        extra
+        (when configured (remove (set configured) requested))]
 
     (cond
-      (seq missing) {:error (str "shadow-cljs.edn selects unknown deps.edn aliases: "
-                                 (pr-str (vec missing)))}
+      (seq unknown-requested) {:error (str "unknown deps.edn aliases: "
+                                           (pr-str (vec unknown-requested)))}
+      (seq extra)
+      {:error (str "shadow-cljs.edn selects :deps {:aliases "
+                   (pr-str configured)
+                   "}, and run_tests aliases "
+                   (pr-str (vec extra))
+                   " are not in it — add them there, or drop them from the call; no tests started")}
+      (seq (remove #(contains? aliases %) selected))
+      {:error (str "shadow-cljs.edn selects unknown deps.edn aliases: "
+                   (pr-str (vec (remove #(contains? aliases %) selected))))}
       (and (nil? selected) (seq candidates))
-      {:error (str "multiple shadow-cljs library aliases "
-                   (pr-str (vec candidates))
-                   " — select them with :deps {:aliases [...]} in shadow-cljs.edn")}
-      (contains? effective shadow-dep) {:aliases selected}
+      {:error
+       (str
+         "multiple shadow-cljs library aliases "
+         (pr-str (vec candidates))
+         " — pass the one to use in aliases, or select them with :deps {:aliases [...]} in shadow-cljs.edn")}
+      (and selected (brings-shadow? selected)) {:aliases selected}
       :else
       {:error
        "the configured deps.edn classpath has no thheller/shadow-cljs dependency; declare it in the selected :deps aliases"})))
@@ -162,51 +200,91 @@
 (defn launcher
   "Use the project's npm launcher when installed (it interprets its own config).
    Direct library launches preserve :deps aliases or :lein profile exactly as
-   shadow-cljs.edn declares. Vis never installs or depends on shadow-cljs."
-  [root]
-  (let [dir
-        (io/file (str root))
+   shadow-cljs.edn declares. `requested` deps.edn aliases (the run_tests
+   aliases) add classpath to a deps.edn launch. A Lein launch refuses them.
+   Vis never installs or depends on shadow-cljs."
+  ([root] (launcher root []))
+  ([root requested]
+   (let [dir
+         (io/file (str root))
 
-        bin
-        (io/file dir "node_modules" ".bin" "shadow-cljs")
+         bin
+         (io/file dir "node_modules" ".bin" "shadow-cljs")
 
-        cfg
-        (config root)
+         cfg
+         (config root)
 
-        lein
-        (:lein cfg)
+         lein
+         (:lein cfg)
 
-        deps
-        (read-edn (io/file dir "deps.edn"))]
+         deps
+         (read-edn (io/file dir "deps.edn"))
 
-    (cond
-      (.isFile bin) {:kind :npm :argv [(.getPath bin)]}
-      lein {:kind :lein
-            :argv (into ["lein"]
-                        (concat (when-let [profile (:profile lein)]
-                                  ["with-profile" (str profile)])
-                                ["run" "-m" cli-main]))}
-      (or (:deps cfg)
-          (contains? (:deps deps) shadow-dep)
-          (some (fn [[_ opts]]
-                  (or (contains? (:extra-deps opts) shadow-dep)
-                      (contains? (:replace-deps opts) shadow-dep)))
-                (:aliases deps)))
-      (let [{:keys [aliases error]} (deps-aliases deps (:deps cfg))]
-        (if error
-          {:error error}
-          {:kind :deps :argv ["clojure" (str "-M" (apply str aliases)) "-m" cli-main]}))
-      (npm-declares-shadow? (io/file dir "package.json"))
-      {:error (str
-                "shadow-cljs is declared in package.json but not installed — run `npm install` in "
-                (.getPath dir)
-                " (node_modules/.bin/shadow-cljs is missing)")}
-      :else
-      {:error
-       (str
-         "no way to run shadow-cljs in "
-         (.getPath dir)
-         " — install the project's npm dependencies, or configure its :deps/:lein library launcher")})))
+         requested
+         (vec (distinct (map (fn [a]
+                               (keyword (str/replace (str a) #"^:+" "")))
+                             requested)))
+
+         configured
+         (when (map? (:deps cfg)) (:aliases (:deps cfg)))
+
+         alias-arg
+         (fn [selected]
+           (apply str (map str selected)))]
+
+     (cond
+       (and (seq requested) lein)
+       {:error
+        (str "aliases "
+             (pr-str requested)
+             " are deps.edn aliases, but shadow-cljs.edn launches through :lein; no tests started")}
+       (.isFile bin)
+       (cond
+         (empty? requested) {:kind :npm :argv [(.getPath bin)]}
+         (not (:deps cfg))
+         {:error
+          (str
+            "aliases "
+            (pr-str requested)
+            " are deps.edn aliases, but shadow-cljs.edn has no :deps, so its build does not use deps.edn; no tests started")}
+         (and configured (seq (remove (set configured) requested)))
+         {:error (str
+                   "shadow-cljs.edn selects :deps {:aliases "
+                   (pr-str (vec configured))
+                   "}, and run_tests aliases "
+                   (pr-str (vec (remove (set configured) requested)))
+                   " are not in it — add them there, or drop them from the call; no tests started")}
+         :else {:kind :npm :argv [(.getPath bin) "--aliases" (alias-arg requested)]})
+       lein {:kind :lein
+             :argv (into ["lein"]
+                         (concat (when-let [profile (:profile lein)]
+                                   ["with-profile" (str profile)])
+                                 ["run" "-m" cli-main]))}
+       (or (:deps cfg)
+           (contains? (:deps deps) shadow-dep)
+           (some (fn [[_ opts]]
+                   (or (contains? (:extra-deps opts) shadow-dep)
+                       (contains? (:replace-deps opts) shadow-dep)))
+                 (:aliases deps)))
+       (let [{:keys [aliases error]} (deps-aliases deps (:deps cfg) requested)]
+         (if error
+           {:error error}
+           {:kind :deps
+            :argv ["clojure" "-Sdeps"
+                   (binding [*print-namespace-maps* false]
+                     (pr-str {:aliases {launch-alias {:main-opts ["-m" cli-main]}}}))
+                   (str "-M" (alias-arg aliases) launch-alias)]}))
+       (npm-declares-shadow? (io/file dir "package.json"))
+       {:error (str
+                 "shadow-cljs is declared in package.json but not installed — run `npm install` in "
+                 (.getPath dir)
+                 " (node_modules/.bin/shadow-cljs is missing)")}
+       :else
+       {:error
+        (str
+          "no way to run shadow-cljs in "
+          (.getPath dir)
+          " — install the project's npm dependencies, or configure its :deps/:lein library launcher")}))))
 
 (def ^:private target-kind
   "What each shadow-cljs TEST target needs to produce a result: `:headless` runs
@@ -307,7 +385,7 @@
    to retain its exit status. The caller supplies a unique `:output-root` for
    Node artifacts (including :dev overrides) and owns its cleanup; no project
    config is written. :karma keeps its configured output and single-shot binary."
-  [root {:keys [nses build output-root]}]
+  [root {:keys [nses build output-root aliases]}]
   (let [cfg (config root)]
     (if (nil? cfg)
       {:error (str "no shadow-cljs.edn in "
@@ -322,7 +400,7 @@
                                    (mapcat #(when (coll? (:namespaces %)) (:namespaces %)) layers)))
               excluded (set (map str (mapcat #(when (coll? (:exclude %)) (:exclude %)) layers)))
               output-to (last (keep :output-to layers))
-              {launcher-error :error argv :argv kind :kind} (launcher root)]
+              {launcher-error :error argv :argv kind :kind} (launcher root aliases)]
 
           (cond
             error {:error error}
