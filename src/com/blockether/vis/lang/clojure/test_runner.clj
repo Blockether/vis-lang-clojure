@@ -1514,15 +1514,13 @@
                       ["--exclude" (str t)])
                     exclude))))
 
-(defn- cognitect-selector-args
-  "Translate resolved selectors into cognitect.test-runner options. The runner
-   loads every selected namespace, narrows ALL of them to its --var list and fails
-   the whole run on a var it cannot resolve, so a var is passed exactly as named,
-   with its own namespace and without Lazytest's `-test` alternate. A selection it
-   cannot express is refused rather than widened or narrowed: whole namespaces
-   beside single vars, or a name without a namespace unless exactly one namespace
-   is selected. --include and --exclude narrow the selection, as in Lazytest.
-   The -X api takes the same selection as EDN collections."
+(defn- cognitect-pass-args
+  "Translate one cognitect.test-runner pass: whole namespaces, or single vars.
+   The runner fails the whole run on a var it cannot resolve, so a var is passed
+   exactly as named, with its own namespace and without Lazytest's `-test`
+   alternate. A name without a namespace needs exactly one selected namespace.
+   --include and --exclude narrow the selection, as in Lazytest. The -X api
+   takes the same selection as EDN collections."
   [mode {:keys [nses vars include exclude]}]
   (let [whole
         (keep (fn [{:keys [ns name]}]
@@ -1542,9 +1540,6 @@
           [n name])]
 
     (cond
-      (and (seq whole) (seq named))
-      {:error
-       "this runner narrows every selected namespace to the selected vars; run whole namespaces and single tests separately, so no tests started"}
       (and (some (comp nil? :ns) named) (not= 1 (count nses)))
       {:error
        "a test name without its namespace needs exactly one selected namespace for this runner; name it as <path>::<name>, so no tests started"}
@@ -1579,6 +1574,27 @@
                                  (mapcat (fn [t]
                                            ["--exclude" (str t)])
                                          exclude))))}))))
+
+(defn- cognitect-selector-args
+  "Translate resolved selectors into cognitect.test-runner passes. The runner
+   narrows EVERY selected namespace to its --var list, so whole namespaces beside
+   single vars become two passes: the whole namespaces, then the vars outside
+   them. A var inside a whole namespace already runs in the first pass. Returns
+   `{:args [...]}` for one pass, `{:passes [[...] [...]]}` for two, or `{:error}`."
+  [mode {:keys [vars] :as sel}]
+  (let [whole
+        (remove :name vars)
+
+        covered
+        (set (map :ns whole))
+
+        named
+        (remove #(contains? covered (:ns %)) (filter :name vars))]
+
+    (if (and (seq whole) (seq named))
+      (let [passes (mapv #(cognitect-pass-args mode (assoc sel :vars %)) [whole named])]
+        (or (some #(when (:error %) %) passes) {:passes (mapv :args passes)}))
+      (cognitect-pass-args mode (assoc sel :vars (if (seq whole) whole vars))))))
 
 (defn- runner-entry
   "Classify an alias's executable entry point, not its name or dependencies.
@@ -1731,40 +1747,46 @@
               (pr-str (vec candidates))
               " — select one with aliases; no tests started")
          "deps.edn has no executable test runner (:main-opts or a supported :exec-fn); a classpath-only :test alias would open a REPL, so no tests started")}
-      :else
-      (let [active
-            (vec (distinct (concat (when (contains? aliases :test) [:test])
-                                   (when-not explicit [picked])
-                                   requested)))
+      :else (let [active
+                  (vec (distinct (concat (when (contains? aliases :test) [:test])
+                                         (when-not explicit [picked])
+                                         requested)))
 
-            combined
-            (assoc (apply merge (map aliases active))
-              :exec-args (apply merge
-                           (keep #(when (map? (:exec-args %)) (:exec-args %))
-                                 (map aliases active))))
+                  combined
+                  (assoc (apply merge (map aliases active))
+                    :exec-args (apply merge
+                                 (keep #(when (map? (:exec-args %)) (:exec-args %))
+                                       (map aliases active))))
 
-            mode
-            (:mode (entries picked))
+                  mode
+                  (:mode (entries picked))
 
-            runner
-            (runner-entry
-              (if (= "-X" mode) (select-keys combined [:exec-fn]) (dissoc combined :exec-fn)))
+                  runner
+                  (runner-entry
+                    (if (= "-X" mode) (select-keys combined [:exec-fn]) (dissoc combined :exec-fn)))
 
-            {:keys [args error]}
-            (runner-selector-args runner sel)
+                  {:keys [args passes error]}
+                  (runner-selector-args runner sel)
 
-            jflags
-            (mapv #(str "-J" %) (repl-manager/inherited-jvm-opts (io/file root) active))]
+                  jflags
+                  (mapv #(str "-J" %) (repl-manager/inherited-jvm-opts (io/file root) active))
 
-        (cond (nil? runner)
-              {:error "selected aliases override the executable runner options; no tests started"}
-              (inherited-runner-error runner combined sel)
-              {:error (inherited-runner-error runner combined sel)}
-              error {:error (str (:entry runner) ": " error)}
-              :else {:tool :clj
-                     :framework (:framework runner)
-                     :cmd (into (into ["clojure"] jflags) (cons (str mode (apply str active)) args))
-                     :selectors? (boolean (:framework runner))})))))
+                  cmds
+                  (mapv #(into (into ["clojure"] jflags) (cons (str mode (apply str active)) %))
+                        (or passes [args]))]
+
+              (cond (nil? runner)
+                    {:error
+                     "selected aliases override the executable runner options; no tests started"}
+                    (inherited-runner-error runner combined sel)
+                    {:error (inherited-runner-error runner combined sel)}
+                    error {:error (str (:entry runner) ": " error)}
+                    :else (cond-> {:tool :clj
+                                   :framework (:framework runner)
+                                   :cmd (first cmds)
+                                   :selectors? (boolean (:framework runner))}
+                            (next cmds)
+                            (assoc :cmds cmds)))))))
 
 (defn- cli-command-for
   "Choose the project's executable test command and translate supported focus.
@@ -1848,7 +1870,9 @@
 (defn- run-via-cli
   "Run the discovered command in a clean JVM. Exit zero is insufficient: require
    a nonempty test summary, preserve effective namespace focus, and report the
-   executed test count as selected (the common numeric result contract)."
+   executed test count as selected (the common numeric result contract). A plan
+   with several passes runs them in turn under one deadline and sums their
+   summaries; every pass must run at least one test."
   [root norm]
   (let [sel
         (cond-> (select-keys norm [:nses :vars :include :exclude :focused?])
@@ -1858,8 +1882,11 @@
         aliases
         (:aliases norm)
 
-        {:keys [tool cmd error framework selectors?] :as plan}
+        {:keys [tool cmd cmds error framework selectors?] :as plan}
         (cli-command-for root sel aliases)
+
+        cmds
+        (or cmds (when cmd [cmd]))
 
         base
         (cond-> {"mode" "cli" "ns" (str/join " " (:nses sel)) "is_pass" false}
@@ -1867,7 +1894,7 @@
           (assoc "tool" (name tool))
 
           cmd
-          (assoc "command" (str/join " " cmd))
+          (assoc "command" (str/join " ; " (map #(str/join " " %) cmds)))
 
           framework
           (assoc "framework" (name framework)))]
@@ -1889,14 +1916,29 @@
       (and (focused? sel) (not selectors?))
       (assoc base "error" "this runner has no supported focus adapter; no tests started")
       :else
-      (let [res
-            (run-command root cmd (test-deadline))
+      (let [deadline
+            (test-deadline)
+
+            results
+            (mapv #(run-command root % deadline) cmds)
+
+            outs
+            (mapv command-output results)
 
             out
-            (command-output res)
+            (str/join "\n" outs)
+
+            res
+            {:timed-out (boolean (some :timed-out results))}
 
             exit
-            (long (or (:exit res) -1))
+            (long (or (first (remove zero? (map #(long (or (:exit %) -1)) results))) 0))
+
+            empty-pass
+            (when (next cmds)
+              (some (fn [[i o]]
+                      (when-not (pos? (long (or (:cases (summary-counts o)) 0))) (inc (long i))))
+                    (map-indexed vector outs)))
 
             {:keys [cases fails errs]}
             (summary-counts out)
@@ -1919,6 +1961,7 @@
                                           ran?
                                           (pos? (long cases))
                                           (zero? faults)
+                                          (nil? empty-pass)
                                           (not ignored-focus?))))
           (some? cases)
           (assoc "total"
@@ -1941,6 +1984,14 @@
           ignored-focus?
           (assoc "error"
             "Kaocha ignored an unmatched metadata filter; the requested focus was not verified")
+
+          empty-pass
+          (assoc "error"
+            (str "test pass "
+                 empty-pass
+                 " of "
+                 (count cmds)
+                 " printed no test summary or ran 0 tests; the selection was not fully verified"))
 
           (:timed-out res)
           (assoc "timed_out"

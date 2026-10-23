@@ -520,17 +520,44 @@
                  (@#'tr/runner-selector-args
                   {:framework :cognitect :mode "-M"}
                   {:nses ["one-test"] :vars [{:ns nil :name "adds-test"}]}))))
-  (it "refuses selections the runner would narrow or fail on"
+  ;; Regression: whole namespaces beside single vars were refused with "run whole
+  ;; namespaces and single tests separately", so the agent had to split the call.
+  (it "splits whole namespaces and single vars into two passes"
+      (let [args @#'tr/runner-selector-args]
+        (expect (= {:passes [["--namespace" "one-test"]
+                             ["--namespace" "two-test" "--var" "two-test/first-test"]]}
+                   (args {:framework :cognitect :mode "-M"}
+                         {:nses ["one-test" "two-test"]
+                          :vars [{:ns "two-test" :name "first-test"} {:ns "one-test" :name nil}]})))
+        (expect (= {:passes [["--namespace" "one-test" "--include" "slow"]
+                             ["--namespace" "two-test" "--var" "two-test/first-test" "--include"
+                              "slow"]]}
+                   (args {:framework :cognitect :mode "-M"}
+                         {:nses ["one-test" "two-test"]
+                          :vars [{:ns "one-test" :name nil} {:ns "two-test" :name "first-test"}]
+                          :include ["slow"]})))
+        (expect (= {:passes [[":nses" "[one-test]"]
+                             [":nses" "[two-test]" ":vars" "[two-test/first-test]"]]}
+                   (args {:framework :cognitect :mode "-X"}
+                         {:nses ["one-test" "two-test"]
+                          :vars [{:ns "one-test" :name nil}
+                                 {:ns "two-test" :name "first-test"}]})))))
+  (it "runs a var inside a whole namespace once, in that namespace's pass"
+      (expect (= {:args ["--namespace" "one-test"]}
+                 (@#'tr/runner-selector-args
+                  {:framework :cognitect :mode "-M"}
+                  {:nses ["one-test"]
+                   :vars [{:ns "one-test" :name nil} {:ns "one-test" :name "adds-test"}]}))))
+  (it "refuses selections the runner would fail on"
       (let [refused? (fn [sel]
                        (string? (:error (@#'tr/runner-selector-args
                                          {:framework :cognitect :mode "-M"}
                                          sel))))]
-        ;; The runner narrows every selected namespace to its --var list.
-        (expect (refused? {:nses ["one-test" "two-test"]
-                           :vars [{:ns "two-test" :name "first-test"} {:ns "one-test" :name nil}]}))
         ;; A --var the runner cannot resolve fails the whole run.
         (expect (refused? {:nses ["one-test" "two-test"] :vars [{:ns nil :name "adds-test"}]}))
-        (expect (refused? {:nses [] :vars [{:ns nil :name "adds-test"}]})))))
+        (expect (refused? {:nses [] :vars [{:ns nil :name "adds-test"}]}))
+        (expect (refused? {:nses ["one-test" "two-test"]
+                           :vars [{:ns "one-test" :name nil} {:ns nil :name "adds-test"}]})))))
 
 (defdescribe
   var-miss-output-test
@@ -613,6 +640,50 @@
         (expect (= 0 (get r "fail")))
         (expect (= 0 (get r "errored")))
         (expect (true? (get r "is_pass"))))))
+
+(defn- with-cli-passes
+  "Run the cli fallback as two cognitect passes, each with its own canned output."
+  [outputs]
+  (let [cmds [["clojure" "-M:test" "--namespace" "one-test"]
+              ["clojure" "-M:test" "--namespace" "two-test" "--var" "two-test/first-test"]]]
+    (with-redefs [tr/cli-command-for (fn [_root _sel _aliases]
+                                       {:tool :clj
+                                        :framework :cognitect
+                                        :selectors? true
+                                        :cmd (first cmds)
+                                        :cmds cmds})
+                  tr/run-command (fn [_root argv _deadline]
+                                   (get outputs (.indexOf ^java.util.List cmds argv)))]
+
+      (run-via-cli "/proj" {:nses ["one-test" "two-test"]}))))
+
+(defdescribe
+  cli-passes-test
+  ;; Regression: whole namespaces beside single vars now run as two cognitect passes.
+  (it "sums the summaries of every pass into one result"
+      (let [r (with-cli-passes
+                [{:exit 0 :out "Ran 12 tests containing 20 assertions.\n0 failures, 0 errors.\n"}
+                 {:exit 0 :out "Ran 1 tests containing 2 assertions.\n0 failures, 0 errors.\n"}])]
+        (expect (= 13 (get r "total")))
+        (expect (= 0 (get r "fail")))
+        (expect (true? (get r "is_pass")))
+        (expect (str/includes? (get r "command") " ; "))))
+  (it "fails the run when one pass fails"
+      (let [r (with-cli-passes
+                [{:exit 0 :out "Ran 12 tests containing 20 assertions.\n0 failures, 0 errors.\n"}
+                 {:exit 1
+                  :out (str "FAIL in (first-test) (two_test.clj:4)\nexpected: 1\n  actual: 2\n\n"
+                            "Ran 1 tests containing 1 assertions.\n1 failures, 0 errors.\n")}])]
+        (expect (= 13 (get r "total")))
+        (expect (= 1 (get r "fail")))
+        (expect (= 1 (get r "exit")))
+        (expect (false? (get r "is_pass")))))
+  (it "refuses a pass that ran no tests, even when the other pass ran some"
+      (let [r (with-cli-passes
+                [{:exit 0 :out "Ran 12 tests containing 20 assertions.\n0 failures, 0 errors.\n"}
+                 {:exit 0 :out "Ran 0 tests containing 0 assertions.\n0 failures, 0 errors.\n"}])]
+        (expect (false? (get r "is_pass")))
+        (expect (str/includes? (get r "error") "test pass 2 of 2")))))
 
 (def ^:private cognitect-report
   "cognitect.test-runner v0.5.1 output for one passing test, one test with two
@@ -1541,6 +1612,21 @@
           {"deps.edn" (pr-str {:aliases aliases})}
           (fn [root]
             (expect (string? (:error (cli-command-for root {:nses ["sample.core-test"]} [])))))))
+      ;; Whole namespaces beside single vars become one command for each pass.
+      (with-project
+        {"deps.edn" (pr-str {:aliases {:test {:main-opts ["-m" "cognitect.test-runner"]}}})}
+        (fn [root]
+          (let [plan (cli-command-for root
+                                      {:nses ["one-test" "two-test"]
+                                       :vars [{:ns "one-test" :name nil}
+                                              {:ns "two-test" :name "first-test"}]}
+                                      [])]
+            (expect (= [["-M:test" "--namespace" "one-test"]
+                        ["-M:test" "--namespace" "two-test" "--var" "two-test/first-test"]]
+                       (mapv (fn [cmd]
+                               (vec (drop-while #(not= "-M:test" %) cmd)))
+                             (:cmds plan))))
+            (expect (= (first (:cmds plan)) (:cmd plan))))))
       ;; Clojure's own options before the entry are not runner filters.
       (with-project {"deps.edn" (pr-str {:aliases {:test {:main-opts ["-i" "init.clj" "-m"
                                                                       "cognitect.test-runner"]}}})}
