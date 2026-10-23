@@ -4,3 +4,6 @@ target/
 .lsp/
 *.log
 __pycache__/
+
+# uv writes the lock locally; the extension pins its dependencies in pyproject.toml.
+uv.lock
