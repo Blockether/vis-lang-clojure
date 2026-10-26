@@ -82,6 +82,63 @@
                                 (first rows))))
                    (expect (= {"4" [2 2] "5" [2 0]} (get (second rows) "children"))))))
 
+(def ^:private branchy
+  "`(defn f [x] (if (pos? x) (inc x) (dec x)))` on lines 3-4, after a run with x = 1."
+  {:ns "app.core"
+   :file "app/core.clj"
+   :line 3
+   :kind "defn"
+   :coords ["" "3" "3,1" "3,1,1" "3,2" "3,2,1" "3,3" "3,3,1"]
+   :hits ["" "3" "3,1" "3,1,1" "3,2" "3,2,1"]
+   :nodes {"" {:line 3 :head "defn" :size 4}
+           "3" {:line 3 :head "if" :size 4}
+           "3,1" {:line 3 :head "pos?" :size 2}
+           "3,1,1" {:line 3}
+           "3,2" {:line 3 :head "inc" :size 2}
+           "3,2,1" {:line 3}
+           "3,3" {:line 4 :head "dec" :size 2 :text "(dec x)"}
+           "3,3,1" {:line 4 :text "x"}}})
+
+(defdescribe gaps-test
+             (it "names the outermost code that never ran, and the branch it is"
+                 (expect (= [{"line" 4 "end_line" 4 "kind" "branch" "detail" "else: (dec x)"}]
+                            (coverage/gaps branchy))))
+             (it "gives a form that never ran as one gap over all its lines"
+                 (expect (= [{"line" 3 "end_line" 4 "kind" "expression" "detail" "(defn f ...)"}]
+                            (coverage/gaps (-> branchy
+                                               (assoc :hits [])
+                                               (assoc-in [:nodes "" :text] "(defn f ...)"))))))
+             (it "gives nothing when every expression ran"
+                 (expect (= [] (coverage/gaps (assoc branchy :hits (:coords branchy))))))
+             (it "names the branch around code that has no coordinate, like the body of a do"
+                 (let [form (-> branchy
+                                (update :coords
+                                        #(-> (vec (remove #{"3,3" "3,3,1"} %))
+                                             (conj "3,3,1,1")))
+                                (assoc-in [:nodes "3,3,1,1"]
+                                          {:line 4 :head "println" :size 2 :text "(println x)"}))]
+                   (expect (= [{"line" 4 "end_line" 4 "kind" "branch" "detail" "else: (println x)"}]
+                              (coverage/gaps form)))
+                   (expect (= [2 1] (coverage/branches form))))))
+
+(defdescribe
+  branches-test
+  (it "counts the measured branches and the ones that ran"
+      (expect (= [2 1] (coverage/branches branchy)))
+      (expect (= [0 0] (coverage/branches (first forms)))))
+  (it "knows the branches of each branching form"
+      (expect (= ["then" "else" nil] (mapv #(coverage/branch-label "if-let" 4 %) [2 3 1])))
+      (expect (= ["body" nil] (mapv #(coverage/branch-label "when" 4 %) [2 3])))
+      (expect (= [nil "clause" nil "clause"] (mapv #(coverage/branch-label "cond" 5 %) [1 2 3 4])))
+      (expect (= [nil "step" "step"] (mapv #(coverage/branch-label "cond->" 6 %) [2 3 5])))
+      (expect (= ["clause" "clause" "default"] (mapv #(coverage/branch-label "case" 7 %) [3 5 6])))
+      (expect (= ["clause" nil] (mapv #(coverage/branch-label "case" 6 %) [5 4])))
+      (expect (nil? (coverage/branch-label "let" 3 2)))))
+
+(defdescribe hook-source-test
+             (it "is Clojure that reads"
+                 (expect (= 'ns (ffirst (read-string (str "[" @#'coverage/hook-source "]")))))))
+
 (defdescribe
   finish-test
   (it "reports a run that recorded nothing"
@@ -96,9 +153,11 @@
             (coverage/finish! root ["app."])]
 
         (expect (= coverage/report-path (get r "report")))
-        (expect (= [{"path" "app/shapes.clj" "covered" 2 "total" 4}
-                    {"path" "src/app/core.clj" "covered" 2 "total" 4}]
-                   (sort-by #(get % "path") (get r "files"))))
+        (expect (= [{"path" "app/shapes.clj" "covered" 2 "total" 4 "branches_total" 0}
+                    {"path" "src/app/core.clj" "covered" 2 "total" 4 "branches_total" 0}]
+                   (->> (get r "files")
+                        (sort-by #(get % "path"))
+                        (mapv #(select-keys % ["path" "covered" "total" "branches_total"])))))
         (expect (= "vis-coverage/1"
                    (get (json/read-json (slurp (io/file root coverage/report-path))) "format"))))))
 
@@ -134,7 +193,8 @@
                   (expect (= "-M:test:vis-coverage" (nth @seen 3)))
                   (expect (.isFile (io/file root coverage/hook-path "vis_coverage" "hook.clj")))
                   (expect (= ["app.core"] (get-in r ["coverage" "prefixes"])))
-                  (expect (= 2 (count (get-in r ["coverage" "files"])))))))
+                  (expect (= 2 (count (get-in r ["coverage" "files"]))))
+                  (expect (every? #(contains? % "gaps") (get-in r ["coverage" "files"]))))))
   (describe "another runner"
             (it "starts no tests"
                 (let [ran

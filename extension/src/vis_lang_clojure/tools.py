@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Annotated
 
 from vis_lang_interface import (
+    CoverageGap,
     CoverageResult,
     Diagnostic,
     FileCoverage,
@@ -103,8 +104,43 @@ def _failure(fault):
     )
 
 
-def _test_result(result, elapsed):
-    """A library test answer as a contract `TestResult`."""
+def _gap(one):
+    """A library coverage gap as a contract `CoverageGap`."""
+    line = int(one.get("line") or 0)
+    return CoverageGap(
+        line,
+        int(one.get("end_line") or line),
+        str(one.get("kind") or "expression"),
+        str(one.get("detail") or ""),
+    )
+
+
+def _coverage(measured, root):
+    """A library coverage answer as a contract `CoverageResult`, or None without one."""
+    if not measured or measured.get("error"):
+        return None
+    files = tuple(
+        FileCoverage(
+            str(one.get("path") or ""),
+            int(one.get("covered") or 0),
+            int(one.get("total") or 0),
+            branches_covered=int(one.get("branches_covered") or 0),
+            branches_total=int(one.get("branches_total") or 0),
+            gaps=tuple(_gap(gap) for gap in one.get("gaps") or ()),
+        )
+        for one in measured.get("files") or ()
+    )
+    report = str(measured.get("report") or "")
+    return CoverageResult.of(
+        LANGUAGE,
+        str(measured.get("unit") or "expressions"),
+        files,
+        report=str(Path(root) / report) if report else "",
+    )
+
+
+def _test_result(result, elapsed, root=""):
+    """A library test answer as a contract `TestResult`, with its coverage when measured."""
     failures = tuple(_failure(one) for one in result.get("failures") or ())
     total = int(result.get("total") or result.get("selected") or 0)
     skipped = int(result.get("skipped") or 0)
@@ -122,6 +158,12 @@ def _test_result(result, elapsed):
     # a non-zero exit. Its own verdict decides, so a red run never reads green.
     if not result.get("is_pass") and not failed:
         failed = max(len(failures), 1)
+    measured = result.get("coverage")
+    coverage = _coverage(measured, root)
+    if measured is not None and coverage is None:
+        # The tests ran but recorded no coverage: keep their result, say why.
+        why = (measured or {}).get("error") or "the library returned no coverage"
+        output = f"{output}\n\nNo coverage: {why}" if output else f"No coverage: {why}"
     return TestResult.of(
         LANGUAGE,
         total=max(total, failed),
@@ -132,6 +174,7 @@ def _test_result(result, elapsed):
         duration_ms=elapsed,
         failures=failures,
         output=output,
+        coverage=coverage,
     )
 
 
@@ -260,6 +303,13 @@ class ClojureTools:
         vars: Annotated[Sequence[str], "Individual test names to run."] = (),
         aliases: Annotated[Sequence[str], "deps.edn aliases to run under."] = (),
         build: Annotated[str, "shadow-cljs build, for ClojureScript tests."] = "",
+        coverage: Annotated[
+            bool, "Also measure coverage: expressions, branches and gaps."
+        ] = False,
+        prefixes: Annotated[
+            Sequence[str],
+            "Namespace prefixes to measure; the project's source namespaces by default.",
+        ] = (),
         timeout_s: Annotated[int, "Seconds before the run is abandoned."] = 900,
     ) -> TestResult:
         """Run the project's own tests, Lazytest or clojure.test, JVM or ClojureScript.
@@ -269,6 +319,13 @@ class ClojureTools:
         use the Cognitect test-runner, Kaocha or Lazytest. Selecting a source
         file runs its test namespace. A selection that spans both runtimes is
         refused rather than silently trimmed. Counts are tests, not assertions.
+
+        With `coverage=True`, the tests run once in a clean JVM under the
+        ClojureStorm compiler and Clofidence, never in a live REPL. This needs
+        a deps.edn Lazytest runner and JVM tests. The result's `coverage` gives
+        each file's covered expressions and branches, and its gaps: the code
+        and the branches that never ran. The run also writes
+        `target/coverage/clofidence.json`, which `graphify crap` reads.
         """
         paths = string_list(paths)
         root = self._root(cwd, paths)
@@ -287,78 +344,11 @@ class ClojureTools:
                 arg[key] = list(string_list(value))
         if build:
             arg["build"] = build
+        if coverage:
+            arg["coverage"] = {"prefixes": list(string_list(prefixes))}
         started = time.monotonic()
         result = bridge.call("test", arg, root=root, timeout_s=timeout_s)
-        return _test_result(result, int((time.monotonic() - started) * 1000))
-
-    def coverage(
-        self,
-        paths: Annotated[Sequence[str], "Test files, directories or namespaces."] = (),
-        *,
-        cwd: Annotated[str, "Project directory; inferred from paths when empty."] = "",
-        include: Annotated[
-            Sequence[str], "Run only tests carrying these metadata keys."
-        ] = (),
-        exclude: Annotated[
-            Sequence[str], "Skip tests carrying these metadata keys."
-        ] = (),
-        namespaces: Annotated[Sequence[str], "Test namespaces to run."] = (),
-        vars: Annotated[Sequence[str], "Individual test names to run."] = (),
-        aliases: Annotated[Sequence[str], "deps.edn aliases to run under."] = (),
-        prefixes: Annotated[
-            Sequence[str],
-            "Namespace prefixes to measure; the project's source namespaces by default.",
-        ] = (),
-        timeout_s: Annotated[int, "Seconds before the run is abandoned."] = 900,
-    ) -> CoverageResult:
-        """Measure which expressions the project's Lazytest tests run.
-
-        The selected tests run once in a clean JVM under the ClojureStorm
-        compiler and Clofidence, never in a live REPL. The run writes
-        `target/coverage/clofidence.json`, which `graphify crap` joins with
-        complexity. It needs a deps.edn Lazytest runner and JVM tests.
-        """
-        paths = string_list(paths)
-        root = self._root(cwd, paths)
-        arg = {}
-        if paths:
-            arg["paths"] = list(paths)
-        listed = {
-            "include": include,
-            "exclude": exclude,
-            "namespaces": namespaces,
-            "vars": vars,
-            "aliases": aliases,
-            "prefixes": prefixes,
-        }
-        for key, value in listed.items():
-            if value:
-                arg[key] = list(string_list(value))
-        started = time.monotonic()
-        result = bridge.call("coverage", arg, root=root, timeout_s=timeout_s)
-        tests = _test_result(result, int((time.monotonic() - started) * 1000))
-        measured = result.get("coverage") or {}
-        if measured.get("error") or not measured:
-            why = measured.get("error") or "the library returned no coverage"
-            raise bridge.ClojureError(
-                f"{why}\n\n{tests.output}" if tests.output else why
-            )
-        files = tuple(
-            FileCoverage(
-                str(one.get("path") or ""),
-                int(one.get("covered") or 0),
-                int(one.get("total") or 0),
-            )
-            for one in measured.get("files") or ()
-        )
-        report = str(measured.get("report") or "")
-        return CoverageResult.of(
-            LANGUAGE,
-            str(measured.get("unit") or "expressions"),
-            files,
-            report=str(Path(root) / report) if report else "",
-            tests=tests,
-        )
+        return _test_result(result, int((time.monotonic() - started) * 1000), root)
 
     def repl_start(
         self,

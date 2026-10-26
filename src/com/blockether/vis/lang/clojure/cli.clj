@@ -19,7 +19,7 @@
    Answer:   {\"id\": \"7\", \"ok\": true, \"result\": …}
              {\"id\": \"7\", \"ok\": false, \"error\": {\"message\": …, \"hint\": …}}
 
-   Verbs: `format`, `lint`, `test`, `coverage`, `repl-eval`, `repl` (with `op`) and
+   Verbs: `format`, `lint`, `test`, `repl-eval`, `repl` (with `op`) and
    `ping`. A `ping` is answered at once, and its result names the lane of each verb."
   (:require [charred.api :as json]
             [clojure.string :as str]
@@ -66,14 +66,8 @@
 (def lanes
   "The lane of each verb. Verbs in different lanes run at the same time. One lane runs
    its requests one after another, in the order they came. `test`, `repl-eval` and
-   `repl` share a lane, because each one can use the same managed nREPL. `coverage`
-   runs in that lane too, so it never runs at the same time as a test run."
-  {"format" "format"
-   "lint" "lint"
-   "test" "repl"
-   "coverage" "repl"
-   "repl-eval" "repl"
-   "repl" "repl"})
+   `repl` share a lane, because each one can use the same managed nREPL."
+  {"format" "format" "lint" "lint" "test" "repl" "repl-eval" "repl" "repl" "repl"})
 
 (defn- error-data
   "The error a failed call reports: the message, and the hint the thrower attached.
@@ -128,9 +122,6 @@
 
            "test"
            (envelope->answer id (test-runner/clj-test-fn env arg))
-
-           "coverage"
-           (envelope->answer id (test-runner/clj-coverage-fn env arg))
 
            "repl-eval"
            (envelope->answer id (api/clj-eval-fn env arg))

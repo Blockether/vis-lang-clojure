@@ -28,7 +28,7 @@ clj.format_code(source="(defn f [x](* x 2))")    # format a snippet, nothing wri
 clj.lint_code(["src"])                           # clj-kondo + reflection warnings
 clj.run_tests(["test"])                          # Lazytest, clojure.test, Cognitect test-runner, Kaocha
 clj.run_tests(["test/app/core_test.clj::adds"])  # one test
-clj.coverage(["test"])                           # Lazytest under ClojureStorm + Clofidence
+clj.run_tests(["test"], coverage=True)           # + coverage gaps (ClojureStorm + Clofidence)
 clj.repl_start(cwd="~/app", aliases=["dev"])     # a project nREPL for this session
 clj.repl_eval("(+ 1 1)", cwd="~/app")            # evaluate in that REPL
 clj.repl_connect(cwd="~/app", port=7888)         # or attach to an nREPL you already run

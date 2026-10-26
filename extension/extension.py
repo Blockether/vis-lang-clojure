@@ -56,14 +56,6 @@ _bind(
     tag="verification",
 )
 _bind(
-    "coverage",
-    "Measure Clojure coverage",
-    lambda result: presentation.coverage_presentation(
-        "Measure Clojure coverage", result
-    ),
-    tag="verification",
-)
-_bind(
     "repl_start",
     "Start Clojure REPL",
     lambda result: presentation.session_presentation("Start Clojure REPL", result),
@@ -103,7 +95,6 @@ PROMPT = prompt.routing(
         "format_code",
         "lint_code",
         "run_tests",
-        "coverage",
         "repl_start",
         "repl_status",
         "repl_connect",
@@ -119,8 +110,9 @@ PROMPT = prompt.routing(
         "If this session's REPL is live, `clj.run_tests` uses the code that REPL loaded; else it"
         " starts a clean JVM. With a live REPL, first reload changed namespaces with"
         " `(require ... :reload)` or stop the REPL.",
-        "`clj.coverage` runs Lazytest tests in a clean JVM under ClojureStorm and Clofidence."
-        " It writes `target/coverage/clofidence.json`, which `graphify crap` reads.",
+        "`clj.run_tests(coverage=True)` runs Lazytest tests in a clean JVM under ClojureStorm"
+        " and Clofidence. Its result's `coverage` lists each file's gaps: the code and branches"
+        " that never ran. It writes `target/coverage/clofidence.json`, which `graphify crap` reads.",
         "`clj.lint_code` runs clj-kondo and also reports compiler reflection warnings as failures.",
         "`clj.format_code` changes layout only and writes files only with `is_written=True`."
         " Structural repair runs through operation hooks.",

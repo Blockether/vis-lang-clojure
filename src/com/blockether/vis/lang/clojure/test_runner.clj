@@ -2595,17 +2595,3 @@
 
        (host/success {:result (assoc (note-unapplied-aliases (:aliases norm) result')
                                 "language" "clojure")})))))
-
-(defn clj-coverage-fn
-  "Run the selected tests like `clj-test-fn`, in a clean JVM under ClojureStorm
-   and Clofidence, and add the measured coverage as \"coverage\". The arg's
-   \"prefixes\" name the namespaces to measure; the project's source namespaces
-   decide by default."
-  [env arg]
-  (let [arg (cond (map? arg) arg
-                  (or (string? arg) (symbol? arg)) {"paths" [(str arg)]}
-                  :else {})]
-    (clj-test-fn env
-                 (-> arg
-                     (dissoc "prefixes")
-                     (assoc "coverage" {"prefixes" (->str-vec (get arg "prefixes"))})))))
