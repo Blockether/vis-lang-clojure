@@ -803,3 +803,64 @@ def test_every_tool_owns_an_activity_and_an_evaluation_shows_its_code(monkeypatc
         "Error",
         "no REPL",
     ]
+
+
+def _coverage_answer(**extra):
+    answer = {
+        "total": 2,
+        "fail": 0,
+        "is_pass": True,
+        "output": "0 failures.",
+        "coverage": {
+            "unit": "expressions",
+            "report": "target/coverage/clofidence.json",
+            "files": [
+                {"path": "src/a/core.clj", "covered": 3, "total": 4},
+                {"path": "src/a/util.clj", "covered": 0, "total": 6},
+            ],
+        },
+    }
+    answer.update(extra)
+    return answer
+
+
+def test_coverage_counts_each_file_and_names_its_report(tools):
+    clj, fake = tools
+    fake.answer("coverage", _coverage_answer())
+    result = clj.coverage(["test"], cwd=fake.cwd, prefixes="a.")
+    assert fake.sent("coverage")["arg"] == {"paths": ["test"], "prefixes": ["a."]}
+    assert (result.covered, result.total, result.percent) == (3, 10, 30.0)
+    assert [f.path for f in result.files] == ["src/a/util.clj", "src/a/core.clj"]
+    assert result.report.endswith("target/coverage/clofidence.json")
+    assert (result.tests.total, result.is_passed) == (2, True)
+
+
+def test_coverage_of_a_red_run_keeps_its_failures(tools):
+    clj, fake = tools
+    failure = {
+        "test": "adds",
+        "file": "test/a/core_test.clj",
+        "line": 3,
+        "message": "no",
+    }
+    fake.answer("coverage", _coverage_answer(fail=1, is_pass=False, failures=[failure]))
+    result = clj.coverage(cwd=fake.cwd)
+    assert result.is_passed is False
+    assert result.tests.failures[0].test == "adds"
+    assert result.total == 10
+
+
+def test_coverage_that_recorded_nothing_raises_why(tools):
+    clj, fake = tools
+    why = "the test run recorded no coverage"
+    fake.answer("coverage", _coverage_answer(coverage={"files": [], "error": why}))
+    with pytest.raises(bridge.ClojureError, match="recorded no coverage"):
+        clj.coverage(cwd=fake.cwd)
+
+
+def test_coverage_refused_before_any_test_raises_why(tools):
+    clj, fake = tools
+    why = "coverage needs a Lazytest runner (lazytest.main); no tests started"
+    fake.answer("coverage", {"mode": "cli", "is_pass": False, "error": why})
+    with pytest.raises(bridge.ClojureError, match="needs a Lazytest runner"):
+        clj.coverage(cwd=fake.cwd)

@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import Annotated
 
 from vis_lang_interface import (
+    CoverageResult,
     Diagnostic,
+    FileCoverage,
     FormatResult,
     LintResult,
     ReplResult,
@@ -98,6 +100,38 @@ def _failure(fault):
         str(fault.get("file") or ""),
         int(fault.get("line") or 0),
         str(fault.get("message") or ""),
+    )
+
+
+def _test_result(result, elapsed):
+    """A library test answer as a contract `TestResult`."""
+    failures = tuple(_failure(one) for one in result.get("failures") or ())
+    total = int(result.get("total") or result.get("selected") or 0)
+    skipped = int(result.get("skipped") or 0)
+    failed = int(result.get("fail") or 0)
+    output = str(result.get("output") or "")
+    error = str(result.get("error") or "")
+    if error and error not in output:
+        output = f"{error}\n\n{output}" if output else error
+    # A run that stopped with an error before any test ran is a setup error,
+    # not one failed test: raise why, with the runner's own output. A run that
+    # timed out stays a red result, because its tests started.
+    if error and not (total or failed or failures or result.get("timed_out")):
+        raise bridge.ClojureError(output)
+    # A runner can fail without leaving countable failures — a compile error,
+    # a non-zero exit. Its own verdict decides, so a red run never reads green.
+    if not result.get("is_pass") and not failed:
+        failed = max(len(failures), 1)
+    return TestResult.of(
+        LANGUAGE,
+        total=max(total, failed),
+        # Skipped tests never ran, so `total` already leaves them out.
+        passed=max(total, failed) - failed,
+        failed=failed,
+        skipped=skipped,
+        duration_ms=elapsed,
+        failures=failures,
+        output=output,
     )
 
 
@@ -255,34 +289,75 @@ class ClojureTools:
             arg["build"] = build
         started = time.monotonic()
         result = bridge.call("test", arg, root=root, timeout_s=timeout_s)
-        elapsed = int((time.monotonic() - started) * 1000)
-        failures = tuple(_failure(one) for one in result.get("failures") or ())
-        total = int(result.get("total") or result.get("selected") or 0)
-        skipped = int(result.get("skipped") or 0)
-        failed = int(result.get("fail") or 0)
-        output = str(result.get("output") or "")
-        error = str(result.get("error") or "")
-        if error and error not in output:
-            output = f"{error}\n\n{output}" if output else error
-        # A run that stopped with an error before any test ran is a setup error,
-        # not one failed test: raise why, with the runner's own output. A run that
-        # timed out stays a red result, because its tests started.
-        if error and not (total or failed or failures or result.get("timed_out")):
-            raise bridge.ClojureError(output)
-        # A runner can fail without leaving countable failures — a compile error,
-        # a non-zero exit. Its own verdict decides, so a red run never reads green.
-        if not result.get("is_pass") and not failed:
-            failed = max(len(failures), 1)
-        return TestResult.of(
+        return _test_result(result, int((time.monotonic() - started) * 1000))
+
+    def coverage(
+        self,
+        paths: Annotated[Sequence[str], "Test files, directories or namespaces."] = (),
+        *,
+        cwd: Annotated[str, "Project directory; inferred from paths when empty."] = "",
+        include: Annotated[
+            Sequence[str], "Run only tests carrying these metadata keys."
+        ] = (),
+        exclude: Annotated[
+            Sequence[str], "Skip tests carrying these metadata keys."
+        ] = (),
+        namespaces: Annotated[Sequence[str], "Test namespaces to run."] = (),
+        vars: Annotated[Sequence[str], "Individual test names to run."] = (),
+        aliases: Annotated[Sequence[str], "deps.edn aliases to run under."] = (),
+        prefixes: Annotated[
+            Sequence[str],
+            "Namespace prefixes to measure; the project's source namespaces by default.",
+        ] = (),
+        timeout_s: Annotated[int, "Seconds before the run is abandoned."] = 900,
+    ) -> CoverageResult:
+        """Measure which expressions the project's Lazytest tests run.
+
+        The selected tests run once in a clean JVM under the ClojureStorm
+        compiler and Clofidence, never in a live REPL. The run writes
+        `target/coverage/clofidence.json`, which `graphify crap` joins with
+        complexity. It needs a deps.edn Lazytest runner and JVM tests.
+        """
+        paths = string_list(paths)
+        root = self._root(cwd, paths)
+        arg = {}
+        if paths:
+            arg["paths"] = list(paths)
+        listed = {
+            "include": include,
+            "exclude": exclude,
+            "namespaces": namespaces,
+            "vars": vars,
+            "aliases": aliases,
+            "prefixes": prefixes,
+        }
+        for key, value in listed.items():
+            if value:
+                arg[key] = list(string_list(value))
+        started = time.monotonic()
+        result = bridge.call("coverage", arg, root=root, timeout_s=timeout_s)
+        tests = _test_result(result, int((time.monotonic() - started) * 1000))
+        measured = result.get("coverage") or {}
+        if measured.get("error") or not measured:
+            why = measured.get("error") or "the library returned no coverage"
+            raise bridge.ClojureError(
+                f"{why}\n\n{tests.output}" if tests.output else why
+            )
+        files = tuple(
+            FileCoverage(
+                str(one.get("path") or ""),
+                int(one.get("covered") or 0),
+                int(one.get("total") or 0),
+            )
+            for one in measured.get("files") or ()
+        )
+        report = str(measured.get("report") or "")
+        return CoverageResult.of(
             LANGUAGE,
-            total=max(total, failed),
-            # Skipped tests never ran, so `total` already leaves them out.
-            passed=max(total, failed) - failed,
-            failed=failed,
-            skipped=skipped,
-            duration_ms=elapsed,
-            failures=failures,
-            output=output,
+            str(measured.get("unit") or "expressions"),
+            files,
+            report=str(Path(root) / report) if report else "",
+            tests=tests,
         )
 
     def repl_start(

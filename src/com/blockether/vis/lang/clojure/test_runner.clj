@@ -19,6 +19,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [com.blockether.vis.lang.clojure.coverage :as coverage]
             [com.blockether.vis.lang.clojure.host :as host]
             [com.blockether.vis.lang.clojure.nrepl-client :as nrepl-client]
             [com.blockether.vis.lang.clojure.repl-manager :as repl-manager]
@@ -1076,7 +1077,9 @@
                                                 :exclude (get arg "exclude")})
                      :ns-selectors (selector-entries arg)
                      :build (not-empty (str/trim (str (get arg "build"))))
-                     :aliases (extra-aliases arg))
+                     :aliases (extra-aliases arg)
+                     :coverage (when-let [c (get arg "coverage")]
+                                 {:prefixes (if (map? c) (->str-vec (get c "prefixes")) [])}))
         :else (throw (ex-info "run_tests expects a path string, or a dict with a \"paths\" key"
                               {:type :clj/bad-args
                                :got arg
@@ -1885,8 +1888,14 @@
         {:keys [tool cmd cmds error framework selectors?] :as plan}
         (cli-command-for root sel aliases)
 
+        prefixes
+        (when-let [c (:coverage norm)]
+          (or (not-empty (:prefixes c)) (coverage/default-prefixes root)))
+
         cmds
-        (or cmds (when cmd [cmd]))
+        (cond->> (or cmds (when cmd [cmd]))
+          (and prefixes (= :lazytest framework))
+          (mapv #(coverage/instrument-command % prefixes)))
 
         base
         (cond-> {"mode" "cli" "ns" (str/join " " (:nses sel)) "is_pass" false}
@@ -1915,8 +1924,24 @@
                                                           " project; no tests started"))
       (and (focused? sel) (not selectors?))
       (assoc base "error" "this runner has no supported focus adapter; no tests started")
+      (and (:coverage norm) (not= :lazytest framework))
+      (assoc base
+        "error" (str "coverage needs a Lazytest runner (lazytest.main); this project runs "
+                     (or (some-> framework
+                                 name)
+                         (some-> tool
+                                 name)
+                         "another runner")
+                     ", so no tests started"))
+      (and (:coverage norm) (empty? prefixes))
+      (assoc base "error" (str "no source namespaces to measure under " root "; no tests started"))
+      (and (:coverage norm) (some nil? cmds))
+      (assoc base "error" "the test command has no -M alias for coverage; no tests started")
       :else
-      (let [deadline
+      (let [_
+            (when prefixes (coverage/prepare! root))
+
+            deadline
             (test-deadline)
 
             results
@@ -1996,7 +2021,10 @@
           (:timed-out res)
           (assoc "timed_out"
             true "error"
-            (timeout-error)))))))
+            (timeout-error))
+
+          prefixes
+          (assoc "coverage" (coverage/finish! root prefixes)))))))
 
 (defn- karma-summary-counts
   "Karma reports TOTAL or completed per-browser progress. Keep earlier failures,
@@ -2501,8 +2529,11 @@
          ;; no REPL up the suite runs in a clean JVM through the build tool's own test
          ;; command, which is also what a fresh session gets. A ClojureScript run never
          ;; asks: a JVM nREPL cannot load a `.cljs` namespace.
+         ;; Coverage needs the ClojureStorm compiler from the first load, so it never
+         ;; reuses a REPL.
          port
-         (when-not cljs? (:port (repl-manager/live-repl-for-dir session-id eff-root)))]
+         (when-not (or cljs? (:coverage norm))
+           (:port (repl-manager/live-repl-for-dir session-id eff-root)))]
 
      ;; An explicit location that is NOT THERE is a misspelling, not an empty
      ;; suite: answering "no test namespaces under <path>" for a path that does
@@ -2518,6 +2549,9 @@
                                                     (str " — exists up to " (pr-str exists)))))
                                            missing)))
                        {:type :clj/bad-args :got arg :missing (mapv :path missing)})))
+     (when (and cljs? (:coverage norm))
+       (throw (ex-info "coverage runs on the JVM; ClojureScript tests have no coverage here"
+                       {:type :clj/bad-args})))
      (when (and cljs? (seq jvm-nses))
        (throw
          (ex-info
@@ -2561,3 +2595,17 @@
 
        (host/success {:result (assoc (note-unapplied-aliases (:aliases norm) result')
                                 "language" "clojure")})))))
+
+(defn clj-coverage-fn
+  "Run the selected tests like `clj-test-fn`, in a clean JVM under ClojureStorm
+   and Clofidence, and add the measured coverage as \"coverage\". The arg's
+   \"prefixes\" name the namespaces to measure; the project's source namespaces
+   decide by default."
+  [env arg]
+  (let [arg (cond (map? arg) arg
+                  (or (string? arg) (symbol? arg)) {"paths" [(str arg)]}
+                  :else {})]
+    (clj-test-fn env
+                 (-> arg
+                     (dissoc "prefixes")
+                     (assoc "coverage" {"prefixes" (->str-vec (get arg "prefixes"))})))))
