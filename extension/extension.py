@@ -104,9 +104,6 @@ PROMPT = prompt.routing(
     notes=(
         "`clj.repl_eval` needs a REPL from `clj.repl_start`, or an nREPL elsewhere that"
         " `clj.repl_connect` attached.",
-        "`clj.repl_eval` puts back missing closers that the indentation shows and lists them in"
-        " `repairs`. With no safe repair, it evaluates nothing and reports where the code stops"
-        " reading.",
         "If this session's REPL is live, `clj.run_tests` uses the code that REPL loaded; else it"
         " starts a clean JVM. With a live REPL, first reload changed namespaces with"
         " `(require ... :reload)` or stop the REPL.",
@@ -114,12 +111,7 @@ PROMPT = prompt.routing(
         " and Clofidence. Its result's `coverage` lists each file's gaps: the code and branches"
         " that never ran. It writes `target/coverage/clofidence.json`, which `graphify crap` reads.",
         "`clj.lint_code` runs clj-kondo and also reports compiler reflection warnings as failures.",
-        "`clj.format_code` changes layout only and writes files only with `is_written=True`."
-        " Structural repair runs through operation hooks.",
-        "`patch` validates repairs before one atomic write and reports each correction.",
-        "Syntax checks and repairs run in local Python, without a JVM.",
-        "Python file writes are checked after the block, without a transaction or rollback.",
-        "Repairs appear in `clojure_syntax_repairs`; unresolved files stay in `clojure_syntax_errors`.",
+        "`clj.format_code` changes layout only and writes files only with `is_written=True`.",
     ),
 )
 
