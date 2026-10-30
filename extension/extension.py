@@ -36,6 +36,24 @@ def _bind(
     )
 
 
+_given_code = presentation.code_argument("clojure")
+
+
+def _evaluated_code(args, kwargs):
+    """Show the code of an evaluation in the layout that its result shows."""
+    tools = args[0] if args and isinstance(args[0], ClojureTools) else None
+    code = kwargs.get("code", args[1] if len(args) > 1 else None)
+    if tools is None or not isinstance(code, str):
+        return _given_code(args, kwargs)
+    try:
+        code = tools._shown_code(code, str(kwargs.get("cwd") or ""))
+    except Exception as exc:
+        vis.log(
+            "warn", f"vis-lang-clojure: running code layout status=failed error={exc}"
+        )
+    return _given_code((), {"code": code})
+
+
 _bind(
     "format_code",
     "Format Clojure code",
@@ -85,7 +103,7 @@ _bind(
     "Evaluate in Clojure REPL",
     lambda result: presentation.repl_presentation("Evaluate in Clojure REPL", result),
     tag="mutation",
-    describe=presentation.code_argument("clojure"),
+    describe=_evaluated_code,
 )
 
 PROMPT = prompt.routing(

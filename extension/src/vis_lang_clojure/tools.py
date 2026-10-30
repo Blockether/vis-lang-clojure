@@ -55,6 +55,10 @@ LEVELS = ("error", "warning", "info")
 # The files the reader checks: Clojure, ClojureScript, shared, Babashka and EDN.
 SYNTAX_SUFFIXES = (".clj", ".cljs", ".cljc", ".cljx", ".bb", ".edn")
 
+# Seconds a running evaluation waits to show its code formatted. The evaluation
+# formats the same code again at its end, so the wait is not lost.
+SHOWN_FORMAT_TIMEOUT_S = 10.0
+
 
 def _root(cwd, paths=(), workspace_root=Path.cwd):
     """Find the nearest Clojure project in the current session working copy."""
@@ -231,6 +235,20 @@ class ClojureTools:
 
     def _root(self, cwd, paths=()):
         return _root(cwd, paths, self._workspace_root)
+
+    def _shown_code(self, code, cwd=""):
+        """`code` in the layout that the result of its evaluation shows.
+
+        Only a live process formats it, so showing a call never starts a JVM.
+        Without one, the code comes back as written.
+        """
+        root = self._root(cwd)
+        if not code.strip() or not bridge.serves(root):
+            return code
+        result = bridge.call(
+            "format", {"code": code}, root=root, timeout_s=SHOWN_FORMAT_TIMEOUT_S
+        )
+        return str(result.get("text") or code).rstrip()
 
     @aliased(**PATH_ALIASES, code="source", write="is_written", written="is_written")
     def format_code(

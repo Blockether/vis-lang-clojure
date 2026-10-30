@@ -834,6 +834,29 @@ def test_every_tool_owns_an_activity_and_an_evaluation_shows_its_code(monkeypatc
     ]
 
 
+def test_a_running_evaluation_shows_the_code_as_its_result_does(tools, monkeypatch):
+    # User report 2026-10-30: a running clj.repl_eval showed the code as typed, then
+    # the result showed it formatted, so the code changed shape when the call ended.
+    clj, fake = tools
+    monkeypatch.setattr(vis, "register_extension", lambda extension: None)
+    runpy.run_path(str(Path(__file__).resolve().parents[1] / "extension.py"))
+    activity = getattr(type(clj).repl_eval, "__vis_symbol_activity__")
+
+    def shown():
+        running = activity.render(
+            phase="start", args=(clj, "(+ 1 2)"), kwargs={"cwd": fake.cwd}
+        )
+        return running.content[1].text
+
+    # A render never starts a JVM: without a live process the code shows as typed.
+    assert shown() == "(+ 1 2)"
+    assert fake.requests() == []
+    fake.answer("format", {"text": "(+ 1\n   2)\n"})
+    bridge.process_for(clj._root(fake.cwd))
+    assert shown() == "(+ 1\n   2)"
+    assert fake.sent("format")["arg"] == {"code": "(+ 1 2)"}
+
+
 def _coverage_answer(**extra):
     answer = {
         "total": 2,
