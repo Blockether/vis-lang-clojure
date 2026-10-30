@@ -9,10 +9,11 @@ The same reader checks the delimiters of code before the REPL evaluates it.
 
 from __future__ import annotations
 
+import functools
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, ParamSpec, TypeVar
 
 from vis_lang_interface import (
     CoverageGap,
@@ -52,6 +53,41 @@ LEVELS = ("error", "warning", "info")
 
 # The files the reader checks: Clojure, ClojureScript, shared, Babashka and EDN.
 SYNTAX_SUFFIXES = (".clj", ".cljs", ".cljc", ".cljx", ".bb", ".edn")
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+# The paths a caller names in a tool call: one file, a list or a directory.
+PATHS = {"path": "paths", "file": "paths", "files": "paths"}
+
+
+def _aliased(**spellings: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
+    """Accept each keyword in `spellings` as the canonical keyword that it names.
+
+    A caller types `path=` or `var=` for `paths=` and `vars=`, and types it again
+    in the next call. A failed test run for a plural is not worth its cost. An
+    alias together with its canonical keyword names one value twice, so the call
+    is refused. An unknown keyword fails as Python reports it. The signature, and
+    so `doc()` and the tool contract, keep only the canonical names.
+    """
+
+    def wrap(fn: Callable[P, R]) -> Callable[P, R]:
+        @functools.wraps(fn)
+        def call(*args: P.args, **kwargs: P.kwargs) -> R:
+            for spelled in [name for name in kwargs if name in spellings]:
+                canonical = spellings[spelled]
+                if canonical in kwargs:
+                    raise TypeError(
+                        f"{fn.__qualname__}() got {canonical} twice, as '{spelled}'"
+                        f" and as '{canonical}'; pass one."
+                    )
+                kwargs[canonical] = kwargs.pop(spelled)
+            return fn(*args, **kwargs)
+
+        return call
+
+    return wrap
 
 
 def _root(cwd, paths=(), workspace_root=Path.cwd):
@@ -230,6 +266,7 @@ class ClojureTools:
     def _root(self, cwd, paths=()):
         return _root(cwd, paths, self._workspace_root)
 
+    @_aliased(**PATHS, code="source", write="is_written", written="is_written")
     def format_code(
         self,
         paths: Annotated[Sequence[str], "Files or directories to format."] = (),
@@ -267,6 +304,7 @@ class ClojureTools:
             sum(removed for _, removed in counts),
         )
 
+    @_aliased(**PATHS, code="source")
     def lint_code(
         self,
         paths: Annotated[Sequence[str], "Files or directories to lint."] = (),
@@ -288,6 +326,14 @@ class ClojureTools:
         findings = tuple(_diagnostic(one) for one in result.get("findings") or ())
         return LintResult.of(LANGUAGE, findings, result.get("files") or 0)
 
+    @_aliased(
+        **PATHS,
+        namespace="namespaces",
+        ns="namespaces",
+        var="vars",
+        alias="aliases",
+        prefix="prefixes",
+    )
     def run_tests(
         self,
         paths: Annotated[Sequence[str], "Test files, directories or namespaces."] = (),
@@ -350,6 +396,7 @@ class ClojureTools:
         result = bridge.call("test", arg, root=root, timeout_s=timeout_s)
         return _test_result(result, int((time.monotonic() - started) * 1000), root)
 
+    @_aliased(alias="aliases")
     def repl_start(
         self,
         cwd: Annotated[str, "Project directory to run the REPL in."] = "",

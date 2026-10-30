@@ -213,6 +213,35 @@ def test_a_green_run_is_counted_the_way_the_runner_counted_it(tools):
     assert result.duration_ms >= 0
 
 
+# Session bc998dd0-96cb-4d7f-8b64-b4bffeafc6f4: `clj.run_tests(path=..., var=...)`
+# failed with a TypeError for each singular, before any test ran.
+def test_a_test_run_reads_singular_keywords_as_their_lists(tools):
+    clj, fake = tools
+    fake.answer("test", {"total": 1, "selected": 1, "is_pass": True})
+    clj.run_tests(  # pyright: ignore[reportCallIssue]
+        path="test",
+        var="my.app-test/adds",
+        ns="my.app-test",
+        alias="dev",
+        cwd=fake.cwd,
+    )
+    assert fake.sent("test")["arg"] == {
+        "paths": ["test"],
+        "vars": ["my.app-test/adds"],
+        "namespaces": ["my.app-test"],
+        "aliases": ["dev"],
+    }
+
+
+def test_a_keyword_named_twice_is_refused_before_the_run(tools):
+    clj, fake = tools
+    with pytest.raises(TypeError, match="vars twice, as 'var' and as 'vars'"):
+        clj.run_tests(var="a/b", vars=["a/c"], cwd=fake.cwd)  # pyright: ignore[reportCallIssue]
+    with pytest.raises(TypeError, match="unexpected keyword argument 'tests'"):
+        clj.run_tests(tests=["a/b"], cwd=fake.cwd)  # pyright: ignore[reportCallIssue]
+    assert fake.requests() == []
+
+
 def test_a_failing_run_lists_its_failures(tools):
     clj, fake = tools
     fake.answer(
