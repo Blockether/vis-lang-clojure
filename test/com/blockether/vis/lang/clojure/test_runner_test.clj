@@ -606,17 +606,22 @@
   (@#'com.blockether.vis.lang.clojure.test-runner/run-via-cli root norm))
 
 (defn- with-cli-run
-  "Run the cli fallback against a canned shell result, with no project on disk."
-  [{:keys [exit out err]}]
+  "Run the cli fallback against a canned shell result, with no project on disk.
+   `norm` is the call's selection and `framework` the runner the plan names."
+  [{:keys [exit out err norm framework]}]
   (with-redefs [com.blockether.vis.lang.clojure.test-runner/cli-command-for
                 (fn [_root _sel _aliases]
-                  {:tool :clj :cmd ["clojure" "-M:test"]})
+                  (cond-> {:tool :clj :cmd ["clojure" "-M:test"]}
+                    framework
+                    (assoc :framework
+                      framework :selectors?
+                      true)))
 
                 tr/run-command
                 (fn [& _]
                   {:exit exit :out out :err err})]
 
-    (run-via-cli "/proj" {})))
+    (run-via-cli "/proj" (or norm {}))))
 
 (defdescribe
   cli-summary-counts-test
@@ -640,6 +645,30 @@
         (expect (= 0 (get r "fail")))
         (expect (= 0 (get r "errored")))
         (expect (true? (get r "is_pass"))))))
+
+(defdescribe
+  cli-silent-run-test
+  ;; Session d314fc05 (2026-10-30): a misspelled var made Lazytest print nothing and
+  ;; exit 0, and the error blamed a bare REPL or an unsupported reporter.
+  (it "names the --var that matched no test when Lazytest prints nothing"
+      (let [r (with-cli-run {:exit 0
+                             :out ""
+                             :framework :lazytest
+                             :norm {:vars [{:ns "a.core-test" :name "missing-test"}]}})]
+        (expect (str/includes? (get r "error") "no test var matched"))
+        (expect (str/includes? (get r "error") "a.core-test/missing-test"))
+        (expect (false? (get r "is_pass")))))
+  ;; Session d314fc05: an unknown namespace exited 1 with no summary and no error, so
+  ;; the tool showed one failed test and no failures.
+  (it "gives a reason when the command fails before it prints a summary"
+      (let [r (with-cli-run {:exit 1
+                             :out
+                             (str "Execution error (ExceptionInfo) at lazytest.main/require-dirs.\n"
+                                  "No namespaces to run\n")
+                             :framework :lazytest
+                             :norm {:nses ["a.missing-test"]}})]
+        (expect (str/includes? (get r "error") "exited 1 before it printed a test summary"))
+        (expect (false? (get r "is_pass"))))))
 
 (defn- with-cli-passes
   "Run the cli fallback as two cognitect passes, each with its own canned output."

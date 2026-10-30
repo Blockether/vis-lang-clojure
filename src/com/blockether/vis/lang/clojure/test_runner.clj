@@ -1975,7 +1975,14 @@
             (and (some? cases) (or (some? fails) (some? errs)))
 
             ignored-focus?
-            (and (= :kaocha framework) (str/includes? out "No tests found with metadata key"))]
+            (and (= :kaocha framework) (str/includes? out "No tests found with metadata key"))
+
+            ;; Lazytest drops a --var that names no test and exits 0 without a word.
+            missed-vars
+            (when (and (zero? exit) (not ran?) (= :lazytest framework))
+              (not-empty (mapv (fn [{:keys [ns name]}]
+                                 (if ns (str ns "/" name) (str name)))
+                               (filter :name (:vars sel)))))]
 
         (cond-> (assoc base
                   "exit" exit
@@ -1998,9 +2005,21 @@
             faults "errored"
             (long (or errs 0)))
 
-          (and (zero? exit) (not ran?))
+          (and (zero? exit) (not ran?) (not missed-vars))
           (assoc "error"
             "test command exited 0 but printed no test summary — no verified test run (possibly a bare REPL or unsupported reporter)")
+
+          missed-vars
+          (assoc "error"
+            (str "no test var matched "
+                 (pr-str missed-vars)
+                 "; Lazytest runs nothing for a --var that names no test, so check the test name"))
+
+          (and (not (zero? exit)) (not ran?) (not (:timed-out res)))
+          (assoc "error"
+            (str "test command exited "
+                 exit
+                 " before it printed a test summary; its output names the cause"))
 
           (and (some? cases) (zero? (long cases)))
           (assoc "error"
