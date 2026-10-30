@@ -613,6 +613,12 @@ def serves(root):
     return str(kept.get("status")) == "running"
 
 
+def served():
+    """The project directories that a live process of this Python serves."""
+    with _PROCESSES_LOCK:
+        return sorted(root for root, live in _PROCESSES.items() if live.is_running)
+
+
 def stop(root):
     """Stop the process serving `root`. Safe when there is none."""
     with _PROCESSES_LOCK:

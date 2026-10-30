@@ -581,6 +581,42 @@ def test_evaluating_without_a_repl_says_which_project_has_none(tools):
         clj.repl_eval("(+ 1 1)", cwd=fake.cwd)
 
 
+def _nested_projects(fake, *names):
+    """Projects under the fake workspace, each with its own `deps.edn`."""
+    from vis_lang_clojure.tools import ClojureTools
+
+    for name in names:
+        (fake.directory / name).mkdir()
+        (fake.directory / name / "deps.edn").write_text("{}\n")
+    fake.script(
+        {
+            "repl:start": {"ok": True, "result": {"status": "up", "result": "started"}},
+            "repl:status": {"ok": True, "result": {"status": "up"}},
+            "repl-eval": {"ok": True, "result": {"value": "2", "ms": 1}},
+        }
+    )
+    clj = ClojureTools(workspace_root=lambda: fake.directory)
+    for name in names:
+        clj.repl_start(name)
+    return clj
+
+
+def test_an_evaluation_without_cwd_uses_the_one_running_repl(fake):
+    # Session d314fc05 (2026-10-30): repl_start("apps/vis-tui") and then a bare
+    # repl_eval failed with "no REPL running in ~/vis".
+    clj = _nested_projects(fake, "app")
+    result = clj.repl_eval("(+ 1 1)")
+    assert result.value == "2"
+    assert fake.sent("repl-eval")["root"] == str((fake.directory / "app").resolve())
+
+
+def test_an_evaluation_without_cwd_names_the_projects_with_repls(fake):
+    clj = _nested_projects(fake, "one", "two")
+    with pytest.raises(bridge.ClojureError, match="one.*two.*pass cwd"):
+        clj.repl_eval("(+ 1 1)")
+    assert fake.requests("repl-eval") == []
+
+
 def test_an_evaluation_puts_back_the_closers_its_indentation_shows(tools):
     # An agent that loses count of closing delimiters must not fight the REPL reader.
     clj, fake = tools

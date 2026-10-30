@@ -60,6 +60,19 @@ SYNTAX_SUFFIXES = (".clj", ".cljs", ".cljc", ".cljx", ".bb", ".edn")
 SHOWN_FORMAT_TIMEOUT_S = 10.0
 
 
+def _has_repl(root):
+    """True when the live process for `root` runs a REPL. It never starts one."""
+    if not bridge.serves(root):
+        return False
+    return bridge.call("repl", {}, root=root, op="status").get("status") == "up"
+
+
+def _home(path):
+    """`path` with the home directory spelled `~`."""
+    home = str(Path.home())
+    return "~" + path[len(home) :] if path.startswith(home) else path
+
+
 def _root(cwd, paths=(), workspace_root=Path.cwd):
     """Find the nearest Clojure project in the current session working copy."""
     start = Path(cwd or (paths[0] if paths else ".")).expanduser()
@@ -235,6 +248,25 @@ class ClojureTools:
 
     def _root(self, cwd, paths=()):
         return _root(cwd, paths, self._workspace_root)
+
+    def _eval_root(self, cwd):
+        """The project an evaluation runs in.
+
+        A REPL lives in the process of its own project. A call without `cwd`
+        uses the workspace project. When that project has no REPL and exactly
+        one other project has one, the evaluation runs there.
+        """
+        root = self._root(cwd)
+        if cwd or _has_repl(root):
+            return root
+        others = [one for one in bridge.served() if one != root and _has_repl(one)]
+        if len(others) > 1:
+            names = ", ".join(_home(one) for one in others)
+            raise bridge.ClojureError(
+                f"no REPL running in {_home(root)}; REPLs run in {names} — "
+                "pass cwd to choose one"
+            )
+        return others[0] if others else root
 
     def _shown_code(self, code, cwd=""):
         """`code` in the layout that the result of its evaluation shows.
@@ -457,12 +489,13 @@ class ClojureTools:
         """Evaluate code in the project's live REPL, keeping its state between calls.
 
         Start the REPL first: evaluating without one is an error naming the
-        project that has none. Reload a changed namespace yourself — a REPL
+        project that has none. Without `cwd`, the evaluation uses the workspace
+        project, or else the one other project with a running REPL. Reload a changed namespace yourself — a REPL
         serves the code it has loaded. Code with unbalanced delimiters is
         repaired first when its indentation shows the missing closers. When no
         repair is safe, the code is not evaluated and the error says why.
         """
-        root = self._root(cwd)
+        root = self._eval_root(cwd)
         repairs = ()
         problem = reader.problem(code)
         if problem and problem.message.startswith(UNBALANCED):
