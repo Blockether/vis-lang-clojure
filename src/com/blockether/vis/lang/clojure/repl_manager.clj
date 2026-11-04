@@ -419,6 +419,17 @@
         (seq tail)
         (assoc "log_tail" tail)))))
 
+(def ^:private log-drain-ms
+  "How long a dead launcher's output may take to reach its log before the tail is read."
+  2000)
+
+(defn- drain-log!
+  "Wait until the launcher's output is copied into its log, at most `log-drain-ms`.
+   A dead launcher's tail read before the copy ends loses the line that explains
+   the failure. A grandchild can hold the pipe open, so never wait without a limit."
+  [log-pump]
+  (when log-pump (deref log-pump log-drain-ms nil)))
+
 (defn- watch-process!
   "Attach an `.onExit` watcher to a freshly-launched REPL process. If it dies
    while STILL the registered process for `[session-id dir]` — i.e. not
@@ -426,7 +437,7 @@
    destroying) — drop the entry and record the failure, so a boot that limps
    past `start!`'s deadline and THEN dies still flips to :failed instead of
    hanging in \"starting\" forever."
-  [session-id dir ^Process proc log-path]
+  [session-id dir ^Process proc log-path log-pump]
   (let [k [session-id dir]]
     (.thenAccept (.onExit proc)
                  (reify
@@ -434,6 +445,7 @@
                      (accept [_ _]
                        (try (when (identical? proc (:process (get @processes k)))
                               (swap! processes dissoc k)
+                              (drain-log! log-pump)
                               (record-failure! session-id dir proc log-path))
                             (catch Throwable _ nil)))))))
 
@@ -622,11 +634,11 @@
                      ;; One child, with this start's own env delta over the project's
                      ;; and stderr folded into stdout so the log holds the whole boot.
                      proc (host/spawn! cmd dir {:env env :merge-stderr? true})
-                     _log-pump (future (try (with-open [in (.getInputStream ^Process proc)
-                                                        out (io/output-stream log)]
+                     log-pump (future (try (with-open [in (.getInputStream ^Process proc)
+                                                       out (io/output-stream log)]
 
-                                              (io/copy in out))
-                                            (catch Throwable _ nil)))
+                                             (io/copy in out))
+                                           (catch Throwable _ nil)))
                      pid (try (.pid proc) (catch Throwable _ nil))
                      info {:id (id-of dir)
                            :process proc
@@ -649,7 +661,7 @@
                  ;; which stops them all before the JVM exits. (kill -9 runs no
                  ;; hooks anywhere — only a child-side parent watchdog could
                  ;; cover that.)
-                 (watch-process! session-id dir proc (.getAbsolutePath log))
+                 (watch-process! session-id dir proc (.getAbsolutePath log) log-pump)
                  (let [st (wait-until-up proc port start-deadline-ms)]
                    ;; We passed --port explicitly; never depend on the file the tool
                    ;; may still write. Remove it so it can't mislead anything.
@@ -661,6 +673,7 @@
                      (try (.waitFor proc 100 TimeUnit/MILLISECONDS) (catch Throwable _ nil)))
                    (let [alive? (alive? proc)
                          exit (when-not alive? (try (.exitValue proc) (catch Throwable _ nil)))
+                         _ (when-not alive? (drain-log! log-pump))
                          log-path (.getAbsolutePath log)
                          tail (tail-log log-path 80)
                          base {"id" (id-of dir)

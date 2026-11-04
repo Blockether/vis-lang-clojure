@@ -162,6 +162,30 @@
               (expect (= 42 (get f "exit")))
               (expect (= (get r "log") (get f "log")))
               (expect (some #(str/includes? % "repl boom on") (get f "log_tail"))))))))
+  ;; Blockether/vis-lang-clojure CI run 41823353856: the log copy lagged the
+  ;; launcher's exit, so a failed start came back without its log tail.
+  (it "keeps the log tail when the log copy finishes after the launcher exits"
+      (let [dir
+            (tmp-dir)
+
+            copy
+            io/copy]
+
+        (with-redefs [rm/launcher-for
+                      (fn [_ _ _]
+                        {:tool :fake :cmd ["sh" "-c" "echo late boom; exit 3"]})
+
+                      io/copy
+                      (fn [& args]
+                        (Thread/sleep 300)
+                        (apply copy args))]
+
+          (let [r (rm/start! "sess-fail-late" dir)]
+            (expect (= "failed" (get r "result")))
+            (expect (some #(str/includes? % "late boom") (get r "log_tail")))
+            (expect (some #(str/includes? % "late boom")
+                          (get-in (rm/status "sess-fail-late" dir)
+                                  ["last_failure" "log_tail"])))))))
   (it "records the failure so health reports :failed until an explicit stop clears it"
       (let [dir (tmp-dir)]
         (with-redefs [rm/launcher-for (fn [_ _ _]
