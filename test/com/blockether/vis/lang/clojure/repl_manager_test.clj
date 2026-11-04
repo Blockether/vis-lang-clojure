@@ -2,7 +2,8 @@
   "Hermetic tests for the owned, session-scoped REPL manager. The actual
    subprocess self-start is exercised in REPL-driven verification, not here, so
    these stay fast and side-effect-free."
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [com.blockether.vis.lang.clojure.api :as api]
             [com.blockether.vis.lang.clojure.host :as host]
@@ -18,6 +19,13 @@
   (.getAbsolutePath (.toFile (Files/createTempDirectory "vis-rm-" (into-array FileAttribute [])))))
 
 (defn- with-file [^String dir name content] (spit (io/file dir name) content) dir)
+
+(defn- launch-jvm-opts
+  "The :jvm-opts of the synthetic launch alias in a clojure launcher command."
+  [cmd]
+  (-> (nth cmd 2)
+      edn/read-string
+      (get-in [:aliases :vis/nrepl-launch :jvm-opts])))
 
 (defn- await-until
   "Poll `pred` (a nullary fn) until truthy or `timeout-ms` passes. Returns the
@@ -55,6 +63,12 @@
         (expect (some #(str/includes? (str %) "61234") cmd))
         ;; -M carries only the synthetic launch alias when no user aliases
         (expect (some #(= "-M:vis/nrepl-launch" %) cmd))))
+  ;; Blockether/vis#440: a timed-out eval kept running. On JDK 20+ nREPL stops
+  ;; the thread only with its JVMTI agent, which needs attach-self.
+  (it "the clojure launcher lets nREPL stop a timed-out eval thread"
+      (expect (= ["-Djdk.attach.allowAttachSelf"]
+                 (launch-jvm-opts
+                   (:cmd (rm/launcher-for (with-file (tmp-dir) "deps.edn" "{}") nil 1))))))
   (it "threads deps.edn aliases into the clojure -M flag"
       (let [cmd (:cmd (rm/launcher-for (with-file (tmp-dir) "deps.edn" "{}") [:dev :test] 12345))]
         ;; user aliases come first, then the synthetic launch alias (last-wins)
@@ -104,15 +118,14 @@
       (let [cmd
             (:cmd (rm/launcher-for child [:dev :test] 12345))
 
-            sdeps
-            (some #(when (str/includes? (str %) ":jvm-opts") (str %)) cmd)]
+            opts
+            (launch-jvm-opts cmd)]
 
-        (expect (some? sdeps))
-        (expect (str/includes? sdeps "--enable-preview"))
-        (expect (str/includes? sdeps "-Dfoo=bar")))
-      ;; launcher-for for the parent does NOT duplicate (no :jvm-opts injected)
+        (expect (some #{"--enable-preview"} opts))
+        (expect (some #{"-Dfoo=bar"} opts)))
+      ;; launcher-for for the parent does NOT duplicate its own opts
       (let [cmd (:cmd (rm/launcher-for parent [:dev :test] 12345))]
-        (expect (not-any? #(str/includes? (str %) ":jvm-opts") cmd))))))
+        (expect (= ["-Djdk.attach.allowAttachSelf"] (launch-jvm-opts cmd)))))))
 
 (defdescribe status+stop-test
              ;; status/stop are SESSION-scoped and return STRING-keyed lifecycle maps (they

@@ -306,7 +306,10 @@
           ;; its OWN `:main-opts` still contributes its deps + source paths to the
           ;; classpath, but our `-m nrepl.cmdline --port N` is what actually runs. We
           ;; want the user aliases' deps/paths, never their main.
-          (let [jvm (seq (inherited-jvm-opts (io/file dir) aliases))]
+          ;; Blockether/vis#440: on JDK 20+ nREPL stops a timed-out eval thread only
+          ;; with its JVMTI agent, which it loads only when attach-self is allowed.
+          (let [jvm (into ["-Djdk.attach.allowAttachSelf"]
+                          (inherited-jvm-opts (io/file dir) aliases))]
             {:tool :clj
              :cmd ["clojure" "-Sdeps"
                    (str "{:aliases {:vis/nrepl-launch "
@@ -317,7 +320,9 @@
                         ;; for the launch aliases inherits the workspace's — so its
                         ;; nREPL never boots a bare JVM missing --enable-native-access
                         ;; / --enable-preview / --sun-misc-unsafe-memory-access.
-                        (when jvm (str ":jvm-opts " (pr-str (vec jvm)) " "))
+                        ":jvm-opts "
+                        (pr-str jvm)
+                        " "
                         ":main-opts [\"-m\" \"nrepl.cmdline\" \"--port\" \""
                         port
                         "\"]}}}") (str "-M" (alias-suffix aliases) ":vis/nrepl-launch")]})
