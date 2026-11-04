@@ -208,14 +208,46 @@ def _session(result, directory):
         detail.append(f"port {result['port']}")
     if result.get("pid"):
         detail.append(f"pid {result['pid']}")
+    if result.get("message"):
+        detail.append(str(result["message"]))
+    if result.get("status") == "starting" and result.get("log"):
+        detail.append(f"log {result['log']}")
+    failure = result.get("last_failure")
+    if failure and not is_running:
+        code = failure.get("exit")
+        detail.append(
+            "last start failed" + (f" (exit {code})" if code is not None else "")
+        )
+    words = " · ".join(part for part in detail if part)
+    if failure and not is_running:
+        words = "\n".join([words, *_log_lines(failure)])
     return ReplSession(
         LANGUAGE,
         str(result.get("id") or directory),
         str(result.get("cwd") or directory),
         tuple(str(part) for part in result.get("cmd") or ()),
         is_running,
-        " · ".join(part for part in detail if part),
+        words,
     )
+
+
+def _log_lines(fields):
+    """Where the launcher log is, then its last lines."""
+    lines = [f"Log: {fields['log']}"] if fields.get("log") else []
+    tail = fields.get("log_tail")
+    if tail:
+        lines.append("Last output of the launcher:")
+        lines.extend(str(line) for line in tail)
+    return lines
+
+
+def _start_failure(result):
+    """The error text of a failed REPL start: the cause, the command and the log."""
+    lines = [str(result.get("message") or "The nREPL did not start.")]
+    command = result.get("cmd")
+    if command:
+        lines.append(f"Command: {' '.join(str(part) for part in command)}")
+    return "\n".join([*lines, *_log_lines(result)])
 
 
 def _refused(code, problem, why, root):
@@ -426,11 +458,15 @@ class ClojureTools:
         The REPL is a child of the Clojure process that this extension keeps for
         the project, so it survives between calls. A live REPL is never
         replaced, because its state is the work. Stop it first when you want a
-        new classpath.
+        new classpath. Raises RuntimeError when the nREPL cannot start, with the
+        cause, the command and the end of the launcher log.
         """
         root = self._root(cwd)
         arg = {"aliases": list(string_list(aliases))} if aliases else {}
-        return _session(bridge.call("repl", arg, root=root, op="start"), root)
+        result = bridge.call("repl", arg, root=root, op="start")
+        if result.get("result") in ("failed", "no-launcher"):
+            raise RuntimeError(_start_failure(result))
+        return _session(result, root)
 
     def repl_status(
         self,

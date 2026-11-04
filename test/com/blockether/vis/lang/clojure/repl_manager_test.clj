@@ -156,7 +156,12 @@
             (expect (< elapsed 15000))
             (expect (str/includes? (get r "message") "exited before accepting connections"))
             (expect (some #(str/includes? % "repl boom on") (get r "log_tail")))
-            (expect (= "down" (get (rm/status "sess-fail" dir) "status")))))))
+            (expect (= "down" (get (rm/status "sess-fail" dir) "status")))
+            ;; Blockether/vis#439: status must still say why the start failed.
+            (let [f (get (rm/status "sess-fail" dir) "last_failure")]
+              (expect (= 42 (get f "exit")))
+              (expect (= (get r "log") (get f "log")))
+              (expect (some #(str/includes? % "repl boom on") (get f "log_tail"))))))))
   (it "records the failure so health reports :failed until an explicit stop clears it"
       (let [dir (tmp-dir)]
         (with-redefs [rm/launcher-for (fn [_ _ _]

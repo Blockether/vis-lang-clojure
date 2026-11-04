@@ -482,6 +482,110 @@ def test_session_details_read_as_plain_words(tools):
     assert clj.repl_start(cwd=fake.cwd).detail == "already running"
 
 
+# Blockether/vis#439: a failed start returned a quiet ReplSession with
+# detail "failed · port N · pid N", and dropped the cause, exit, log and tail.
+def test_a_failed_start_raises_with_the_cause_and_the_log(tools):
+    clj, fake = tools
+    fake.script(
+        {
+            "repl:start": {
+                "ok": True,
+                "result": {
+                    "result": "failed",
+                    "status": "failed",
+                    "cwd": fake.cwd,
+                    "port": 56935,
+                    "pid": 34463,
+                    "cmd": ["clojure", "-M:dev:test"],
+                    "message": "nREPL launcher exited before accepting "
+                    "connections (exit 1). See log for details.",
+                    "exit": 1,
+                    "log": "/tmp/vis-nrepl-x.log",
+                    "log_tail": ["Error building classpath.", "libs must be prepared"],
+                },
+            }
+        }
+    )
+    with pytest.raises(RuntimeError) as raised:
+        clj.repl_start(cwd=fake.cwd)
+    text = str(raised.value)
+    assert "exited before accepting connections (exit 1)" in text
+    assert "Command: clojure -M:dev:test" in text
+    assert "Log: /tmp/vis-nrepl-x.log" in text
+    assert text.endswith("Error building classpath.\nlibs must be prepared")
+
+
+def test_a_start_without_a_project_file_raises_with_the_reason(tools):
+    clj, fake = tools
+    fake.script(
+        {
+            "repl:start": {
+                "ok": True,
+                "result": {
+                    "result": "no-launcher",
+                    "status": "down",
+                    "cwd": fake.cwd,
+                    "message": "No deps.edn / project.clj / bb.edn in this directory.",
+                },
+            }
+        }
+    )
+    with pytest.raises(RuntimeError, match="No deps.edn / project.clj / bb.edn"):
+        clj.repl_start(cwd=fake.cwd)
+
+
+def test_a_slow_start_says_it_is_starting_and_where_its_log_is(tools):
+    clj, fake = tools
+    fake.script(
+        {
+            "repl:start": {
+                "ok": True,
+                "result": {
+                    "result": "starting",
+                    "status": "starting",
+                    "cwd": fake.cwd,
+                    "port": 7888,
+                    "message": "nREPL launching; not accepting connections yet.",
+                    "log": "/tmp/vis-nrepl-y.log",
+                    "log_tail": ["Downloading: nrepl/nrepl"],
+                },
+            }
+        }
+    )
+    session = clj.repl_start(cwd=fake.cwd)
+    assert session.is_running is False
+    assert session.detail == (
+        "starting · port 7888 · nREPL launching; not accepting connections yet."
+        " · log /tmp/vis-nrepl-y.log"
+    )
+
+
+# Blockether/vis#439: after a failed start, repl_status said only "not running".
+def test_status_after_a_failed_start_names_the_failure(tools):
+    clj, fake = tools
+    fake.script(
+        {
+            "repl:status": {
+                "ok": True,
+                "result": {
+                    "result": "status",
+                    "cwd": fake.cwd,
+                    "status": "down",
+                    "last_failure": {
+                        "exit": 1,
+                        "log": "/tmp/vis-nrepl-x.log",
+                        "log_tail": ["Error building classpath."],
+                    },
+                },
+            }
+        }
+    )
+    detail = clj.repl_status(cwd=fake.cwd).detail
+    assert detail.startswith("not running · last start failed (exit 1)")
+    assert "Log: /tmp/vis-nrepl-x.log" in detail
+    assert detail.endswith("Error building classpath.")
+
+
 def test_attaching_passes_the_port_and_the_build(tools):
     clj, fake = tools
     fake.script(

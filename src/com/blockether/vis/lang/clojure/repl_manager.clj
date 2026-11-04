@@ -517,6 +517,11 @@
         (and running? (seq (:env-fingerprint info)))
         (assoc "env" (:env-fingerprint info))
 
+        ;; WHY THE LAST START DIED: the process entry is gone, so without this a
+        ;; failed start reads as a plain "down" with no cause (Blockether/vis#439).
+        (and (not running?) (last-failure session-id dir))
+        (assoc "last_failure" (last-failure session-id dir))
+
         att
         (assoc "attached" (attachment-view att))))))
 
