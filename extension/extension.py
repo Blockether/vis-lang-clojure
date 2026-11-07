@@ -131,6 +131,7 @@ PROMPT = prompt.routing(
         "`clj.lint_code` runs clj-kondo and also reports compiler reflection warnings as failures.",
         "`clj.format_code` changes layout only and writes files only with `is_written=True`.",
     ),
+    tools=ClojureTools,
 )
 
 # Keeps the files the Clojure reader reads parseable, across patches and Python writes.
