@@ -464,7 +464,9 @@ class ClojureTools:
         launcher log.
         """
         root = self._root(cwd)
-        arg = {"aliases": list(string_list(aliases))} if aliases else {}
+        arg: dict[str, object] = (
+            {"aliases": list(string_list(aliases))} if aliases else {}
+        )
         env = bridge.call_env()
         if env:
             arg["env"] = env
