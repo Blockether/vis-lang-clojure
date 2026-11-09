@@ -419,6 +419,15 @@ def test_starting_a_repl_reports_the_process_it_started(tools):
     assert fake.sent("repl")["arg"] == {"aliases": ["dev"]}
 
 
+def test_a_repl_start_passes_the_variables_of_an_op_hook(tools, monkeypatch):
+    clj, fake = tools
+    fake.script({"repl:start": {"ok": True, "result": {"status": "up"}}})
+    added = {"HOOK_VAR": "on", "DROPPED": None}
+    monkeypatch.setattr(bridge.vis, "call_env", lambda: added, raising=False)
+    clj.repl_start(cwd=fake.cwd)
+    assert fake.sent("repl")["arg"] == {"env": added}
+
+
 def test_a_project_without_a_repl_reports_it_is_down(tools):
     clj, fake = tools
     fake.script(

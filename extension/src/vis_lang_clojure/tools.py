@@ -458,11 +458,16 @@ class ClojureTools:
         The REPL is a child of the Clojure process that this extension keeps for
         the project, so it survives between calls. A live REPL is never
         replaced, because its state is the work. Stop it first when you want a
-        new classpath. Raises RuntimeError when the nREPL cannot start, with the
-        cause, the command and the end of the launcher log.
+        new classpath. The REPL JVM gets the variables that a `before` op hook
+        on `clj/repl_start` adds with `vis.with_env`. Raises RuntimeError when
+        the nREPL cannot start, with the cause, the command and the end of the
+        launcher log.
         """
         root = self._root(cwd)
         arg = {"aliases": list(string_list(aliases))} if aliases else {}
+        env = bridge.call_env()
+        if env:
+            arg["env"] = env
         result = bridge.call("repl", arg, root=root, op="start")
         if result.get("result") in ("failed", "no-launcher"):
             raise RuntimeError(_start_failure(result))
