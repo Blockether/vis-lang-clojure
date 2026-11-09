@@ -459,7 +459,7 @@ class ClojureTools:
         the project, so it survives between calls. A live REPL is never
         replaced, because its state is the work. Stop it first when you want a
         new classpath. The REPL JVM gets the variables that a `before` op hook
-        on `clj/repl_start` adds with `vis.with_env`. Raises RuntimeError when
+        on `clj.repl_start` adds with `vis.with_env`. Raises RuntimeError when
         the nREPL cannot start, with the cause, the command and the end of the
         launcher log.
         """
