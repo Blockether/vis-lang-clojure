@@ -2552,14 +2552,14 @@
          ;; command, which is also what a fresh session gets. A ClojureScript run never
          ;; asks: a JVM nREPL cannot load a `.cljs` namespace.
          ;; Coverage needs the ClojureStorm compiler from the first load, so it never
-         ;; reuses a REPL. A call with its own variables reuses only a REPL started
-         ;; with the same ones: any other REPL never saw them, so the clean JVM runs.
+         ;; reuses a REPL. A call reuses only a REPL started with the same variables,
+         ;; also when it has none: any other REPL runs another env, so the clean JVM
+         ;; runs. A REPL attached from outside has no fingerprint and counts as none.
          port
          (when-not (or cljs? (:coverage norm))
            (let [repl (repl-manager/live-repl-for-dir session-id eff-root)]
-             (when (or (empty? (:env norm))
-                       (= (host/env-fingerprint (host/call-env-values (:env norm)))
-                          (:env-fingerprint repl)))
+             (when (= (host/env-fingerprint (host/call-env-values (:env norm)))
+                      (or (:env-fingerprint repl) {}))
                (:port repl))))]
 
      ;; An explicit location that is NOT THERE is a misspelling, not an empty

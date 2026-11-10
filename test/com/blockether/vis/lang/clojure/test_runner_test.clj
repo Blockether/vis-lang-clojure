@@ -2595,36 +2595,43 @@
               (tr/clj-test-fn {:workspace/root root :session-id "sid-264"} {"paths" ["test"]})
               (expect (= "sid-264" (:repl-session @seen)))
               (expect (= root (:cli-root @seen))))))))
-  (it "reuses a live REPL only when it was started with the call's variables"
-      (with-project
-        {"deps.edn" "{:paths [\"src\"]}\n" "test/repro/core_test.clj" "(ns repro.core-test)\n"}
-        (fn [root]
-          (let [env
-                {"HEADLESS" "true"}
+  (it
+    "reuses a live REPL only when it was started with the call's variables"
+    (with-project
+      {"deps.edn" "{:paths [\"src\"]}\n" "test/repro/core_test.clj" "(ns repro.core-test)\n"}
+      (fn [root]
+        (let [env
+              {"HEADLESS" "true"}
 
-                run
-                (fn [fingerprint]
-                  (let [seen (atom nil)]
-                    (with-redefs [repl-manager/live-repl-for-dir (fn [_session-id _root]
-                                                                   {:port 7888
-                                                                    :env-fingerprint fingerprint})
-                                  com.blockether.vis.lang.clojure.test-runner/run-via-repl
-                                  (fn [& _]
-                                    (reset! seen :repl)
-                                    {"mode" "repl" "is_pass" true})
-                                  com.blockether.vis.lang.clojure.test-runner/run-via-cli
-                                  (fn [_root norm]
-                                    (reset! seen [:cli (:env norm)])
-                                    {"mode" "cli" "is_pass" true})]
+              run
+              (fn [call-env fingerprint]
+                (let [seen (atom nil)]
+                  (with-redefs [repl-manager/live-repl-for-dir (fn [_session-id _root]
+                                                                 {:port 7888
+                                                                  :env-fingerprint fingerprint})
+                                com.blockether.vis.lang.clojure.test-runner/run-via-repl
+                                (fn [& _]
+                                  (reset! seen :repl)
+                                  {"mode" "repl" "is_pass" true})
+                                com.blockether.vis.lang.clojure.test-runner/run-via-cli
+                                (fn [_root norm]
+                                  (reset! seen [:cli (:env norm)])
+                                  {"mode" "cli" "is_pass" true})]
 
-                      (tr/clj-test-fn {:workspace/root root :session-id "sid-461"}
-                                      {"paths" ["test"] "env" env})
-                      @seen)))]
+                    (tr/clj-test-fn {:workspace/root root :session-id "sid-461"}
+                                    (cond-> {"paths" ["test"]}
+                                      call-env
+                                      (assoc "env" call-env)))
+                    @seen)))]
 
-            ;; #461: a REPL started without the variables never saw them.
-            (expect (= [:cli env] (run nil)))
-            (expect (= [:cli env] (run (host/env-fingerprint {"HEADLESS" "false"}))))
-            (expect (= :repl (run (host/env-fingerprint (host/call-env-values env)))))))))
+          ;; #461: a REPL started without the variables never saw them.
+          (expect (= [:cli env] (run env nil)))
+          (expect (= [:cli env] (run env (host/env-fingerprint {"HEADLESS" "false"}))))
+          (expect (= :repl (run env (host/env-fingerprint (host/call-env-values env)))))
+          ;; A call without variables must not run in a REPL that a hook started.
+          (expect (= [:cli nil] (run nil (host/env-fingerprint (host/call-env-values env)))))
+          (expect (= :repl (run nil (host/env-fingerprint (host/call-env-values nil)))))
+          (expect (= :repl (run nil nil)))))))
   (it "hands the command to the spawn boundary and still captures output"
       (let [seen (atom nil)]
         (with-redefs [host/spawn! (fn [argv dir _opts]
