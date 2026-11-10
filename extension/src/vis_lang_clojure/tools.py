@@ -28,6 +28,7 @@ from vis_lang_interface import (
     TestFailure,
     TestResult,
     aliased,
+    call_env,
     line_changes,
     project_root,
     string_list,
@@ -420,6 +421,10 @@ class ClojureTools:
         each file's covered expressions and branches, and its gaps: the code
         and the branches that never ran. The run also writes
         `target/coverage/clofidence.json`, which `graphify crap` reads.
+
+        The tests get the variables that a `before` op hook on `clj.run_tests`
+        adds with `vis.with_env`. A live REPL is reused only when it was started
+        with the same variables; otherwise the tests run in a clean JVM.
         """
         paths = string_list(paths)
         root = self._root(cwd, paths)
@@ -440,6 +445,9 @@ class ClojureTools:
             arg["build"] = build
         if coverage:
             arg["coverage"] = {"prefixes": list(string_list(prefixes))}
+        env = call_env()
+        if env:
+            arg["env"] = env
         started = time.monotonic()
         result = bridge.call("test", arg, root=root, timeout_s=timeout_s)
         return _test_result(result, int((time.monotonic() - started) * 1000), root)
@@ -467,7 +475,7 @@ class ClojureTools:
         arg: dict[str, object] = (
             {"aliases": list(string_list(aliases))} if aliases else {}
         )
-        env = bridge.call_env()
+        env = call_env()
         if env:
             arg["env"] = env
         result = bridge.call("repl", arg, root=root, op="start")

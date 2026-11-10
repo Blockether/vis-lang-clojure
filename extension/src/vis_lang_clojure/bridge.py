@@ -47,7 +47,7 @@ from vis_lang_interface.process import shell_call
 
 from vis_lang_clojure import jail
 
-LIBRARY_VERSION = "1.20.14"
+LIBRARY_VERSION = "1.20.15"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"
@@ -71,16 +71,6 @@ RESTARTABLE = frozenset({"ping", "format", "lint"})
 Each of them reads or rewrites files and runs none of the project's own code,
 so a repeat costs a boot and nothing else. `test` and the REPL verbs run that
 code, and asking twice could run it twice."""
-
-
-def call_env():
-    """Variables that a `before` op hook added to this tool call with `vis.with_env`.
-
-    A Vis host older than `vis.call_env` cannot run such a hook, so no hook added
-    any variables there.
-    """
-    read = getattr(vis, "call_env", None)
-    return dict(read()) if read else {}
 
 
 class ClojureError(RuntimeError):

@@ -428,6 +428,15 @@ def test_a_repl_start_passes_the_variables_of_an_op_hook(tools, monkeypatch):
     assert fake.sent("repl")["arg"] == {"env": added}
 
 
+def test_a_test_run_passes_the_variables_of_an_op_hook(tools, monkeypatch):
+    clj, fake = tools
+    fake.script({"test": {"ok": True, "result": {"is_pass": True, "test": 1}}})
+    added = {"HOOK_VAR": "on", "DROPPED": None}
+    monkeypatch.setattr(bridge.vis, "call_env", lambda: added, raising=False)
+    clj.run_tests(cwd=fake.cwd, namespaces=["a.core-test"])
+    assert fake.sent("test")["arg"]["env"] == added
+
+
 def test_a_project_without_a_repl_reports_it_is_down(tools):
     clj, fake = tools
     fake.script(

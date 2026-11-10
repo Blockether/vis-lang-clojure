@@ -681,7 +681,7 @@
                                         :selectors? true
                                         :cmd (first cmds)
                                         :cmds cmds})
-                  tr/run-command (fn [_root argv _deadline]
+                  tr/run-command (fn [_root argv _deadline _env]
                                    (get outputs (.indexOf ^java.util.List cmds argv)))]
 
       (run-via-cli "/proj" {:nses ["one-test" "two-test"]}))))
@@ -1296,7 +1296,7 @@
   "Record commands and answer the execution result. Shadow compile steps get a
    successful compiler report; tests of compiler failure stub tr/run-command directly."
   [calls exit out]
-  (fn [_dir args _deadline]
+  (fn [_dir args _deadline _env]
     (swap! calls conj (vec (take-while string? args)))
     (if-let [build (second (drop-while #(not= "compile" %) args))]
       {:exit 0 :out (str "[:" build "] Build completed. (1 files)\n") :err ""}
@@ -1324,7 +1324,7 @@
                    (with-project
                      cljs-project
                      (fn [root]
-                       (with-redefs [tr/run-command (fn [_dir args _deadline]
+                       (with-redefs [tr/run-command (fn [_dir args _deadline _env]
                                                       (if (= "node" (first args))
                                                         {:exit 1 :out test-out :err err}
                                                         {:exit 0 :out compile-out :err ""}))]
@@ -2221,7 +2221,7 @@
       (fn [root]
         (with-redefs
           [tr/run-command
-           (fn [_dir args _deadline]
+           (fn [_dir args _deadline _env]
              (if (= "node" (first args))
                {:exit 1
                 :out "Ran 1 tests containing 1 assertions.\n0 failures, 0 errors.\n"
@@ -2236,7 +2236,7 @@
                     (fn [root]
                       (let [calls (atom [])]
                         (with-redefs [tr/run-command
-                                      (fn [_dir args _deadline]
+                                      (fn [_dir args _deadline _env]
                                         (swap! calls conj (first args))
                                         {:exit 0 :out "shadow-cljs - HELP\n" :err ""})]
                           (expect (false? (get (run-via-shadow root [] {}) "is_pass")))
@@ -2276,7 +2276,7 @@
               (let [calls (atom [])]
                 (with-redefs
                   [tr/run-command
-                   (fn [_dir args _deadline]
+                   (fn [_dir args _deadline _env]
                      (swap! calls conj (first args))
                      (if (= "node" (first args))
                        (do (expect (= (last @outputs) (second args)))
@@ -2433,7 +2433,7 @@
 
                         (with-redefs
                           [tr/run-command
-                           (fn [dir args deadline]
+                           (fn [dir args deadline env]
                              (when (and (= "node" (first args))
                                         (compare-and-set! interposed? false true))
                                (spit (io/file root "test/repro/fail_test.cljs")
@@ -2441,7 +2441,7 @@
                                      :append
                                      true)
                                (eval! "(shadow.cljs.devtools.api/watch-compile! :test)"))
-                             (real-command dir args deadline))]
+                             (real-command dir args deadline env))]
                           (run! deps-cfg {"ns" "repro.core-test"} true 1))
                         (expect @interposed?))
                       ;; Both compilers must finish before either Node starts. This also
@@ -2452,7 +2452,7 @@
                               outputs (atom [])]
 
                           (with-redefs [tr/run-command
-                                        (fn [dir args deadline]
+                                        (fn [dir args deadline env]
                                           (when (= "node" (first args))
                                             (swap! outputs conj (second args))
                                             (.countDown ready)
@@ -2461,7 +2461,7 @@
                                                               java.util.concurrent.TimeUnit/SECONDS)
                                               (throw (ex-info "parallel Node barrier timed out"
                                                               {}))))
-                                          (real-command dir args deadline))]
+                                          (real-command dir args deadline env))]
                             (let [runs (mapv (fn [ns-name]
                                                (future (:result (tr/clj-test-fn {:workspace/root
                                                                                  root}
@@ -2595,12 +2595,42 @@
               (tr/clj-test-fn {:workspace/root root :session-id "sid-264"} {"paths" ["test"]})
               (expect (= "sid-264" (:repl-session @seen)))
               (expect (= root (:cli-root @seen))))))))
+  (it "reuses a live REPL only when it was started with the call's variables"
+      (with-project
+        {"deps.edn" "{:paths [\"src\"]}\n" "test/repro/core_test.clj" "(ns repro.core-test)\n"}
+        (fn [root]
+          (let [env
+                {"HEADLESS" "true"}
+
+                run
+                (fn [fingerprint]
+                  (let [seen (atom nil)]
+                    (with-redefs [repl-manager/live-repl-for-dir (fn [_session-id _root]
+                                                                   {:port 7888
+                                                                    :env-fingerprint fingerprint})
+                                  com.blockether.vis.lang.clojure.test-runner/run-via-repl
+                                  (fn [& _]
+                                    (reset! seen :repl)
+                                    {"mode" "repl" "is_pass" true})
+                                  com.blockether.vis.lang.clojure.test-runner/run-via-cli
+                                  (fn [_root norm]
+                                    (reset! seen [:cli (:env norm)])
+                                    {"mode" "cli" "is_pass" true})]
+
+                      (tr/clj-test-fn {:workspace/root root :session-id "sid-461"}
+                                      {"paths" ["test"] "env" env})
+                      @seen)))]
+
+            ;; #461: a REPL started without the variables never saw them.
+            (expect (= [:cli env] (run nil)))
+            (expect (= [:cli env] (run (host/env-fingerprint {"HEADLESS" "false"}))))
+            (expect (= :repl (run (host/env-fingerprint (host/call-env-values env)))))))))
   (it "hands the command to the spawn boundary and still captures output"
       (let [seen (atom nil)]
         (with-redefs [host/spawn! (fn [argv dir _opts]
                                     (reset! seen {:argv (vec argv) :dir dir})
                                     (canned-process "printf ran; printf oops >&2"))]
-          (let [r (#'tr/run-command "/proj" ["clojure" "-M:test"] (#'tr/test-deadline))]
+          (let [r (#'tr/run-command "/proj" ["clojure" "-M:test"] (#'tr/test-deadline) nil)]
             (expect (= {:argv ["clojure" "-M:test"] :dir "/proj"} @seen))
             (expect (= 0 (:exit r)))
             (expect (false? (:timed-out r)))
@@ -2621,15 +2651,26 @@
             root
             ["bash" "-c"
              "cat; printf 'first\n'; for ((i=0;i<20000;i++)); do echo output; echo warning >&2; done; printf 'last\n'; exit 7"]
-            (#'tr/test-deadline))]
+            (#'tr/test-deadline)
+            nil)]
           (expect (= 7 (:exit r)))
           (expect (false? (:timed-out r)))
           (expect (= (str "first\n" (apply str (repeat 20000 "output\n")) "last\n") (:out r)))
           (expect (= (apply str (repeat 20000 "warning\n")) (:err r)))))))
+  (it "gives the command the call's variables and unsets a nil one"
+      ;; #461: the clean JVM is where the variables of a `before` op hook must arrive.
+      (with-project {}
+                    (fn [root]
+                      (let [r (#'tr/run-command
+                               root
+                               ["bash" "-c" "printf '%s|%s' \"$VIS_HOOK_PROBE\" \"${HOME-unset}\""]
+                               (#'tr/test-deadline)
+                               {"VIS_HOOK_PROBE" "on" "HOME" nil})]
+                        (expect (= "on|unset" (:out r)))))))
   (it "does not launch another process after its shared deadline expires"
       (with-project {}
                     (fn [root]
-                      (let [r (#'tr/run-command root ["bash" "-c" "touch unexpected"] 0)]
+                      (let [r (#'tr/run-command root ["bash" "-c" "touch unexpected"] 0 nil)]
                         (expect (:timed-out r))
                         (expect (not (.exists (io/file root "unexpected"))))))))
   (it "reports a failed spawn as data and removes its capture directory"
@@ -2645,7 +2686,7 @@
                 (dirs)
 
                 r
-                (#'tr/run-command root [(str root "/missing-command")] (#'tr/test-deadline))]
+                (#'tr/run-command root [(str root "/missing-command")] (#'tr/test-deadline) nil)]
 
             (expect (not (zero? (:exit r))))
             ;; The jail reports the failed exec; `run-via-cli` is what
@@ -2681,7 +2722,7 @@
           (let [deadlines (atom [])]
             (with-redefs [host/RUN_TESTS_TIMEOUT_MS 1234
                           tr/run-command
-                          (fn [_root _argv deadline]
+                          (fn [_root _argv deadline _env]
                             (swap! deadlines conj deadline)
                             (if (= 1 (count @deadlines))
                               {:exit 0 :out "[:test] Build completed.\n" :err "compiler warning"}

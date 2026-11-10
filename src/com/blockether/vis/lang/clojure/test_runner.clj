@@ -1079,7 +1079,9 @@
                      :build (not-empty (str/trim (str (get arg "build"))))
                      :aliases (extra-aliases arg)
                      :coverage (when-let [c (get arg "coverage")]
-                                 {:prefixes (if (map? c) (->str-vec (get c "prefixes")) [])}))
+                                 {:prefixes (if (map? c) (->str-vec (get c "prefixes")) [])})
+                     ;; Variables a `before` op hook added to this call; nil unsets one.
+                     :env (not-empty (get arg "env")))
         :else (throw (ex-info "run_tests expects a path string, or a dict with a \"paths\" key"
                               {:type :clj/bad-args
                                :got arg
@@ -1835,12 +1837,13 @@
 (defn- run-command
   "Run one owned subprocess within an absolute monotonic deadline. Timeout and
    interruption tear down the whole process tree before this call returns, so a
-   `clojure -M:test` that spawned its own prep JVMs leaves nothing behind."
-  [root argv deadline]
+   `clojure -M:test` that spawned its own prep JVMs leaves nothing behind. `env` is
+   the call's own variables over the inherited ones; a nil value unsets one."
+  [root argv deadline env]
   (try (if (<= (long deadline) (System/nanoTime))
          {:exit -1 :out "" :err "" :timed-out true}
          (let [^Process p
-               (host/spawn! (vec argv) root nil)
+               (host/spawn! (vec argv) root {:env env})
 
                out
                (drain-stream (.getInputStream p))
@@ -1945,7 +1948,7 @@
             (test-deadline)
 
             results
-            (mapv #(run-command root % deadline) cmds)
+            (mapv #(run-command root % deadline (:env norm)) cmds)
 
             outs
             (mapv command-output results)
@@ -2141,7 +2144,7 @@
            (fn [acc {:keys [argv compile?]}]
              (let
                [res
-                (run-command root argv deadline)
+                (run-command root argv deadline (:env norm))
 
                 out
                 (command-output res)
@@ -2549,10 +2552,15 @@
          ;; command, which is also what a fresh session gets. A ClojureScript run never
          ;; asks: a JVM nREPL cannot load a `.cljs` namespace.
          ;; Coverage needs the ClojureStorm compiler from the first load, so it never
-         ;; reuses a REPL.
+         ;; reuses a REPL. A call with its own variables reuses only a REPL started
+         ;; with the same ones: any other REPL never saw them, so the clean JVM runs.
          port
          (when-not (or cljs? (:coverage norm))
-           (:port (repl-manager/live-repl-for-dir session-id eff-root)))]
+           (let [repl (repl-manager/live-repl-for-dir session-id eff-root)]
+             (when (or (empty? (:env norm))
+                       (= (host/env-fingerprint (host/call-env-values (:env norm)))
+                          (:env-fingerprint repl)))
+               (:port repl))))]
 
      ;; An explicit location that is NOT THERE is a misspelling, not an empty
      ;; suite: answering "no test namespaces under <path>" for a path that does

@@ -180,7 +180,7 @@
                                        :cmd ["clojure" "-M:test"]})
 
                                     tr/run-command
-                                    (fn [dir argv _]
+                                    (fn [dir argv _ _]
                                       (reset! seen argv)
                                       (spit (io/file dir coverage/forms-path) (pr-str forms))
                                       {:exit 0
