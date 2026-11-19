@@ -2,7 +2,7 @@
 name = "vis-lang-clojure"
 version = "1.20.16"
 description = "Clojure tools for Vis: zprint and cljfmt formatting, clj-kondo lint, reader syntax checks, test runs and an nREPL."
-keywords = ["clojure", "development"]
+keywords = ["language-tools", "development"]
 requires-python = ">=3.12"
 dependencies = [
   "vis-agent>=0.5.2",
