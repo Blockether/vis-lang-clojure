@@ -1,6 +1,6 @@
 [project]
 name = "vis-lang-clojure"
-version = "1.20.16"
+version = "1.20.17"
 description = "Clojure tools for Vis: zprint and cljfmt formatting, clj-kondo lint, reader syntax checks, test runs and an nREPL."
 keywords = ["language-tools", "development"]
 requires-python = ">=3.12"
