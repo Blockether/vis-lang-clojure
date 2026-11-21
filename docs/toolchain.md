@@ -58,7 +58,7 @@ which describes the shared rules.
 of its own —
 
 ```bash
-clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.20.17"}}}' -Spath
+clojure -Sdeps '{:deps {com.blockether/vis-lang-clojure {:mvn/version "1.20.18"}}}' -Spath
 ```
 
 — and then runs
