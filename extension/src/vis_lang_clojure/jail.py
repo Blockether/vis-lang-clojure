@@ -87,7 +87,9 @@ if [ -n "$host" ] && [ -n "$port" ]; then
 fi
 
 java=java
-if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+if [ -n "${JAVA_CMD:-}" ]; then
+  java=$JAVA_CMD
+elif [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
   java=$JAVA_HOME/bin/java
 fi
 

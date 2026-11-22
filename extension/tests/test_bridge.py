@@ -8,7 +8,7 @@ from pathlib import Path
 
 import blockether.vis.extension as vis
 import pytest
-from vis_lang_interface import ToolRun, ToolTimeout
+from vis_lang_interface import ToolMissing, ToolRun, ToolTimeout
 
 from vis_lang_clojure import bridge, jail
 
@@ -460,6 +460,47 @@ def test_a_linked_jdk_is_granted_as_linked_and_as_resolved(tmp_path, monkeypatch
         os.path.join(resolved, "bin", "java"),
         resolved,
     )
+
+
+def _sdkman(tmp_path, monkeypatch):
+    """A SDKMAN `current` JDK, the only JDK of the test."""
+    java = _program(tmp_path / "candidates" / "java" / "current" / "bin" / "java")
+    monkeypatch.setenv("SDKMAN_CANDIDATES_DIR", str(tmp_path / "candidates"))
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    return java
+
+
+def test_the_sdkman_jdk_runs_when_path_has_no_jdk(tmp_path, monkeypatch):
+    # An app that Finder opens reads no shell profile, so SDKMAN is not on PATH.
+    java = _sdkman(tmp_path, monkeypatch)
+    assert bridge.java_command() == str(java)
+    # The Clojure CLI that resolves the library uses the same JDK.
+    assert bridge.boot_environment(str(tmp_path / "boot"))["JAVA_CMD"] == str(java)
+
+
+def test_the_macos_stub_is_not_a_jdk(tmp_path, monkeypatch):
+    stub = _program(tmp_path / "usr" / "bin" / "java")
+    jdks = tmp_path / "JavaVirtualMachines"
+    monkeypatch.setattr(bridge.sys, "platform", "darwin")
+    monkeypatch.setattr(bridge, "MACOS_STUB", str(stub))
+    monkeypatch.setattr(bridge, "MACOS_JDK_DIRECTORIES", (str(jdks),))
+    monkeypatch.delenv("JAVA_HOME", raising=False)
+    monkeypatch.setenv("PATH", str(stub.parent))
+    with pytest.raises(ToolMissing, match="Install a JDK"):
+        bridge.java_command()
+    java = _sdkman(tmp_path, monkeypatch)
+    monkeypatch.setenv("PATH", str(stub.parent))
+    assert bridge.java_command() == str(java)
+    _program(jdks / "temurin-25.jdk" / "Contents" / "Home" / "bin" / "java")
+    assert bridge.java_command() == str(stub)
+
+
+def test_java_cmd_selects_the_jdk_first(tmp_path, monkeypatch):
+    _sdkman(tmp_path, monkeypatch)
+    chosen = _program(tmp_path / "chosen" / "bin" / "java")
+    monkeypatch.setenv("JAVA_CMD", str(chosen))
+    assert bridge.java_command() == str(chosen)
 
 
 def test_the_clojure_cli_is_granted_with_its_own_jar(tmp_path, monkeypatch):

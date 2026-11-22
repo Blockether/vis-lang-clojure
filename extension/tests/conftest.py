@@ -52,6 +52,13 @@ class Fake:
         return self.requests(verb)[-1]
 
 
+@pytest.fixture(autouse=True)
+def no_machine_jdk(tmp_path, monkeypatch):
+    """Keep the JDK selectors of the machine out: each test names its own JDK."""
+    monkeypatch.delenv("JAVA_CMD", raising=False)
+    monkeypatch.setenv("SDKMAN_CANDIDATES_DIR", str(tmp_path / "no-sdkman"))
+
+
 @pytest.fixture
 def fake(tmp_path, monkeypatch):
     """A fake Clojure process, stopped again when the test ends."""

@@ -32,6 +32,7 @@ import re
 import secrets
 import shlex
 import shutil
+import sys
 import threading
 
 import blockether.vis.extension as vis
@@ -183,12 +184,18 @@ def boot_environment(boot):
     Returns:
         The environment delta for the resolution run.
     """
-    return {
+    environment = {
         "CLJ_CONFIG": os.path.join(boot, "config"),
         "CLJ_CACHE": os.path.join(boot, "cpcache"),
         "GITLIBS": git_libraries(),
         jail.REPOSITORY_VARIABLE: maven_repository(),
     }
+    # The Clojure CLI and each REPL and test run that it starts use the same JDK.
+    try:
+        environment["JAVA_CMD"] = java_command()
+    except ToolMissing:
+        pass
+    return environment
 
 
 def project_environment(boot):
@@ -210,18 +217,77 @@ def project_environment(boot):
     return {**boot_environment(boot), "CLJ_CONFIG": user_configuration()}
 
 
+MACOS_STUB = "/usr/bin/java"
+"""The `java` that macOS has without a JDK."""
+
+MACOS_JDK_DIRECTORIES = (
+    "/Library/Java/JavaVirtualMachines",
+    "~/Library/Java/JavaVirtualMachines",
+)
+"""Where the macOS `/usr/bin/java` stub looks for a JDK."""
+
+
+def _is_macos_stub(java):
+    """Whether `java` is the macOS `/usr/bin/java` stub with no JDK to run.
+
+    An app that Finder opens has only the system directories on PATH. There the
+    stub is the only `java`, and without a JDK it only prints an error.
+    """
+    stub = os.path.realpath(MACOS_STUB)
+    if sys.platform != "darwin" or os.path.realpath(java) != stub:
+        return False
+    for directory in MACOS_JDK_DIRECTORIES:
+        directory = os.path.expanduser(directory)
+        try:
+            names = os.listdir(directory)
+        except OSError:
+            continue
+        for name in names:
+            if os.access(
+                os.path.join(directory, name, "Contents", "Home", "bin", "java"),
+                os.X_OK,
+            ):
+                return False
+    return True
+
+
+def _sdkman_java():
+    """The `current` JDK of SDKMAN, or None."""
+    candidates = os.environ.get("SDKMAN_CANDIDATES_DIR", "").strip() or os.path.join(
+        os.environ.get("SDKMAN_DIR", "").strip() or os.path.expanduser("~/.sdkman"),
+        "candidates",
+    )
+    java = os.path.join(candidates, "java", "current", "bin", "java")
+    return java if os.access(java, os.X_OK) else None
+
+
 def java_command():
-    """The JVM that runs the library: the one `JAVA_HOME` names, else PATH's.
+    """The JVM that runs the library and the Clojure CLI.
+
+    The order is the order of the Clojure CLI: `JAVA_CMD`, `JAVA_HOME`, then
+    PATH. When PATH has no JDK, the `current` JDK of SDKMAN runs. A shell profile
+    puts SDKMAN on PATH, and an app that Finder opens reads no profile.
 
     Raises:
         ToolMissing: There is no JDK to run.
     """
+    command = os.environ.get("JAVA_CMD", "").strip()
+    if command:
+        found = shutil.which(command)
+        if found:
+            return found
     home = os.environ.get("JAVA_HOME", "").strip()
     if home:
         java = os.path.join(home, "bin", "java")
         if os.access(java, os.X_OK):
             return java
-    return tool_path("java", "Install a JDK, or point JAVA_HOME at one.")
+    java = shutil.which("java")
+    if java and not _is_macos_stub(java):
+        return java
+    java = _sdkman_java()
+    if java:
+        return java
+    raise ToolMissing("java is not on PATH. Install a JDK, or point JAVA_HOME at one.")
 
 
 def _covers(path, protected):

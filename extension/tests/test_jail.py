@@ -1,14 +1,14 @@
 """What a confined JVM is given before it runs."""
 
 import os
-import shutil
 import ssl
 import subprocess
 from pathlib import Path
 
 import pytest
+from vis_lang_interface import ToolMissing
 
-from vis_lang_clojure import jail
+from vis_lang_clojure import bridge, jail
 
 PROXY = "http://token-123@127.0.0.1:41234"
 """A sandbox proxy, spelled the way Vis spells it."""
@@ -117,17 +117,23 @@ def test_without_a_certificate_bundle_no_trust_store_is_named(tmp_path):
     assert "trustStore" not in exported
 
 
-@pytest.mark.skipif(
-    shutil.which("java") is None, reason="the trust store is built by a JDK"
-)
-def test_the_certificate_bundle_becomes_a_trust_store(tmp_path):
+def test_the_certificate_bundle_becomes_a_trust_store(tmp_path, monkeypatch):
     bundle = ssl.get_default_verify_paths().cafile
     if not bundle or not os.path.exists(bundle):
         pytest.skip("this machine has no certificate bundle to convert")
+    monkeypatch.delenv("SDKMAN_CANDIDATES_DIR")
+    try:
+        java = bridge.java_command()
+    except ToolMissing:
+        pytest.skip("the trust store is built by a JDK")
     script = jail.preamble(str(tmp_path))
     home = Path(tmp_path) / jail.HOME
     exported = options(
-        script, https_proxy=PROXY, SSL_CERT_FILE=bundle, PATH=os.environ["PATH"]
+        script,
+        https_proxy=PROXY,
+        SSL_CERT_FILE=bundle,
+        PATH=os.environ["PATH"],
+        JAVA_CMD=java,
     )
     built = list(home.glob("trust-*.p12"))
     assert len(built) == 1
