@@ -6,7 +6,7 @@ keywords = ["language-tools", "development"]
 requires-python = ">=3.12"
 dependencies = [
   "vis-agent>=0.5.26",
-  "vis-lang-interface @ git+https://github.com/Blockether/vis-lang-interface@v3.6.1",
+  "vis-lang-interface @ git+https://github.com/Blockether/vis-lang-interface@v4.0.0",
 ]
 
 [tool.vis]

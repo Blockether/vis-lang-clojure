@@ -933,9 +933,8 @@ def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch, tmp_path):
     runpy.run_path(str(Path(__file__).resolve().parents[1] / "extension.py"))
     extension = registered[0]
     assert [(tuple(hook.ops), hook.phase) for hook in extension.op_hooks] == [
-        (("patch",), "before"),
         (("python_execution",), "before"),
-        (("patch", "python_execution"), "after"),
+        (("python_execution",), "after"),
     ]
     assert callable(extension.ctx)
     guard = getattr(extension.ctx, "__self__")
@@ -944,13 +943,12 @@ def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch, tmp_path):
         guard.covers(f"src/a{suffix}") for suffix in (".clj", ".cljs", ".cljc", ".edn")
     )
     assert not guard.covers("src/a.py")
-    preview = {"path": str(path), "before": "(a)\n", "after": "(a"}
-    refusal = extension.op_hooks[0].fn({"op": "patch", "preview": preview})
-    assert refusal["marker"] == "block"
-    assert path.read_text() == "(a)\n"
-    assert (
-        extension.op_hooks[0].fn({"preview": {**preview, "path": "example.py"}}) is None
-    )
+    before, after = extension.op_hooks
+    block = {"op": "python_execution", "args": [], "result": {}}
+    before.fn(block)
+    path.write_text("(a]\n")
+    after.fn(block)
+    assert guard.ctx()["clojure_syntax_errors"]
     # The reader runs in Python, so a syntax check never starts the JVM bridge.
     assert calls == []
 

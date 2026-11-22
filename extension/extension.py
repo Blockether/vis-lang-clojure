@@ -134,7 +134,7 @@ PROMPT = prompt.routing(
     tools=ClojureTools,
 )
 
-# Keeps the files the Clojure reader reads parseable, across patches and Python writes.
+# Keeps the files the Clojure reader reads parseable, across Python writes.
 GUARD = SyntaxGuard(LANGUAGE, SYNTAX_SUFFIXES, _check_syntax, repair=repair_source)
 
 # Vis gives these paths only to this extension's own processes.

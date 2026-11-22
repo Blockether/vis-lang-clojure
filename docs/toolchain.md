@@ -30,10 +30,6 @@ Other reader tags stay data, and an alias needs no loaded namespace.
 A few extreme inputs, such as very deep nesting, get no verdict and count as readable.
 
 - `format_code` changes layout only. It does not repair broken structure.
-- Before a `patch` writes, the guard tries a conservative repair of the complete proposed file.
-  It keeps the edited lines, original text and line endings as evidence.
-  The reader must accept the candidate before one atomic write. The patch reports each correction.
-  If no safe repair exists, a patch that breaks a parseable file is refused.
 - After a Python block, the guard checks changed files and can repair them.
   These checks happen after writes. They do not make the block transactional or roll back its effects.
 - Before `repl_eval` sends code to the REPL, the reader checks its delimiters.

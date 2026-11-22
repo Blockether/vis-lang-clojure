@@ -107,48 +107,10 @@ def extension(monkeypatch, tmp_path):
     return registered[0]
 
 
-def test_hook_proposes_a_repair_before_writing(extension, tmp_path):
-    path = tmp_path / "core.clj"
-    path.write_text("(a)\n")
-    decision = extension.op_hooks[0].fn(
-        {
-            "op": "patch",
-            "preview": {
-                "path": str(path),
-                "before": "(a)\n",
-                "after": "(b\n",
-                "spans": [[1, 1]],
-            },
-        }
-    )
-    assert decision["marker"] == "repair"
-    assert decision["source"] == "(b)\n"
-    assert decision["notes"] == ["line 1 added `)` → `(b)`"]
-    assert path.read_text() == "(a)\n"
-
-
-def test_hook_refuses_a_structural_candidate_the_reader_rejects(extension, tmp_path):
-    path = tmp_path / "core.edn"
-    path.write_text("(a)\n")
-    decision = extension.op_hooks[0].fn(
-        {
-            "op": "patch",
-            "preview": {
-                "path": str(path),
-                "before": "(a)\n",
-                "after": "{:a 1 :a 2\n",
-                "spans": [[1, 1]],
-            },
-        }
-    )
-    assert decision["marker"] == "block"
-    assert path.read_text() == "(a)\n"
-
-
 def test_hook_repairs_a_file_only_after_the_block(extension, tmp_path):
     path = tmp_path / "core.clj"
     path.write_text("(a)\n")
-    before, after = extension.op_hooks[1:]
+    before, after = extension.op_hooks
     call = {"op": "python_execution", "args": [{"code": "pass"}], "result": {}}
     before.fn(call)
     path.write_text("(b\n")
@@ -163,7 +125,7 @@ def test_hook_repairs_a_file_only_after_the_block(extension, tmp_path):
 def test_hook_keeps_an_unrepairable_write_visible(extension, tmp_path):
     path = tmp_path / "core.clj"
     path.write_text("(a)\n")
-    before, after = extension.op_hooks[1:]
+    before, after = extension.op_hooks
     call = {"op": "python_execution", "args": [], "result": {}}
     before.fn(call)
     path.write_text("(a]\n")
