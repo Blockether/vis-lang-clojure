@@ -933,8 +933,8 @@ def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch, tmp_path):
     runpy.run_path(str(Path(__file__).resolve().parents[1] / "extension.py"))
     extension = registered[0]
     assert [(tuple(hook.ops), hook.phase) for hook in extension.op_hooks] == [
-        (("python_execution",), "before"),
-        (("python_execution",), "after"),
+        (("py3",), "before"),
+        (("py3",), "after"),
     ]
     assert callable(extension.ctx)
     guard = getattr(extension.ctx, "__self__")
@@ -944,7 +944,7 @@ def test_the_entrypoint_guards_patches_and_python_writes(monkeypatch, tmp_path):
     )
     assert not guard.covers("src/a.py")
     before, after = extension.op_hooks
-    block = {"op": "python_execution", "args": [], "result": {}}
+    block = {"op": "py3", "args": [], "result": {}}
     before.fn(block)
     path.write_text("(a]\n")
     after.fn(block)

@@ -111,7 +111,7 @@ def test_hook_repairs_a_file_only_after_the_block(extension, tmp_path):
     path = tmp_path / "core.clj"
     path.write_text("(a)\n")
     before, after = extension.op_hooks
-    call = {"op": "python_execution", "args": [{"code": "pass"}], "result": {}}
+    call = {"op": "py3", "args": [{"code": "pass"}], "result": {}}
     before.fn(call)
     path.write_text("(b\n")
     assert path.read_text() == "(b\n"
@@ -126,7 +126,7 @@ def test_hook_keeps_an_unrepairable_write_visible(extension, tmp_path):
     path = tmp_path / "core.clj"
     path.write_text("(a)\n")
     before, after = extension.op_hooks
-    call = {"op": "python_execution", "args": [], "result": {}}
+    call = {"op": "py3", "args": [], "result": {}}
     before.fn(call)
     path.write_text("(a]\n")
     after.fn(call)
