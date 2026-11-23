@@ -28,6 +28,7 @@ outermost syntax-quote and gives no verdict, where a JVM reads for a long time.
 
 import bisect
 import datetime
+import functools
 import itertools
 import math
 import re
@@ -397,6 +398,8 @@ def _match_symbol(text, resolver):
     return None
 
 
+# Tokens repeat; the values that they read as are never changed in place.
+@functools.lru_cache(maxsize=8192)
 def _interpret_token(text, resolver):
     if text == "nil":
         return None
@@ -1112,17 +1115,35 @@ class _Reader:
         return chunk
 
     def read_past(self, pattern, initch):
-        """`readToken` and `readNumber`: read to `pattern`, then push it back."""
+        """`readToken` and `readNumber`: read to `pattern`, then push it back.
+
+        This is `skip_to`, then `self.unread(self.read1())` without the calls.
+        """
         chunk = self.skip_to(pattern)
-        self.unread(self.read1())
+        if self.i < self.n:
+            self.pushed = True
+            if self.s[self.i] == "\n":
+                self.col = 0
+        else:
+            self.eof = True
+            self.col = 1
         return initch + chunk
 
     def nonspace(self):
-        ch = self.read1()
-        if ch in _SPACE:
+        """`read1` after the spaces, in one search."""
+        i = self.i
+        m = _NOT_SPACE.search(self.s, i)
+        if m is None:
             self.skip_to(_NOT_SPACE)
-            ch = self.read1()
-        return ch
+            return self.read1()
+        j = m.start()
+        if j != i:
+            last = self.s.rfind("\n", i, j)
+            self.col = self.col + (j - i) if last < 0 else j - last
+        self.i = j + 1
+        self.pushed = False
+        self.col += 1
+        return self.s[j]
 
     def read(self, eof_is_error, eof_value, is_recursive, pending):
         return self.read_full(
@@ -1150,7 +1171,7 @@ class _Reader:
                     return eof_value
                 if return_on is not None and ch == return_on:
                     return return_value
-                if _is_digit(ch):
+                if "0" <= ch <= "9" or (ch > "\x7f" and _is_digit(ch)):
                     return self.read_number(ch)
                 macro = _MACRO_TABLE.get(ch)
                 if macro is not None:

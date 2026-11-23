@@ -4,6 +4,7 @@ This engine proposes structural changes. It is not a Clojure reader.
 Positions use zero-based UTF-16 units, as the original engine does.
 """
 
+import re
 from bisect import bisect_right
 from dataclasses import dataclass
 
@@ -26,9 +27,19 @@ STOPS_SYMBOL = JAVA_SPACE + "[]{}()'\"`,;\\"
 CLOSERS = {"(": ")", "[": "]", "{": "}", "#": "}"}
 
 
+_ASTRAL = re.compile("[\U00010000-\U0010ffff]")
+
+
 def _units(source):
-    data = source.encode("utf-16-le", "surrogatepass")
-    return "".join(chr(data[i] | data[i + 1] << 8) for i in range(0, len(data), 2))
+    # Below U+10000 a character is one UTF-16 unit already.
+    if source.isascii():
+        return source
+    return _ASTRAL.sub(_surrogates, source)
+
+
+def _surrogates(match):
+    code = ord(match.group()) - 0x10000
+    return chr(0xD800 | code >> 10) + chr(0xDC00 | code & 0x3FF)
 
 
 def _text(units):
