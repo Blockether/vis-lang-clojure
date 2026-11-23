@@ -35,6 +35,15 @@ HOME = "jail"
 PREAMBLE_NAME = "jvm-preamble.sh"
 """The shell preamble, written next to the home it prepares."""
 
+JAVA_LAUNCHER = """#!/bin/sh
+if [ -n "${VIS_SESSION_TMPDIR:-}" ]; then
+  set -- "-Djava.io.tmpdir=$VIS_SESSION_TMPDIR" "$@"
+fi
+exec "$VIS_LANG_CLOJURE_REAL_JAVA" "$@"
+"""
+"""Pass the scratch path as one argument to Java."""
+
+
 TRUST_NAME = "VisTrust.java"
 """Source of the helper that turns a certificate bundle into a trust store."""
 
@@ -52,6 +61,15 @@ PREAMBLE = """#!/bin/sh
 set -u
 
 home=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+# The Clojure CLI uses JAVA_CMD for classpath resolution and for the main JVM.
+# The npm shadow-cljs launcher calls java on PATH instead.
+if [ -n "${VIS_SESSION_TMPDIR:-}" ]; then
+  VIS_LANG_CLOJURE_REAL_JAVA=${JAVA_CMD:-$(command -v java)}
+  JAVA_CMD=$home/bin/java
+  PATH=$home/bin:$PATH
+  export VIS_LANG_CLOJURE_REAL_JAVA JAVA_CMD PATH
+fi
 url=${https_proxy:-${HTTPS_PROXY:-${http_proxy:-${HTTP_PROXY:-}}}}
 
 if [ -z "$url" ]; then
@@ -238,6 +256,10 @@ def preamble(boot):
         .replace("__PASSWORD__", TRUST_PASSWORD)
         .replace("__REPOSITORY__", REPOSITORY_VARIABLE),
     )
+    binaries = os.path.join(home, "bin")
+    os.makedirs(binaries, exist_ok=True)
+    java = _written(os.path.join(binaries, "java"), JAVA_LAUNCHER)
+    os.chmod(java, 0o700)
     os.chmod(script, 0o700)
     return script
 

@@ -169,6 +169,12 @@ def shared_paths():
     return (maven_repository(), git_libraries())
 
 
+def session_scratch():
+    """The session scratch directory, if Vis supplies one for this call."""
+    name = "VIS_SESSION_TMPDIR"
+    return vis.call_env().get(name, os.environ.get(name))
+
+
 def boot_environment(boot):
     """Everything the Clojure CLI writes while it resolves.
 
@@ -190,6 +196,8 @@ def boot_environment(boot):
         "GITLIBS": git_libraries(),
         jail.REPOSITORY_VARIABLE: maven_repository(),
     }
+    if scratch := session_scratch():
+        environment.update(VIS_SESSION_TMPDIR=scratch, TMPDIR=scratch)
     # The Clojure CLI and each REPL and test run that it starts use the same JDK.
     try:
         environment["JAVA_CMD"] = java_command()
@@ -466,9 +474,12 @@ def boot_command():
     override = os.environ.get("VIS_LANG_CLOJURE_COMMAND", "").strip()
     if override:
         return jail.prepared(tuple(shlex.split(override)), boot)
+    scratch = session_scratch()
+    temp_option = (f"-Djava.io.tmpdir={scratch}",) if scratch else ()
     return jail.prepared(
         (
             java_command(),
+            *temp_option,
             "-cp",
             library_classpath(),
             "-Dclojure.main.report=stderr",

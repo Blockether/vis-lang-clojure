@@ -147,7 +147,13 @@ def test_a_late_answer_is_not_mistaken_for_the_next_one(fake):
 
 
 def clojure_shim(
-    tmp_path, monkeypatch, *, classpath="/jars/library.jar", code=0, says=""
+    tmp_path,
+    monkeypatch,
+    *,
+    classpath="/jars/library.jar",
+    code=0,
+    says="",
+    start_java=False,
 ):
     """Put a `clojure` on PATH that records where it ran, and answer its record.
 
@@ -161,8 +167,14 @@ def clojure_shim(
     shim = binaries / "clojure"
     shim.write_text(
         f"#!{sys.executable}\n"
-        "import json, os, sys\n"
-        f"with open({str(record)!r}, 'a') as handle:\n"
+        "import json, os, subprocess, sys\n"
+        + (
+            "subprocess.run([os.environ['JAVA_CMD'], 'resolver'], check=True)\n"
+            "subprocess.run(['java', 'child'], check=True)\n"
+            if start_java
+            else ""
+        )
+        + f"with open({str(record)!r}, 'a') as handle:\n"
         "    handle.write(json.dumps({'cwd': os.getcwd(), 'argv': sys.argv[1:], 'env': {name: os.environ.get(name) for name in ('CLJ_CONFIG', 'CLJ_CACHE', 'GITLIBS', 'VIS_LANG_CLOJURE_MAVEN_REPO')}}) + chr(10))\n"
         f"sys.stderr.write({says!r})\n"
         f"sys.stdout.write({classpath!r} + chr(10))\n"
@@ -183,19 +195,26 @@ def resolutions(record):
     return [json.loads(line) for line in record.read_text().splitlines()]
 
 
+@pytest.mark.parametrize("has_scratch", [False, True])
 def test_the_default_command_runs_the_library_on_its_own_classpath(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, has_scratch
 ):
     monkeypatch.setenv("VIS_HOME", str(tmp_path / "vis-home"))
     monkeypatch.delenv("VIS_LANG_CLOJURE_COMMAND", raising=False)
     monkeypatch.setattr(bridge, "java_command", lambda: "/jdk/bin/java")
     monkeypatch.setattr(bridge, "library_classpath", lambda: "/jars/library.jar")
+    scratch = tmp_path / "session scratch"
+    if has_scratch:
+        monkeypatch.setenv("VIS_SESSION_TMPDIR", str(scratch))
+    else:
+        monkeypatch.delenv("VIS_SESSION_TMPDIR", raising=False)
     command = bridge.boot_command()
     # Confined or not, the JVM starts behind the preamble: only the sandbox
     # knows whether its proxy needs preparing, and only from inside it.
     assert command[1] == jail.preamble(bridge.boot_directory())
     assert command[2:] == (
         "/jdk/bin/java",
+        *((f"-Djava.io.tmpdir={scratch}",) if has_scratch else ()),
         "-cp",
         "/jars/library.jar",
         "-Dclojure.main.report=stderr",
@@ -226,6 +245,34 @@ def test_the_classpath_is_resolved_outside_the_project(tmp_path, monkeypatch):
     assert "-Spath" in ran["argv"]
     assert f'{{:mvn/version "{bridge.LIBRARY_VERSION}"}}' in " ".join(ran["argv"])
     assert not (project / ".cpcache").exists()
+
+
+@pytest.mark.parametrize("has_scratch", [False, True])
+def test_the_cli_and_its_child_java_use_session_scratch(
+    tmp_path, monkeypatch, has_scratch
+):
+    clojure_shim(tmp_path, monkeypatch, start_java=True)
+    java_log = tmp_path / "java.jsonl"
+    java = tmp_path / "bin" / "java"
+    java.write_text(
+        f"#!{sys.executable}\n"
+        "import json, sys\n"
+        f"with open({str(java_log)!r}, 'a') as output:\n"
+        "    output.write(json.dumps(sys.argv[1:]) + chr(10))\n",
+    )
+    java.chmod(0o755)
+    monkeypatch.setenv("JAVA_CMD", str(java))
+    scratch = tmp_path / "session scratch"
+    scratch.mkdir()
+    monkeypatch.setenv("TMPDIR", str(scratch))
+    monkeypatch.delenv("VIS_SESSION_TMPDIR", raising=False)
+    call_env = {"VIS_SESSION_TMPDIR": str(scratch), "TMPDIR": str(scratch)}
+    monkeypatch.setattr(bridge.vis, "call_env", lambda: call_env if has_scratch else {})
+
+    assert bridge.library_classpath() == "/jars/library.jar"
+
+    args = [f"-Djava.io.tmpdir={scratch}"] if has_scratch else []
+    assert resolutions(java_log) == [[*args, "resolver"], [*args, "child"]]
 
 
 def test_the_classpath_is_resolved_once(tmp_path, monkeypatch):
