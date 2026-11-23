@@ -1058,21 +1058,31 @@ def _read_uuid(form):
 class _Reader:
     """`LispReader` over a `LineNumberingPushbackReader` of UTF-16 code units."""
 
-    def __init__(self, units):
+    def __init__(self, units, newlines=None, astral=None):
         self.s = units
         self.n = len(units)
         self.i = 0
         self.pushed = False
         self.col = 1
         self.eof = False
-        self.newlines = [m.start() for m in _NEWLINE.finditer(units)]
+        if newlines is None:
+            newlines = [m.start() for m in _NEWLINE.finditer(units)]
+        self.newlines = newlines
         self.ends_open = bool(units) and units[-1] != "\n"
-        self.astral = _SURROGATE.search(units) is not None
+        if astral is None:
+            astral = _SURROGATE.search(units) is not None
+        self.astral = astral
         self.arg_env = None
         self.gensyms = None
         self.quote_steps = 0
         self.suppress = False
         self.ids = itertools.count(1)
+
+    def next_id(self):
+        """The id that the next gensym takes, without taking it."""
+        value = next(self.ids)
+        self.ids = itertools.count(value)
+        return value
 
     def line(self):
         # A pushed-back newline was already counted; end of input ends a last line.
@@ -1727,14 +1737,6 @@ _DISPATCH_TABLE = {
 }
 
 
-def _java_lines(text):
-    parts = _LINE_BREAKS.split(text)
-    if len(parts) > 1:
-        while parts and not parts[-1]:
-            parts.pop()
-    return parts
-
-
 def _message(thrown):
     said = thrown.message or ""
     if all(char in _JAVA_SPACE for char in said):
@@ -1756,6 +1758,24 @@ _QUOTE_BUDGET = 100_000
 _CHECK_LOCK = threading.Lock()
 
 
+@dataclass(frozen=True)
+class Checked:
+    """One source as `check` read it, to read a later version of it faster.
+
+    `marks` holds the reader state where each top-level read began, as
+    `(index, column, pushed, next_id)`. `newlines` holds the index of each
+    newline unit and `astral` tells that a unit is a surrogate. `is_clean`
+    tells that the source read to its end.
+    """
+
+    units: str
+    newlines: tuple
+    astral: bool
+    marks: tuple
+    is_clean: bool
+    problem: Problem | None
+
+
 def problem(source):
     """Where `source` stops reading as Clojure, or None when it reads to the end.
 
@@ -1765,35 +1785,155 @@ def problem(source):
     that expands past `_QUOTE_BUDGET` steps, answers None: there is no verdict to
     report.
     """
+    return check(source).problem
+
+
+def check(source, previous=None):
+    """`problem` for `source`, as a `Checked` that a later call takes as `previous`.
+
+    With `previous`, the top-level forms before the first changed unit are not
+    read again: the reader starts in the state that it had there. When
+    `previous` read to its end, reading also stops at the first top-level form
+    after the last changed unit that starts in the state it had before, because
+    the rest reads as it did then. Only the changed units are searched for
+    newlines and surrogates. Line, column and message are the same as from a
+    full read.
+    """
     text = str(source)
-    units = _units(text.replace("\r\n", "\n").replace("\r", "\n"))
-    reader = _Reader(units)
+    normal = text.replace("\r\n", "\n").replace("\r", "\n") if "\r" in text else text
+    reader, same, tail = None, 0, 0
+    old_marks = () if previous is None else previous.marks
+    if previous is not None and not previous.astral:
+        old = previous.units
+        same = _same_start(old, normal)
+        if same == len(old) == len(normal):
+            return previous
+        tail = _same_end(old, normal, min(len(old), len(normal)) - same)
+        middle = normal[same : len(normal) - tail]
+        # Below U+10000 the text is its units: only the middle can change that.
+        if len(_units(middle)) == len(middle):
+            shift = len(normal) - len(old)
+            lines = previous.newlines
+            newlines = (
+                lines[: bisect.bisect_left(lines, same)]
+                + tuple(same + m.start() for m in _NEWLINE.finditer(middle))
+                + tuple(
+                    i + shift
+                    for i in lines[bisect.bisect_left(lines, len(old) - tail) :]
+                )
+            )
+            astral = _SURROGATE.search(middle) is not None
+            reader = _Reader(normal, newlines, astral)
+    if reader is None:
+        reader = _Reader(_units(normal))
+        if previous is not None:
+            old = previous.units
+            same = _same_start(old, reader.s)
+            if same == len(old) == reader.n:
+                return previous
+            tail = _same_end(old, reader.s, min(len(old), reader.n) - same)
+    units = reader.s
+    marks, again, shift = [], {}, 0
+    if previous is not None:
+        shift = len(units) - len(previous.units)
+        kept = bisect.bisect_left(previous.marks, (same,))
+        if kept:
+            marks = list(previous.marks[: kept - 1])
+            reader.i, reader.col, reader.pushed, next_id = previous.marks[kept - 1]
+            reader.ids = itertools.count(next_id)
+        if previous.is_clean:
+            unchanged = len(previous.units) - tail
+            again = {
+                mark[0]: at
+                for at, mark in enumerate(previous.marks)
+                if mark[0] >= unchanged
+            }
+
+    def checked(is_clean, found=None):
+        return Checked(
+            units,
+            tuple(reader.newlines),
+            reader.astral,
+            tuple(marks),
+            is_clean,
+            found,
+        )
+
     with _CHECK_LOCK:
         limit, digits = sys.getrecursionlimit(), sys.get_int_max_str_digits()
         sys.setrecursionlimit(limit + _FRAME_BUDGET)
         # A JVM reads an integer of any length.
         sys.set_int_max_str_digits(0)
         try:
-            while (
-                reader.read_full(False, _READ_EOF, None, None, False, None)
-                is not _READ_EOF
-            ):
-                pass
+            while True:
+                mark = (reader.i, reader.col, reader.pushed, reader.next_id())
+                at = again.get(mark[0] - shift)
+                if at is not None and old_marks[at][1:3] == mark[1:3]:
+                    ids = mark[3] - old_marks[at][3]
+                    marks.extend(
+                        (i + shift, column, pushed, next_id + ids)
+                        for i, column, pushed, next_id in old_marks[at:]
+                    )
+                    return checked(True)
+                marks.append(mark)
+                if (
+                    reader.read_full(False, _READ_EOF, None, None, False, None)
+                    is _READ_EOF
+                ):
+                    return checked(True)
         except (RecursionError, _NoVerdict):
-            return None
+            return checked(False)
         except _Thrown as thrown:
             # The outermost read records where it stopped. Without it, report 1:1.
             line = 1 if thrown.line is None else thrown.line
             column = 1 if thrown.column is None else thrown.column
-            lines = _java_lines(text)
-            if lines and line > len(lines):
-                line, column = len(lines), len(_units(lines[-1])) + 1
-            return Problem(line, column, _message(thrown.cause))
+            count, last = _java_last_line(text)
+            if count and line > count:
+                line, column = count, len(_units(last)) + 1
+            return checked(False, Problem(line, column, _message(thrown.cause)))
         finally:
             sys.set_int_max_str_digits(digits)
             if sys.getrecursionlimit() == limit + _FRAME_BUDGET:
                 sys.setrecursionlimit(limit)
-    return None
+
+
+def _java_last_line(text):
+    """`len(_java_lines(text))` and the last of those lines, without a split."""
+    if "\n" not in text:
+        return 1, text
+    end = len(text)
+    while end and text[end - 1] == "\n":
+        end -= 1
+        if end and text[end - 1] == "\r":
+            end -= 1
+    if not end:
+        return 0, ""
+    return text.count("\n", 0, end) + 1, text[text.rfind("\n", 0, end) + 1 : end]
+
+
+def _same_start(a, b):
+    """How many units `a` and `b` share at their start."""
+    low, high = 0, min(len(a), len(b))
+    # Each step compares half of what is left, so all steps copy one length.
+    while low < high:
+        middle = (low + high + 1) // 2
+        if a[low:middle] == b[low:middle]:
+            low = middle
+        else:
+            high = middle - 1
+    return low
+
+
+def _same_end(a, b, most):
+    """How many units, at most `most`, `a` and `b` share at their end."""
+    low, high = 0, most
+    while low < high:
+        middle = (low + high + 1) // 2
+        if a[len(a) - middle : len(a) - low] == b[len(b) - middle : len(b) - low]:
+            low = middle
+        else:
+            high = middle - 1
+    return low
 
 
 def parses_clean(source):

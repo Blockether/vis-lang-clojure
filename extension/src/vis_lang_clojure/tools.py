@@ -9,6 +9,7 @@ The same reader checks the delimiters of code before the REPL evaluates it.
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -37,6 +38,8 @@ from vis_lang_interface import (
 from vis_lang_clojure import bridge, reader, repair
 
 LANGUAGE = "clojure"
+# Most UTF-16 units of earlier reads `_check_syntax` keeps to read changes only.
+MOST_KEPT_UNITS = 64_000_000
 
 MARKERS = (
     "deps.edn",
@@ -94,18 +97,61 @@ def _diagnostic(finding):
     )
 
 
+class _Reads:
+    """The last reads of each file, so that the next check reads only its changes.
+
+    For each file it keeps the last read and, when that one stopped early, the
+    last read to the end too. A fix usually brings a file back near its last
+    clean version, so a check after a fix starts from that one.
+    """
+
+    def __init__(self, most_units):
+        self.most_units = most_units
+        self.units = 0
+        self.reads = {}
+        self.lock = threading.Lock()
+
+    def check(self, key, text):
+        """`reader.check` of `text`, from the last read of `key` that fits best."""
+        with self.lock:
+            kept = self.reads.get(key, ())
+        previous = next((read for read in reversed(kept) if read.is_clean), None)
+        checked = reader.check(text, previous or (kept[-1] if kept else None))
+        clean = checked if checked.is_clean else previous
+        with self.lock:
+            # The oldest file goes first. Another thread can have kept one too.
+            self._drop(key)
+            self.reads[key] = (
+                (clean, checked)
+                if clean is not None and clean is not checked
+                else (checked,)
+            )
+            self.units += sum(len(read.units) for read in self.reads[key])
+            while self.units > self.most_units and self.reads:
+                self._drop(next(iter(self.reads)))
+        return checked
+
+    def _drop(self, key):
+        for read in self.reads.pop(key, ()):
+            self.units -= len(read.units)
+
+
+_READS = _Reads(MOST_KEPT_UNITS)
+
+
 def _check_syntax(sources, root):
     """Read each text in `sources` with the Python port of Clojure's reader.
 
     This is the check a `SyntaxGuard` runs. `sources` maps a path, spelled the
     way the result names it, to the text to read. Nothing is read from disk and no
-    JVM starts, so `root` is not used. Each text that does not read gives one error:
-    where the reader stopped, as `reader.problem` reports it.
+    JVM starts. Each text that does not read gives one error: where the reader
+    stopped, as `reader.problem` reports it. A file read before under `root` is
+    read again only from its first changed top-level form.
     """
     texts = {str(path): str(text) for path, text in dict(sources).items()}
     problems = []
     for path in sorted(texts):
-        found = reader.problem(texts[path])
+        found = _READS.check((str(root), path), texts[path]).problem
         if found is not None:
             problems.append(
                 Diagnostic(path, found.line, found.column, "error", found.message)

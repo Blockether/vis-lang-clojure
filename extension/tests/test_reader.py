@@ -144,3 +144,34 @@ def test_checks_from_many_threads_at_once():
     for thread in threads:
         thread.join()
     assert results == {n: expected for n in range(8)}
+
+
+# Clean top-level forms before and after the changed text, which starts and
+# ends in the middle of a line.
+AROUND = (
+    '(ns a.b) (def h "x;y")\n(defn f [x]\n  {:a x}) ',
+    " (def g #(+ % 1)) 2\n(def k 2)\n",
+)
+
+
+def states(checked):
+    """Where each top-level read began: index, column and a pushed-back unit."""
+    return [mark[:3] for mark in checked.marks]
+
+
+def test_a_check_after_an_edit_gives_the_verdict_of_a_full_read():
+    # The check reads again only from the first changed form and stops where the
+    # rest reads as before. It must still give the line, column and message of a
+    # full read, also when the change opens a string or a form that runs to the
+    # end, and leave the state that a full read leaves for the next check.
+    head, rest = AROUND
+    clean = reader.check(head + rest)
+    for case in READER_CASES:
+        changed = head + case["source"] + rest
+        full = reader.check(changed)
+        after_edit = reader.check(changed, clean)
+        assert after_edit.problem == full.problem, case["source"]
+        assert states(after_edit) == states(full), case["source"]
+        undone = reader.check(head + rest, after_edit)
+        assert undone.problem is None, case["source"]
+        assert states(undone) == states(clean), case["source"]
