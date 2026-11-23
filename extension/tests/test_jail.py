@@ -21,6 +21,7 @@ def preamble_run(script, arguments, **environment):
         capture_output=True,
         text=True,
         env={"PATH": os.environ.get("PATH", ""), **environment},
+        timeout=10,
         check=False,
     )
 
@@ -48,6 +49,39 @@ def test_without_a_proxy_nothing_is_prepared(tmp_path):
     script = jail.preamble(str(tmp_path))
     assert options(script) == ""
     assert not (Path(tmp_path) / jail.HOME / ".m2" / "settings.xml").exists()
+
+
+@pytest.mark.parametrize("bad_target", [False, True])
+def test_nested_preamble_launches_java_with_session_scratch(tmp_path, bad_target):
+    script = jail.preamble(str(tmp_path))
+    java = tmp_path / "real binaries" / "java"
+    java.parent.mkdir()
+    java.write_text('#!/bin/sh\nprintf "%s\\n" "$@" "$PATH"\n')
+    java.chmod(0o700)
+    scratch = tmp_path / "session scratch"
+    scratch.mkdir()
+
+    nested = ["/bin/sh", script, "java", "-version"]
+    if bad_target:
+        nested = [
+            "/bin/sh",
+            "-c",
+            'VIS_LANG_CLOJURE_REAL_JAVA="$JAVA_CMD" exec "$@"',
+            "sh",
+            *nested,
+        ]
+    done = preamble_run(
+        script,
+        nested,
+        JAVA_CMD=str(java),
+        PATH=os.pathsep.join((str(java.parent), os.environ.get("PATH", ""))),
+        VIS_SESSION_TMPDIR=str(scratch),
+    )
+
+    assert done.returncode == 0, done.stderr
+    option, argument, path = done.stdout.splitlines()
+    assert (option, argument) == (f"-Djava.io.tmpdir={scratch}", "-version")
+    assert path.split(os.pathsep).count(str(Path(script).parent.resolve() / "bin")) == 1
 
 
 def test_a_proxy_reaches_the_jvm_as_system_properties(tmp_path):

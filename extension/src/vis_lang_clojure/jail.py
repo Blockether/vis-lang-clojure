@@ -65,9 +65,34 @@ home=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 # The Clojure CLI uses JAVA_CMD for classpath resolution and for the main JVM.
 # The npm shadow-cljs launcher calls java on PATH instead.
 if [ -n "${VIS_SESSION_TMPDIR:-}" ]; then
-  VIS_LANG_CLOJURE_REAL_JAVA=${JAVA_CMD:-$(command -v java)}
-  JAVA_CMD=$home/bin/java
-  PATH=$home/bin:$PATH
+  wrapper=$home/bin/java
+  real_java=${VIS_LANG_CLOJURE_REAL_JAVA:-}
+  if [ -z "$real_java" ] || [ "$real_java" -ef "$wrapper" ]; then
+    real_java=$(command -v "${JAVA_CMD:-java}")
+  fi
+  if [ -z "$real_java" ] || [ "$real_java" -ef "$wrapper" ]; then
+    real_java=$(
+      IFS=:
+      set -f
+      for directory in $PATH; do
+        candidate=${directory:-.}/java
+        if [ -x "$candidate" ] && [ ! "$candidate" -ef "$wrapper" ]; then
+          printf '%s\\n' "$candidate"
+          break
+        fi
+      done
+    )
+  fi
+  if [ -z "$real_java" ]; then
+    echo "vis-lang-clojure: could not find the Java executable" >&2
+    exit 127
+  fi
+  VIS_LANG_CLOJURE_REAL_JAVA=$real_java
+  JAVA_CMD=$wrapper
+  case ":$PATH:" in
+    *":$home/bin:"*) ;;
+    *) PATH=$home/bin:$PATH ;;
+  esac
   export VIS_LANG_CLOJURE_REAL_JAVA JAVA_CMD PATH
 fi
 url=${https_proxy:-${HTTPS_PROXY:-${http_proxy:-${HTTP_PROXY:-}}}}
