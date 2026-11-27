@@ -8,7 +8,7 @@ import pytest
 from vis_lang_interface import Diagnostic
 
 from vis_lang_clojure import bridge
-from vis_lang_clojure.tools import _check_syntax
+from vis_lang_clojure.tools import ClojureTools, _check_syntax
 
 
 def test_formatting_a_source_string_returns_the_formatted_text(tools):
@@ -94,11 +94,39 @@ def test_formatting_a_formatted_tree_writes_nothing(tools):
     assert (result.changed, result.is_written) == ((), False)
 
 
-def test_formatting_nothing_checks_the_whole_project(tools):
+@pytest.mark.parametrize("write", [False, True])
+def test_formatting_requires_a_target(tools, write):
     clj, fake = tools
+    with pytest.raises(ValueError, match="paths or source"):
+        clj.format_code(cwd=fake.cwd, is_written=write)
+
+
+def test_formatting_refuses_two_targets_or_writing_a_snippet(tools):
+    clj, fake = tools
+    with pytest.raises(ValueError, match="paths or source"):
+        clj.format_code(["src"], source="(a)", cwd=fake.cwd)
+    with pytest.raises(ValueError, match="is_written.*paths"):
+        clj.format_code(source="(a)", cwd=fake.cwd, is_written=True)
+
+
+def test_formatting_empty_source_does_not_search_for_files(tools):
+    clj, fake = tools
+    fake.answer("format", {"text": "", "changed": False})
+    assert clj.format_code(source="", cwd=fake.cwd).source == ""
+    assert fake.sent("format")["arg"] == {"code": ""}
+
+
+def test_formatting_resolves_paths_before_choosing_the_nested_project(tools, tmp_path):
+    _, fake = tools
+    root = tmp_path / "nested"
+    root.mkdir()
+    (root / "deps.edn").write_text("{}")
+    (root / "a.clj").write_text("(a)")
     fake.answer("format", {"files": [], "changed": 0})
-    assert clj.format_code(cwd=fake.cwd).changed == ()
-    assert fake.sent("format")["arg"] == {"write": False}
+    ClojureTools(workspace_root=lambda: tmp_path).format_code(["nested/a.clj"])
+    request = fake.sent("format")
+    assert request["root"] == str(root)
+    assert Path(request["root"], request["arg"]["paths"][0]) == root / "a.clj"
 
 
 def test_lint_findings_become_diagnostics(tools):

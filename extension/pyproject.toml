@@ -1,12 +1,12 @@
 [project]
 name = "vis-lang-clojure"
-version = "1.20.26"
+version = "1.20.27"
 description = "Clojure tools for Vis: zprint and cljfmt formatting, clj-kondo lint, reader syntax checks, test runs and an nREPL."
 keywords = ["language-tools", "development"]
 requires-python = ">=3.12"
 dependencies = [
   "vis-agent>=0.5.30",
-  "vis-lang-interface @ git+https://github.com/Blockether/vis-lang-interface@v4.2.2",
+  "vis-lang-interface @ git+https://github.com/Blockether/vis-lang-interface@v4.2.3",
 ]
 
 [tool.vis]

@@ -129,7 +129,8 @@ PROMPT = prompt.routing(
         " and Clofidence. Its result's `coverage` lists each file's gaps: the code and branches"
         " that never ran. It writes `target/coverage/clofidence.json`, which `graphify crap` reads.",
         "`clj.lint_code` runs clj-kondo and also reports compiler reflection warnings as failures.",
-        "`clj.format_code` changes layout only and writes files only with `is_written=True`.",
+        "`clj.format_code` requires paths or source. It changes layout only and writes files"
+        " only with `is_written=True`.",
     ),
     tools=ClojureTools,
 )
@@ -158,7 +159,7 @@ vis.register_extension(
     vis.Extension(
         name="vis-lang-clojure",
         description="Clojure tools: zprint and cljfmt formatting, clj-kondo lint, reader syntax checks, test runs and an nREPL.",
-        version="1.20.26",
+        version="1.20.27",
         alias="clj",
         symbols=[
             vis.Symbol(ClojureTools(workspace_root=vis.workspace_root), name="clj")

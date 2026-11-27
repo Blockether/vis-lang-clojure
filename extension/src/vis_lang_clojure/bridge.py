@@ -44,11 +44,11 @@ from vis_lang_interface import (
     runtime,
     tool_path,
 )
-from vis_lang_interface.process import shell_call
+from vis_lang_interface.process import attach_shell
 
 from vis_lang_clojure import jail
 
-LIBRARY_VERSION = "1.20.26"
+LIBRARY_VERSION = "1.20.27"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"
@@ -684,7 +684,7 @@ def serves(root):
     if live is not None:
         return live.is_running
     try:
-        kept = shell_call()({"op": "logs", "id": shell_id(root), "offset": -1})
+        kept = attach_shell(shell_id(root))
     except Exception:
         return False
     return str(kept.get("status")) == "running"

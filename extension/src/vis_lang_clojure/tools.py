@@ -361,31 +361,44 @@ class ClojureTools:
         )
         return str(result.get("text") or code).rstrip()
 
-    @aliased(**PATH_ALIASES, code="source", write="is_written", written="is_written")
     def format_code(
         self,
         paths: Annotated[Sequence[str], "Files or directories to format."] = (),
         *,
-        source: Annotated[str, "Format this text instead of files."] = "",
-        cwd: Annotated[str, "Project directory; inferred from paths when empty."] = "",
+        source: Annotated[str | None, "Format this text instead of files."] = None,
+        cwd: Annotated[
+            str, "Base directory for paths; defaults to the workspace."
+        ] = "",
         is_written: Annotated[bool, "Rewrite the files that differ."] = False,
     ) -> FormatResult:
         """Format Clojure with zprint, or cljfmt when the project has no zprint config.
 
-        This changes layout only, not syntax. With source, the formatted text
-        comes back and nothing is written. With paths, the result lists the
-        files that differ, and is_written rewrites them. Directories are walked.
-        With neither, the whole project is checked, or formatted with is_written.
+        Give paths or source, not both. With source, no file changes. With paths,
+        the result lists the files that differ, and is_written rewrites them.
+        Give a directory to format the Clojure files in it and its subdirectories.
         """
         paths = string_list(paths)
-        root = self._root(cwd, paths)
-        if source:
+        if bool(paths) == (source is not None):
+            raise ValueError("format_code requires paths or source, not both")
+        if source is not None and is_written:
+            raise ValueError("is_written requires paths")
+        if any(not path.strip() for path in paths):
+            raise ValueError("format_code paths must not be blank")
+        base = (Path(self._workspace_root()) / Path(cwd or ".").expanduser()).resolve()
+        named = [base / Path(path).expanduser() for path in paths]
+        root = self._root(str(base) if cwd or not named else "", named)
+        if source is not None:
             result = bridge.call("format", {"code": source}, root=root)
             text = str(result.get("text") or "")
             added, removed = line_changes(source, text)
             return FormatResult(LANGUAGE, (), (), text, False, added, removed)
-        arg = {"paths": list(paths)} if paths else {}
-        result = bridge.call("format", {**arg, "write": is_written}, root=root)
+        targets = [
+            str(path.relative_to(root)) if path.is_relative_to(root) else str(path)
+            for path in named
+        ]
+        result = bridge.call(
+            "format", {"paths": targets, "write": is_written}, root=root
+        )
         files = result.get("files") or ()
         changed = [one for one in files if one.get("changed")]
         counts = [line_changes(one["before"], one["after"]) for one in changed]

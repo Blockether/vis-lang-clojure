@@ -58,7 +58,33 @@
   (it "reports already-formatted code as unchanged"
       (let [answer (cli/handle (request "format" "arg" {"code" "(defn f [x] (inc x))\n"}))]
         (expect (true? (get answer "ok")))
-        (expect (false? (get-in answer ["result" "changed"]))))))
+        (expect (false? (get-in answer ["result" "changed"])))))
+  (it "only writes the given paths and refuses to infer a target"
+      (let [root
+            (tmp-dir)
+
+            body
+            "(defn f[x]   (inc x))"
+
+            a
+            (io/file root "a.clj")
+
+            b
+            (io/file root "b.clj")]
+
+        (try (spit a body)
+             (spit b body)
+             (let [check (cli/handle (request "format" "root" (str root) "arg" {"write" true}))]
+               (expect (false? (get check "ok")))
+               (expect (= body (slurp a))))
+             (let [answer (cli/handle (request "format"
+                                               "root" (str root)
+                                               "arg" {"paths" ["a.clj"] "write" true}))]
+               (expect (true? (get answer "ok")))
+               (expect (= ["a.clj"] (mapv #(get % "path") (get-in answer ["result" "files"]))))
+               (expect (not= body (slurp a)))
+               (expect (= body (slurp b))))
+             (finally (cleanup root))))))
 
 (defdescribe lint-verb-test
              (it "lints a code string and reports the finding"

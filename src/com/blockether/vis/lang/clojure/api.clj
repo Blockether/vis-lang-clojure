@@ -521,9 +521,6 @@
      - {\"path\": \"src/foo.clj\"}              -> format that file IN PLACE
      - {\"paths\": [\"src\" \"test\" ...]}        -> format those paths IN PLACE; a
          DIRECTORY is walked RECURSIVELY (every .clj/.cljs/.cljc/.cljx/.bb under it)
-     - nothing / {}                         -> format the whole project's source
-         roots (every deps.edn module's :paths + test), skipping build/vendor
-         dirs (target, dist, node_modules, .clj-kondo, .clojure-lsp, .cpcache…)
    A map with `\"write\" false` CHECKS the files instead: the answer is the same,
    but no file is rewritten and every `\"wrote\"` is false. A missing `\"write\"`
    writes. Paths are resolved against the workspace root when relative. Every result
@@ -547,22 +544,23 @@
              (str (if (.isAbsolute f) f (io/file root (str p))))))
 
          has-code?
-         ;; A blank `"code": ""` default must not shadow a real `path`/`paths`
-         ;; (otherwise we'd format an empty snippet instead of the file).
-         (and (map? arg) (not (str/blank? (str (get arg "code")))))
-
-         default?
-         (or (nil? arg) (and (map? arg) (not (seq paths)) (not path) (not has-code?)))
+         (and (map? arg) (string? (get arg "code")))
 
          write?
          (not (and (map? arg) (false? (get arg "write"))))
 
-         batch
-         (cond (seq paths) (expand-clj-source-files root paths)
-               default? (expand-clj-source-files root (discover-project-source-paths root)))]
+         bad-paths?
+         (and (some? paths)
+              (not (and (sequential? paths)
+                        (every? #(and (string? %) (not (str/blank? %))) paths))))]
 
-     (if batch
-       (let [files (mapv #(clj-format-one-file! env write? %) batch)]
+     (when (or bad-paths?
+               (> (count (filter identity [has-code? path (seq paths)])) 1)
+               (and has-code? (true? (get arg "write"))))
+       (throw (ex-info "format takes one target; write requires a file target"
+                       {:type :clj/bad-args})))
+     (if (seq paths)
+       (let [files (mapv #(clj-format-one-file! env write? %) (expand-clj-source-files root paths))]
          (host/success {:result {"op" "clj-format"
                                  "files" files
                                  "changed" (count (filter #(get % "changed") files))
@@ -577,12 +575,12 @@
             :else
             (throw
               (ex-info
-                "format expects a code string, {\"code\": ...}, {\"path\": ...}, {\"paths\": [...]}, or {} for the whole project"
+                "format expects a code string, {\"code\": ...}, {\"path\": ...}, {\"paths\": [...]}"
                 {:type :clj/bad-args
                  :got arg
                  :examples ["clj.format_code(source=\"(defn f [x]\\n(* x 2))\")"
                             "clj.format_code(source=\"...\")" "clj.format_code([\"src/foo.clj\"])"
-                            "clj.format_code([\"src\", \"test\"])" "clj.format_code()"]})))
+                            "clj.format_code([\"src\", \"test\"])"]})))
 
           for-path
           (or path (:workspace/root env))

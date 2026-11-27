@@ -50,6 +50,28 @@ def test_a_process_outlives_a_sandbox_restart(fake):
     assert bridge.serves(fake.cwd) is False
 
 
+def test_a_kept_process_is_found_with_strict_shell_attach(fake, monkeypatch):
+    first = bridge.process_for(fake.cwd)
+    bridge.detach_all()
+
+    def attach(options=None, **keywords):
+        # The current interface pin sends a map. The next pin sends keywords.
+        assert (options or keywords) == {
+            "op": "attach",
+            "id": bridge.shell_id(fake.cwd),
+        }
+        return first.live.shell
+
+    try:
+        with monkeypatch.context() as patched:
+            patched.setattr(vis, "ShellFuture", object(), raising=False)
+            patched.setattr(vis, "shell", attach)
+            assert bridge.serves(fake.cwd)
+    finally:
+        bridge.process_for(fake.cwd)
+        bridge.stop(fake.cwd)
+
+
 def test_a_refusal_carries_the_message_and_the_hint(fake):
     fake.script(
         {
