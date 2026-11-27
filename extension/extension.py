@@ -120,17 +120,11 @@ PROMPT = prompt.routing(
         "repl_stop",
     ),
     notes=(
-        "`clj.repl_eval` needs a REPL from `clj.repl_start`, or an nREPL elsewhere that"
-        " `clj.repl_connect` attached.",
-        "If this session's REPL is live, `clj.run_tests` uses the code that REPL loaded; else it"
-        " starts a clean JVM. With a live REPL, first reload changed namespaces with"
-        " `(require ... :reload)` or stop the REPL.",
-        "`clj.run_tests(coverage=True)` runs Lazytest tests in a clean JVM under ClojureStorm"
-        " and Clofidence. Its result's `coverage` lists each file's gaps: the code and branches"
-        " that never ran. It writes `target/coverage/clofidence.json`, which `graphify crap` reads.",
-        "`clj.lint_code` runs clj-kondo and also reports compiler reflection warnings as failures.",
-        "`clj.format_code` requires paths or source. It changes layout only and writes files"
-        " only with `is_written=True`.",
+        "`clj.repl_eval` needs a REPL from `clj.repl_start` or `clj.repl_connect`.",
+        "`clj.run_tests` uses the code that a live REPL loaded: first reload changed namespaces"
+        " with `(require ... :reload)`, or stop the REPL. `coverage=True` adds each file's gaps.",
+        "`clj.lint_code` also reports reflection warnings. `clj.format_code` writes files only"
+        " with `is_written=True`.",
     ),
     tools=ClojureTools,
 )
@@ -159,7 +153,7 @@ vis.register_extension(
     vis.Extension(
         name="vis-lang-clojure",
         description="Clojure tools: zprint and cljfmt formatting, clj-kondo lint, reader syntax checks, test runs and an nREPL.",
-        version="1.20.27",
+        version="1.20.28",
         alias="clj",
         symbols=[
             vis.Symbol(ClojureTools(workspace_root=vis.workspace_root), name="clj")
