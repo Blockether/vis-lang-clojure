@@ -48,7 +48,7 @@ from vis_lang_interface.process import attach_shell
 
 from vis_lang_clojure import jail
 
-LIBRARY_VERSION = "1.20.29"
+LIBRARY_VERSION = "1.20.30"
 """Release of `com.blockether/vis-lang-clojure` this glue speaks to."""
 
 MAIN = "com.blockether.vis.lang.clojure.cli"
